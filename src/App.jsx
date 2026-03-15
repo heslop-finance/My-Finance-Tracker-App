@@ -3,9 +3,9 @@ import{useState,useMemo,useRef,useEffect}from"react";
 const C={bg:"#0a0f1e",card:"#0f172a",border:"#1e293b",green:"#6ee7b7",red:"#fb7185",amber:"#fbbf24",purple:"#a78bfa",cyan:"#06b6d4",t1:"#f1f5f9",t2:"#94a3b8",t3:"#64748b",t4:"#475569",t5:"#334155",inc:"rgba(110,231,183,.08)",exp:"rgba(251,113,133,.08)",incDk:"#0d2420",expDk:"#1f0d12"};
 const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Other Income"];
-const EXPENSE_CATS=["Mortgage/Rent","Utilities","Food","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Savings Goal","Investments","Other"];
+const EXPENSE_CATS=["Mortgage","Utilities","Food","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Savings Goal","Investments","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
-const CAT_COLORS={"Mortgage/Rent":"#fb7185","Utilities":"#fbbf24","Food":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Utilities":"#fbbf24","Food":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Other Income":"#f472b6"};
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -78,7 +78,7 @@ return schedule;
 
 const CSS=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600;700&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} input,select,textarea{outline:none;} .fi,.fi-16{font-size:16px;} input[type="date"]{-webkit-appearance:none;appearance:none;max-width:100%;min-width:0;} input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.5);} input[type="range"]{accent-color:#6ee7b7;} .hscroll{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:12px;padding-bottom:8px;scrollbar-width:none;} .hscroll::-webkit-scrollbar{display:none;} .hscroll>*{flex-shrink:0;} .card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:20px;margin-bottom:20px;} .fi{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#f1f5f9;font-family:'DM Sans',sans-serif;font-size:16px;width:100%;box-sizing:border-box;} .fi:focus{border-color:#6ee7b7;} .tab-btn{background:none;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .2s;white-space:nowrap;color:#64748b;} .tab-btn.active{background:#1e293b;color:#f1f5f9;} .period-btn{border:1px solid #1e293b;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:#64748b;background:none;white-space:nowrap;} .period-btn.active{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;} .add-btn{background:linear-gradient(135deg,#6ee7b7,#3b82f6);border:none;border-radius:10px;padding:13px 28px;color:#0a0f1e;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;} .tt{display:flex;background:#1e293b;border-radius:10px;padding:4px;gap:4px;} .tb{flex:1;border:none;border-radius:7px;padding:9px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;} .tb.inc{background:rgba(110,231,183,.2);color:#6ee7b7;} .tb.exp{background:rgba(251,113,133,.2);color:#fb7185;} .tb.off{background:transparent;color:#475569;} .rb{border:1px solid #1e293b;cursor:pointer;padding:7px 10px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:#64748b;background:none;white-space:nowrap;} .rb.on{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;} .rb.oo{background:rgba(251,191,36,.1);border-color:#fbbf24;color:#fbbf24;} .cc{background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;} .cc.active{background:rgba(110,231,183,.07);border-color:#6ee7b7;}`;
 
-const Mono=({children,color,size=14})=><span style={{fontFamily:F.mono,fontSize:size,fontWeight:700,color}}>{children}</span>;
+const Mono=({children,color,size=14})=><span style={{fontFamily:F.sans,fontSize:size,fontWeight:700,color,letterSpacing:"-0.02em"}}>{children}</span>;
 const Label=({children,color=C.t3,size=11,mb=4})=><div style={{fontSize:size,color,marginBottom:mb,textTransform:"uppercase",letterSpacing:".07em",fontWeight:700}}>{children}</div>;
 const Row=({children,mb=0})=><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:mb}}>{children}</div>;
 const Btn=({children,onClick,bg="#1e293b",border="#334155",color=C.t2,style={}})=>(
@@ -169,7 +169,7 @@ return(
 <div className="card">
 <Row mb={12}>
 <div style={{fontSize:12,fontWeight:700,color:C.t2}}>{isYearly?"Monthly":"Daily"} Expenses</div>
-<div style={{fontFamily:F.mono,fontSize:18,fontWeight:700,color:C.red}}>{fmt(bars.reduce((s,b)=>s+b.val,0))}</div>
+<div style={{fontFamily:F.sans,fontSize:18,fontWeight:700,color:C.red,letterSpacing:"-0.02em"}}>{fmt(bars.reduce((s,b)=>s+b.val,0))}</div>
 </Row>
 <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
 {toggles.map(t=><button key={t.label} onClick={()=>t.set(v=>!v)} className={`rb ${t.active?"on":""}`}>{t.label}</button>)}
@@ -264,8 +264,8 @@ datesInRange(from,to).forEach(d=>{inc+=dailyTotal(entries,d,"income");exp+=daily
 return(
 <div key={m} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px 10px"}}>
 <div style={{fontSize:11,fontWeight:700,color:C.t3,marginBottom:4}}>{MON_SHORT[m]}</div>
-{inc>0&&<div style={{fontSize:11,fontFamily:F.mono,color:C.green}}>+{fmtS(inc)}</div>}
-{exp>0&&<div style={{fontSize:11,fontFamily:F.mono,color:C.red}}>−{fmtS(exp)}</div>}
+{inc>0&&<div style={{fontSize:11,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.green}}>+{fmtS(inc)}</div>}
+{exp>0&&<div style={{fontSize:11,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.red}}>−{fmtS(exp)}</div>}
 {!inc&&!exp&&<div style={{fontSize:10,color:C.t5}}>—</div>}
 </div>
 );
@@ -311,8 +311,8 @@ style={{background:isSel?"rgba(110,231,183,.18)":isToday?"rgba(110,231,183,.08)"
 <div style={{fontSize:10,fontWeight:isToday||isSel?700:500,color:isSel||isToday?C.green:C.t3,textAlign:"center",marginBottom:2}}>
 {day}{isToday&&<span style={{display:"inline-block",width:4,height:4,borderRadius:"50%",background:C.green,marginLeft:2,verticalAlign:"middle"}}/>}
 </div>
-{inc>0&&<div style={{fontSize:9,fontFamily:F.mono,color:C.green,textAlign:"center"}}>+{fmtS(inc)}</div>}
-{exp>0&&<div style={{fontSize:9,fontFamily:F.mono,color:C.red,textAlign:"center"}}>−{fmtS(exp)}</div>}
+{inc>0&&<div style={{fontSize:9,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.green,textAlign:"center"}}>+{fmtS(inc)}</div>}
+{exp>0&&<div style={{fontSize:9,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.red,textAlign:"center"}}>−{fmtS(exp)}</div>}
 </div>
 );
 })}
@@ -642,15 +642,20 @@ function NetWorthPanel({assets,setAssets,liabilities,setLiabilities,mortgageSche
           <Btn onClick={()=>setAddingAsset(true)} bg="rgba(110,231,183,.1)" border={C.green} color={C.green}>+ Add</Btn>
         </div>
         {assets.map(a=>(
-          <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-            <div style={{flex:1,fontSize:13,color:C.t1}}>{a.label}</div>
+          <div key={a.id} style={{marginBottom:8}}>
             {editingAsset===a.id?(
-              <input type="number" defaultValue={a.value} onBlur={e=>{updateAsset(a.id,e.target.value);setEditingAsset(null);}} autoFocus
-                style={{background:C.bg,border:`1px solid ${C.green}`,borderRadius:8,padding:"5px 10px",color:C.green,fontSize:13,width:120,fontFamily:F.mono}}/>
+              <div style={{display:"flex",flexDirection:"column",gap:6,background:"rgba(110,231,183,.05)",border:`1px solid ${C.green}`,borderRadius:10,padding:"10px 12px"}}>
+                <div style={{fontSize:12,fontWeight:600,color:C.t1}}>{a.label}</div>
+                <input type="number" defaultValue={a.value} onBlur={e=>{updateAsset(a.id,e.target.value);setEditingAsset(null);}} autoFocus
+                  style={{background:C.bg,border:`1px solid ${C.green}`,borderRadius:8,padding:"9px 12px",color:C.green,fontSize:14,width:"100%",fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}/>
+              </div>
             ):(
-              <div onClick={()=>setEditingAsset(a.id)} style={{fontFamily:F.mono,fontSize:13,color:C.green,cursor:"pointer",background:"rgba(110,231,183,.06)",borderRadius:8,padding:"5px 10px"}}>{fmt(a.value)}</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{flex:1,fontSize:13,color:C.t1}}>{a.label}</div>
+                <div onClick={()=>setEditingAsset(a.id)} style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:13,color:C.green,cursor:"pointer",background:"rgba(110,231,183,.06)",borderRadius:8,padding:"5px 10px"}}>{fmt(a.value)}</div>
+                <Btn onClick={()=>setAssets(x=>x.filter(i=>i.id!==a.id))} color={C.red} border="rgba(251,113,133,.2)" bg="transparent" style={{padding:"4px 8px",fontSize:10}}>x</Btn>
+              </div>
             )}
-            <Btn onClick={()=>setAssets(x=>x.filter(i=>i.id!==a.id))} color={C.red} border="rgba(251,113,133,.2)" bg="transparent" style={{padding:"4px 8px",fontSize:10}}>x</Btn>
           </div>
         ))}
         {addingAsset&&(
@@ -672,18 +677,23 @@ function NetWorthPanel({assets,setAssets,liabilities,setLiabilities,mortgageSche
         {liabilities.map(l=>{
           const displayVal=l.linkMortgage?mortgageBalance:l.value;
           return(
-            <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,color:C.t1}}>{l.label}</div>
-                {l.linkMortgage&&<div style={{fontSize:10,color:C.t4}}>Linked to mortgage</div>}
-              </div>
+            <div key={l.id} style={{marginBottom:8}}>
               {!l.linkMortgage&&editingLiab===l.id?(
-                <input type="number" defaultValue={l.value} onBlur={e=>{updateLiab(l.id,e.target.value);setEditingLiab(null);}} autoFocus
-                  style={{background:C.bg,border:`1px solid ${C.red}`,borderRadius:8,padding:"5px 10px",color:C.red,fontSize:13,width:120,fontFamily:F.mono}}/>
+                <div style={{display:"flex",flexDirection:"column",gap:6,background:"rgba(251,113,133,.05)",border:`1px solid ${C.red}`,borderRadius:10,padding:"10px 12px"}}>
+                  <div style={{fontSize:12,fontWeight:600,color:C.t1}}>{l.label}</div>
+                  <input type="number" defaultValue={l.value} onBlur={e=>{updateLiab(l.id,e.target.value);setEditingLiab(null);}} autoFocus
+                    style={{background:C.bg,border:`1px solid ${C.red}`,borderRadius:8,padding:"9px 12px",color:C.red,fontSize:14,width:"100%",fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}/>
+                </div>
               ):(
-                <div onClick={()=>!l.linkMortgage&&setEditingLiab(l.id)} style={{fontFamily:F.mono,fontSize:13,color:C.red,cursor:l.linkMortgage?"default":"pointer",background:"rgba(251,113,133,.06)",borderRadius:8,padding:"5px 10px"}}>{fmt(displayVal)}</div>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,color:C.t1}}>{l.label}</div>
+                    {l.linkMortgage&&<div style={{fontSize:10,color:C.t4}}>Linked to mortgage</div>}
+                  </div>
+                  <div onClick={()=>!l.linkMortgage&&setEditingLiab(l.id)} style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:13,color:C.red,cursor:l.linkMortgage?"default":"pointer",background:"rgba(251,113,133,.06)",borderRadius:8,padding:"5px 10px"}}>{fmt(displayVal)}</div>
+                  <Btn onClick={()=>setLiabilities(x=>x.filter(i=>i.id!==l.id))} color={C.red} border="rgba(251,113,133,.2)" bg="transparent" style={{padding:"4px 8px",fontSize:10}}>x</Btn>
+                </div>
               )}
-              <Btn onClick={()=>setLiabilities(x=>x.filter(i=>i.id!==l.id))} color={C.red} border="rgba(251,113,133,.2)" bg="transparent" style={{padding:"4px 8px",fontSize:10}}>x</Btn>
             </div>
           );
         })}
@@ -698,6 +708,66 @@ function NetWorthPanel({assets,setAssets,liabilities,setLiabilities,mortgageSche
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Mortgage Balance Chart ─────────────────────────────────────────────────────
+function MortgageChart({schedule}){
+  const[viewStart,setViewStart]=useState(0);
+  const touchX=useRef(null);
+  const touchStart=useRef(0);
+  const VIEW=24;
+  const total=schedule.length;
+  const maxOff=Math.max(0,total-VIEW);
+  const visible=schedule.slice(viewStart,viewStart+VIEW);
+  const maxBal=schedule[0]?.balance||1;
+  const W=320,H=200,PAD=32;
+  const xOf=(i,len)=>PAD+i*((W-PAD*2)/(Math.max(len-1,1)));
+  const yOf=v=>H-PAD-((v/maxBal))*(H-PAD*2);
+  const onTouchStart=e=>{touchX.current=e.touches[0].clientX;touchStart.current=viewStart;};
+  const onTouchMove=e=>{
+    if(touchX.current===null)return;
+    const px=touchX.current-e.touches[0].clientX;
+    const delta=Math.round(px/14);
+    setViewStart(Math.max(0,Math.min(maxOff,touchStart.current+delta)));
+  };
+  const onTouchEnd=()=>{touchX.current=null;};
+  if(!schedule.length)return null;
+  const balPts=visible.map((r,i)=>`${xOf(i,visible.length)},${yOf(r.balance)}`).join(" ");
+  const areaClose=`${xOf(visible.length-1,visible.length)},${H-PAD} ${xOf(0,visible.length)},${H-PAD}`;
+  return(
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:12,marginBottom:16,touchAction:"pan-y"}}
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:11,color:C.t3}}>
+        <span>Balance over time</span>
+        <span style={{color:C.t4}}>{visible[0]?.label} – {visible[visible.length-1]?.label}</span>
+      </div>
+      <svg width="100%" height="260" viewBox={`0 0 ${W} ${H+24}`} preserveAspectRatio="none" style={{display:"block"}}>
+        <defs>
+          <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.green} stopOpacity=".25"/>
+            <stop offset="100%" stopColor={C.green} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {[0,.25,.5,.75,1].map(f=>(
+          <line key={f} x1={PAD} y1={yOf(maxBal*f)} x2={W-PAD} y2={yOf(maxBal*f)} stroke={C.border} strokeWidth={1}/>
+        ))}
+        <polyline points={`${balPts} ${areaClose}`} fill="url(#balGrad)" stroke="none"/>
+        <polyline points={balPts} fill="none" stroke={C.green} strokeWidth={2}/>
+        {visible.map((r,i)=>{
+          const ih=Math.max(1,(r.interest/(schedule[0]?.interest||1))*(H-PAD)*0.22);
+          return <rect key={i} x={xOf(i,visible.length)-1} y={H-PAD-ih} width={2} height={ih} fill={C.amber} opacity={.6}/>;
+        })}
+        {visible.filter((_,i)=>i%Math.max(1,Math.floor(visible.length/5))===0).map((r,_i)=>{
+          const i=visible.indexOf(r);
+          return <text key={i} x={xOf(i,visible.length)} y={H+16} fill={C.t5} fontSize={8} textAnchor="middle">{r.label}</text>;
+        })}
+        {[0,.5,1].map(f=>(
+          <text key={f} x={PAD-4} y={yOf(maxBal*f)} fill={C.t4} fontSize={7} textAnchor="end" dominantBaseline="middle">{fmtS(maxBal*(1-f))}</text>
+        ))}
+      </svg>
+      {total>VIEW&&<div style={{textAlign:"center",fontSize:10,color:C.t4,marginTop:2}}>Swipe to scroll · months {viewStart+1}–{viewStart+visible.length} of {total}</div>}
     </div>
   );
 }
@@ -738,6 +808,7 @@ function MortgagePanel({mortgageCfg,setMortgageCfg,mortgageRateChanges,setMortga
         <StatCard label="Years Remaining" value={`${yearsLeft.toFixed(1)}y`} color={C.purple}/>
       </div>
       {payoffDate&&<div style={{textAlign:"center",fontSize:12,color:C.t4,marginBottom:16}}>Payoff date: <span style={{color:C.t2,fontWeight:600}}>{MON_SHORT[payoffDate.getMonth()]} {payoffDate.getFullYear()}</span></div>}
+      <MortgageChart schedule={schedule}/>
       <div className="card" style={{marginBottom:16}}>
         <Label mb={10}>Mortgage Details</Label>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
@@ -815,8 +886,36 @@ function MortgagePanel({mortgageCfg,setMortgageCfg,mortgageRateChanges,setMortga
   );
 }
 
+// ── Swipe-to-delete row ────────────────────────────────────────────────────────
+function SwipeRow({onDelete,children}){
+  const[offset,setOffset]=useState(0);
+  const startX=useRef(null);
+  const THRESHOLD=72;
+  const onTouchStart=e=>{startX.current=e.touches[0].clientX;};
+  const onTouchMove=e=>{
+    if(startX.current===null)return;
+    const dx=e.touches[0].clientX-startX.current;
+    if(dx<0)setOffset(Math.max(dx,-THRESHOLD*1.3));
+  };
+  const onTouchEnd=()=>{
+    if(offset<-THRESHOLD)onDelete();
+    setOffset(0);startX.current=null;
+  };
+  return(
+    <div style={{position:"relative",overflow:"hidden",borderRadius:12,marginBottom:8}}>
+      <div style={{position:"absolute",inset:0,background:"#ef4444",display:"flex",alignItems:"center",justifyContent:"flex-end",padding:"0 20px",borderRadius:12}}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </div>
+      <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+        style={{transform:`translateX(${offset}px)`,transition:offset===0?"transform .25s":"none",position:"relative",zIndex:1}}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── Entries List ───────────────────────────────────────────────────────────────
-function EntriesList({entries,setEntries,displayPeriod}){
+function EntriesList({entries,setEntries,displayPeriod,onAddEntry}){
   const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
   const[editEntry,setEditEntry]=useState(null);
   const[typeFilter,setTypeFilter]=useState("all");
@@ -831,6 +930,9 @@ function EntriesList({entries,setEntries,displayPeriod}){
   const save=(entry)=>setEntries(e=>e.map(x=>x.id===entry.id?entry:x));
   return(
     <div>
+      <div style={{textAlign:"center",marginBottom:16}}>
+        <GradBtn onClick={onAddEntry} style={{width:"auto",padding:"12px 32px",display:"inline-block"}}>+ Add Entry</GradBtn>
+      </div>
       <div style={{display:"flex",gap:8,marginBottom:12}}>
         <input className="fi" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." style={{flex:1}}/>
       </div>
@@ -843,21 +945,20 @@ function EntriesList({entries,setEntries,displayPeriod}){
       {filtered.map(e=>{
         const pa=periodAmt(e,pDays);
         return(
-          <div key={e.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:8,height:8,borderRadius:4,background:CAT_COLORS[e.category]||C.t2,flexShrink:0,marginTop:2}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,color:C.t1,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.label}</div>
-              <div style={{fontSize:11,color:C.t4}}>{e.category} · {e.recur} · {e.startDate}</div>
+          <SwipeRow key={e.id} onDelete={()=>remove(e.id)}>
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:8,height:8,borderRadius:4,background:CAT_COLORS[e.category]||C.t2,flexShrink:0,marginTop:2}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:C.t1,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.label}</div>
+                <div style={{fontSize:11,color:C.t4}}>{e.category} · {e.recur} · {e.startDate}</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontFamily:F.sans,fontSize:13,fontWeight:700,letterSpacing:"-0.02em",color:e.type==="income"?C.green:C.red}}>{e.type==="income"?"+":"-"}{fmt(e.amount)}</div>
+                <div style={{fontSize:10,color:C.t4}}>{fmt(pa)}/{PWORD[displayPeriod]}</div>
+              </div>
+              <Btn onClick={()=>setEditEntry(e)} style={{padding:"4px 8px",fontSize:10,flexShrink:0}}>Edit</Btn>
             </div>
-            <div style={{textAlign:"right",flexShrink:0}}>
-              <div style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:e.type==="income"?C.green:C.red}}>{e.type==="income"?"+":"-"}{fmt(e.amount)}</div>
-              <div style={{fontSize:10,color:C.t4}}>{fmt(pa)}/{PWORD[displayPeriod]}</div>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-              <Btn onClick={()=>setEditEntry(e)} style={{padding:"4px 8px",fontSize:10}}>Edit</Btn>
-              <Btn onClick={()=>remove(e.id)} color={C.red} border="rgba(251,113,133,.2)" bg="transparent" style={{padding:"4px 8px",fontSize:10}}>Del</Btn>
-            </div>
-          </div>
+          </SwipeRow>
         );
       })}
       {editEntry&&<EntryForm editEntry={editEntry} onAdd={save} onClose={()=>setEditEntry(null)}/>}
@@ -948,7 +1049,7 @@ function Overview({entries,displayPeriod,goals}){
 // ── SEED DATA & DEFAULTS ───────────────────────────────────────────────────────
 const SEED=[
   {id:1,type:"income",label:"Salary",amount:5000,category:"Salary",recur:"Monthly",startDate:"2024-01-15",actuals:[]},
-  {id:2,type:"expense",label:"Mortgage",amount:2200,category:"Mortgage/Rent",recur:"Monthly",startDate:"2024-01-01",actuals:[]},
+  {id:2,type:"expense",label:"Mortgage",amount:2200,category:"Mortgage",recur:"Monthly",startDate:"2024-01-01",actuals:[]},
   {id:3,type:"expense",label:"Food & Groceries",amount:300,category:"Food",recur:"Fortnightly",startDate:"2024-01-08",actuals:[]},
   {id:4,type:"expense",label:"Power",amount:180,category:"Utilities",recur:"Monthly",startDate:"2024-01-20",actuals:[]},
   {id:5,type:"expense",label:"KiwiSaver",amount:300,category:"Savings Goal",recur:"Monthly",startDate:"2024-01-15",actuals:[]},
@@ -957,6 +1058,21 @@ const SEED=[
   {id:8,type:"expense",label:"Internet",amount:99,category:"Subscriptions",recur:"Monthly",startDate:"2024-01-01",actuals:[]},
 ];
 const DEFAULT_MORT={principal:500000,rate:6.5,termYears:30,startDate:"2024-01-01"};
+
+// ── Bottom nav icons ──────────────────────────────────────────────────────────
+const IcoChart=()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>;
+const IcoDoc=()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
+const IcoHouse=()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const IcoTrend=()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>;
+const IcoTarget=()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
+const NAV_TABS=[
+  {key:"overview",label:"Overview",Icon:IcoChart},
+  {key:"entries",label:"Entries",Icon:IcoDoc},
+  {key:"mortgage",label:"Mortgage",Icon:IcoHouse},
+  {key:"networth",label:"Net Worth",Icon:IcoTrend},
+  {key:"goals",label:"Goals",Icon:IcoTarget},
+];
+const PERIOD_SHORT={weekly:"W",fortnightly:"Fn",monthly:"M",yearly:"Y"};
 
 // ── Main App ───────────────────────────────────────────────────────────────────
 export default function App(){
@@ -982,55 +1098,50 @@ export default function App(){
     {id:2,name:"Holiday",target:5000,saved:800,color:"#67e8f9",linkedCategory:"Savings Goal",emoji:"✈️"},
     {id:3,name:"New Car",target:20000,saved:0,color:"#fbbf24",linkedCategory:"Savings Goal",emoji:"🚗"},
   ]);
-  const[activeTab,setActiveTab]=useState("overview");
+  const[activeTab,setActiveTab]=useLocalStorage("ft-tab","overview");
   const[showAdd,setShowAdd]=useState(false);
   const mortgageSchedule=useMemo(()=>buildSchedule(mortgageCfg.principal,mortgageCfg.rate,mortgageCfg.termYears,mortgageCfg.startDate,mortgageRateChanges,mortgageLumpSums),[mortgageCfg,mortgageRateChanges,mortgageLumpSums]);
 
-  const TABS=[
-    {key:"overview",label:"Overview"},
-    {key:"budget",label:"Budget"},
-    {key:"calendar",label:"Calendar"},
-    {key:"entries",label:"Entries"},
-    {key:"goals",label:"Goals"},
-    {key:"networth",label:"Net Worth"},
-    {key:"mortgage",label:"Mortgage"},
-  ];
-
   return(
-    <div style={{background:C.bg,minHeight:"100vh",fontFamily:F.sans,color:C.t1,paddingBottom:80}}>
+    <div style={{background:C.bg,minHeight:"100vh",fontFamily:F.sans,color:C.t1,paddingBottom:72}}>
       <style>{CSS}</style>
       {/* Header */}
-      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"16px 20px 12px",position:"sticky",top:0,zIndex:30}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"14px 16px 12px",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
           <div>
-            <div style={{fontSize:18,fontWeight:700,color:C.t1}}>Finance Tracker</div>
-            <div style={{fontSize:11,color:C.t4}}>{today.toLocaleDateString("en-NZ",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}</div>
+            <div style={{fontSize:17,fontWeight:700,color:C.t1,lineHeight:1.2}}>Finance Tracker</div>
+            <div style={{fontSize:10,color:C.t4}}>{today.toLocaleDateString("en-NZ",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}</div>
           </div>
-          <button onClick={()=>setShowAdd(true)} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",borderRadius:12,width:44,height:44,color:C.bg,fontSize:24,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>+</button>
-        </div>
-        {/* Period selector */}
-        <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto"}}>
-          {PERIODS.map(p=>(
-            <button key={p.key} onClick={()=>setDisplayPeriod(p.key)} className={`period-btn ${displayPeriod===p.key?"active":""}`}>{p.label}</button>
-          ))}
-        </div>
-        {/* Tab bar */}
-        <div className="hscroll" style={{gap:4}}>
-          {TABS.map(t=>(
-            <button key={t.key} onClick={()=>setActiveTab(t.key)} className={`tab-btn ${activeTab===t.key?"active":""}`}>{t.label}</button>
-          ))}
+          {/* Period selector W/Fn/M/Y */}
+          <div style={{display:"flex",gap:4}}>
+            {PERIODS.map(p=>(
+              <button key={p.key} onClick={()=>setDisplayPeriod(p.key)}
+                style={{background:displayPeriod===p.key?"rgba(110,231,183,.15)":"none",border:`1px solid ${displayPeriod===p.key?C.green:C.border}`,borderRadius:8,padding:"6px 10px",color:displayPeriod===p.key?C.green:C.t4,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:F.sans,minWidth:32,textAlign:"center"}}>
+                {PERIOD_SHORT[p.key]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Content */}
       <div style={{padding:"16px 16px 0"}}>
         {activeTab==="overview"&&<Overview entries={entries} displayPeriod={displayPeriod} goals={goals}/>}
-        {activeTab==="budget"&&<BudgetPanel entries={entries} budgetLimits={budgetLimits} setBudgetLimits={setBudgetLimits} displayPeriod={displayPeriod}/>}
-        {activeTab==="calendar"&&<CalendarWidget entries={entries} displayPeriod={displayPeriod}/>}
-        {activeTab==="entries"&&<EntriesList entries={entries} setEntries={setEntries} displayPeriod={displayPeriod}/>}
-        {activeTab==="goals"&&<GoalsPanel goals={goals} setGoals={setGoals} entries={entries} displayPeriod={displayPeriod}/>}
-        {activeTab==="networth"&&<NetWorthPanel assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} mortgageSchedule={mortgageSchedule} networthSnapshots={networthSnapshots} setNetworthSnapshots={setNetworthSnapshots}/>}
+        {activeTab==="entries"&&<EntriesList entries={entries} setEntries={setEntries} displayPeriod={displayPeriod} onAddEntry={()=>setShowAdd(true)}/>}
         {activeTab==="mortgage"&&<MortgagePanel mortgageCfg={mortgageCfg} setMortgageCfg={setMortgageCfg} mortgageRateChanges={mortgageRateChanges} setMortgageRateChanges={setMortgageRateChanges} mortgageLumpSums={mortgageLumpSums} setMortgageLumpSums={setMortgageLumpSums}/>}
+        {activeTab==="networth"&&<NetWorthPanel assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} mortgageSchedule={mortgageSchedule} networthSnapshots={networthSnapshots} setNetworthSnapshots={setNetworthSnapshots}/>}
+        {activeTab==="goals"&&<GoalsPanel goals={goals} setGoals={setGoals} entries={entries} displayPeriod={displayPeriod}/>}
+      </div>
+
+      {/* Bottom nav */}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.card,borderTop:`1px solid ${C.border}`,display:"flex",zIndex:50,paddingBottom:"env(safe-area-inset-bottom)"}}>
+        {NAV_TABS.map(({key,label,Icon})=>(
+          <button key={key} onClick={()=>setActiveTab(key)}
+            style={{flex:1,background:"none",border:"none",padding:"10px 0 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:activeTab===key?C.green:C.t4,cursor:"pointer",transition:"color .2s",fontFamily:F.sans}}>
+            <Icon/>
+            <span style={{fontSize:9,fontWeight:700}}>{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Add Entry modal */}
