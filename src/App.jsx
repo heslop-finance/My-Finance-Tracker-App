@@ -920,8 +920,8 @@ if(isVar&&showLog)return(
 );
 return(
 <div style={{marginBottom:6}}>
-<div style={{position:"relative",borderRadius:10,background:swipeX<0?C.red:"transparent"}}>
-{swipeX<0&&<div style={{position:"absolute",right:0,top:0,bottom:0,width:REVEAL,display:"flex",alignItems:"center",justifyContent:"center"}}><button onClick={()=>onDelete(entry.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#fff",fontSize:22,width:"100%",height:"100%"}}>🗑</button></div>}
+<div style={{position:"relative",borderRadius:10}}>
+{swipeX<0&&<div style={{position:"absolute",right:0,top:0,bottom:0,width:REVEAL,display:"flex",alignItems:"center",justifyContent:"center"}}><button onClick={()=>onDelete(entry.id)} style={{background:"#ef4444",border:"none",cursor:"pointer",width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"0 10px 10px 0"}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="3,6 5,6 21,6" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M10 11v6M14 11v6" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg></button></div>}
 <div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE} onClick={onClick}
 style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,background:entry.type==="income"?C.incDk:C.expDk,borderLeft:`3px solid ${isVar?C.amber:entry.type==="income"?C.green:C.red}`,cursor:"pointer",transform:`translateX(${swipeX}px) translateZ(0)`,transition:swiping||swipeX===0?"none":"transform .2s ease",position:"relative",zIndex:1}}>
 <div style={{width:8,height:8,borderRadius:"50%",background:CAT_COLORS[entry.category]||C.t2,flexShrink:0}}/>
