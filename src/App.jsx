@@ -961,10 +961,11 @@ const loadLS=(key,fallback)=>{try{const s=localStorage.getItem(key);return s?JSO
 // ── APP ────────────────────────────────────────────────────────
 export default function App(){
 const[entries,setEntries]=useState(()=>loadLS('ft_entries',SEED));
-const[displayPeriod,setDisplayPeriod]=useState("monthly");
+const[displayPeriod,setDisplayPeriod]=useState(()=>loadLS('ft_displayPeriod',"monthly"));
 const[view,setView]=useState("dashboard");
 const[tab,setTab]=useState(()=>loadLS('ft_tab',"income"));
 const[showPastOneOffs,setShowPastOneOffs]=useState(false);
+const[showAddForm,setShowAddForm]=useState(false);
 const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],amount:"",recur:"Monthly",startDate:todayStr});
 const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
 const[mortgageRateChanges,setMortgageRateChanges]=useState(()=>loadLS('ft_mortgageRateChanges',[]));
@@ -993,6 +994,7 @@ useEffect(()=>{localStorage.setItem('ft_liabilities',JSON.stringify(liabilities)
 useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networthSnapshots));},[networthSnapshots]);
 useEffect(()=>{localStorage.setItem('ft_budgetLimits',JSON.stringify(budgetLimits));},[budgetLimits]);
 useEffect(()=>{localStorage.setItem('ft_goals',JSON.stringify(goals));},[goals]);
+useEffect(()=>{localStorage.setItem('ft_displayPeriod',JSON.stringify(displayPeriod));},[displayPeriod]);
 
 const mortSchedule=useMemo(()=>buildSchedule(mortgageCfg.principal,mortgageCfg.annualRate,mortgageCfg.termYears,mortgageCfg.startDate,mortgageRateChanges,mortgageLumpSums),[mortgageCfg,mortgageRateChanges,mortgageLumpSums]);
 
@@ -1112,7 +1114,8 @@ labelColor={c.scenario?C.purple:C.t3}/>
 <Row mb={16}><div style={{fontSize:14,fontWeight:600}}>Spending by Category <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div><button onClick={()=>setBudgetEditing(v=>!v)} className={`rb ${budgetEditing?"on":""}`}>{budgetEditing?"Done":"Budget"}</button></Row>
 {expByCategory.map(([cat,amt])=>{
 const pct=totalExpenses>0?(amt/totalExpenses)*100:0;
-const budgetAmt=budgetLimits[`${cat}_${displayPeriod}`]||budgetLimits[cat]||null;
+const monthlyBase=budgetLimits[cat]||null;
+const budgetAmt=monthlyBase?monthlyBase*(pDays/30.44):null;
 const overBudget=budgetAmt&&amt>budgetAmt;
 const budgetPct=budgetAmt?Math.min((amt/budgetAmt)*100,100):null;
 const budgetLinePct=budgetAmt&&totalExpenses>0?Math.min((budgetAmt/totalExpenses)*100,100):null;
@@ -1126,7 +1129,7 @@ return(
 {budgetEditing?(
 <div style={{display:"flex",alignItems:"center",gap:4}}>
 <span style={{fontSize:10,color:C.t4}}>$/{pw}</span>
-<input type="text" inputMode="decimal" value={budgetLimits[`${cat}_${displayPeriod}`]||""} onFocus={e=>e.target.select()} onChange={e=>{const v=e.target.value,k=`${cat}_${displayPeriod}`;setBudgetLimits(prev=>v?{...prev,[k]:Number(v)}:Object.fromEntries(Object.entries(prev).filter(([x])=>x!==k)));}} placeholder="no limit" style={{width:72,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"3px 6px",color:C.t1,fontSize:12,fontFamily:F.mono,textAlign:"right"}}/>
+<input type="text" inputMode="decimal" value={monthlyBase?String(Math.round(monthlyBase*(pDays/30.44))):""} onFocus={e=>e.target.select()} onChange={e=>{const v=e.target.value;setBudgetLimits(prev=>v?{...prev,[cat]:Number(v)*(30.44/pDays)}:Object.fromEntries(Object.entries(prev).filter(([x])=>x!==cat)));}} placeholder="no limit" style={{width:72,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"3px 6px",color:C.t1,fontSize:12,fontFamily:F.mono,textAlign:"right"}}/>
 </div>
 ):(
 <span style={{fontFamily:F.mono,color:overBudget?C.red:C.t1,fontWeight:600}}>{fmt(amt)}{budgetAmt&&<span style={{color:C.t4,fontWeight:400,fontSize:11}}> / {fmt(budgetAmt)}</span>}</span>
@@ -1169,9 +1172,11 @@ return(
 </>}
 
 {view==="entries"&&<>
-<div style={{textAlign:"center",marginBottom:16}}><span style={{background:C.border,color:C.t2,fontSize:12,padding:"4px 14px",borderRadius:20}}>Recurring amounts shown as <strong style={{color:C.t1}}>{periodLabel}</strong> · NZD</span></div>
-<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:24,marginBottom:20}}>
-<div style={{fontSize:16,fontWeight:700,marginBottom:20}}>Add Entry</div>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+<span style={{background:C.border,color:C.t2,fontSize:12,padding:"4px 14px",borderRadius:20}}>Shown as <strong style={{color:C.t1}}>{periodLabel}</strong> · NZD</span>
+<button onClick={()=>setShowAddForm(v=>!v)} style={{background:showAddForm?"rgba(110,231,183,.15)":"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:showAddForm?`1px solid ${C.green}`:"none",borderRadius:10,padding:"9px 18px",color:showAddForm?C.green:C.bg,fontWeight:700,fontSize:13,cursor:"pointer"}}>{showAddForm?"✕ Cancel":"＋ Add Entry"}</button>
+</div>
+{showAddForm&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:24,marginBottom:20}}>
 <div className="tt" style={{marginBottom:16}}>
 <button className={`tb ${form.type==="income"?"inc":"off"}`} onClick={()=>setForm(f=>({...f,type:"income",category:INCOME_CATS[0]}))}>Income</button>
 <button className={`tb ${form.type==="expense"?"exp":"off"}`} onClick={()=>setForm(f=>({...f,type:"expense",category:EXPENSE_CATS[0]}))}>Expense / Savings / Investment</button>
@@ -1183,8 +1188,8 @@ return(
 </div>
 <div style={{marginBottom:12}}><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:8}}>Frequency</label><div className="hscroll">{RECUR_OPT.map(r=>{const isActive=form.recur===r;return <button key={r} className={`rb ${isActive?(r==="One-off"||r==="Variable"?"oo":"on"):""}`} onClick={()=>setForm(f=>({...f,recur:r}))}>{r}</button>;})}</div>{form.recur==="Variable"&&<div style={{fontSize:11,color:C.amber,marginTop:5}}>Amount is a monthly estimate. Log actual bills from Entries tab.</div>}</div>
 <div style={{marginBottom:20}}><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>{form.recur==="One-off"?"Date":"Start Date"}</label><input className="fi" type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))}/>{form.recur!=="One-off"&&<div style={{fontSize:11,color:C.t4,marginTop:5}}>Repeats {form.recur.toLowerCase()} from this date.</div>}{form.recur==="One-off"&&<div style={{fontSize:11,color:C.amber,marginTop:5}}>Appears in calendar on this date only.</div>}</div>
-<button className="add-btn" style={{width:"100%"}} onClick={handleAdd}>Add Entry</button>
-</div>
+<button className="add-btn" style={{width:"100%"}} onClick={()=>{handleAdd();setShowAddForm(false);setForm(f=>({...f,label:"",amount:""}));}}>Add Entry</button>
+</div>}
 {entries.length===0?<div style={{textAlign:"center",color:C.t4,padding:"60px 0",fontSize:14}}>No entries yet</div>:(()=>{
 const pastOneOffs=entries.filter(e=>e.recur==="One-off"&&e.startDate<todayStr);
 const active=entries.filter(e=>!(e.recur==="One-off"&&e.startDate<todayStr));
