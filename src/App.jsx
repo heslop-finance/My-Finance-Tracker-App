@@ -24,7 +24,7 @@ const PWORD={weekly:"week",fortnightly:"fortnight",monthly:"month",yearly:"year"
 
 // ── HELPERS ────────────────────────────────────────────────────
 const today=new Date();
-const fmt=n=>`$${Math.abs(n).toLocaleString("en-NZ",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const fmt=n=>{const s=Math.abs(n).toLocaleString("en-NZ",{minimumFractionDigits:2,maximumFractionDigits:2});return `$${s.endsWith('.00')?s.slice(0,-3):s}`;};
 const fmtS=n=>`$${Math.abs(n).toLocaleString("en-NZ",{minimumFractionDigits:0,maximumFractionDigits:0})}`;
 const pad=n=>String(n).padStart(2,"0");
 const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
