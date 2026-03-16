@@ -318,8 +318,8 @@ datesInRange(from,to).forEach(d=>{inc+=dailyTotal(entries,d,"income");exp+=daily
 return(
 <div key={m} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px 10px"}}>
 <div style={{fontSize:11,fontWeight:700,color:C.t3,marginBottom:4}}>{MON_SHORT[m]}</div>
-{inc>0&&<div style={{fontSize:11,fontFamily:F.mono,color:C.green}}>+{fmtS(inc)}</div>}
-{exp>0&&<div style={{fontSize:11,fontFamily:F.mono,color:C.red}}>−{fmtS(exp)}</div>}
+{inc>0&&<div style={{fontSize:11,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.green}}>+{fmtS(inc)}</div>}
+{exp>0&&<div style={{fontSize:11,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.red}}>−{fmtS(exp)}</div>}
 {!inc&&!exp&&<div style={{fontSize:10,color:C.t5}}>—</div>}
 </div>
 );
@@ -365,8 +365,8 @@ style={{background:isSel?"rgba(110,231,183,.18)":isToday?"rgba(110,231,183,.08)"
 <div style={{fontSize:10,fontWeight:isToday||isSel?700:500,color:isSel||isToday?C.green:C.t3,textAlign:"center",marginBottom:2}}>
 {day}{isToday&&<span style={{display:"inline-block",width:4,height:4,borderRadius:"50%",background:C.green,marginLeft:2,verticalAlign:"middle"}}/>}
 </div>
-{inc>0&&<div style={{fontSize:9,fontFamily:F.mono,color:C.green,textAlign:"center"}}>+{fmtS(inc)}</div>}
-{exp>0&&<div style={{fontSize:9,fontFamily:F.mono,color:C.red,textAlign:"center"}}>−{fmtS(exp)}</div>}
+{inc>0&&<div style={{fontSize:9,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.green,textAlign:"center"}}>+{fmtS(inc)}</div>}
+{exp>0&&<div style={{fontSize:9,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.red,textAlign:"center"}}>−{fmtS(exp)}</div>}
 </div>
 );
 })}
@@ -481,7 +481,7 @@ return(
 <Row mb={12}>
 <div>
 <Label color={C.t3} mb={2}>Mortgage Tracker</Label>
-{schedule.length>0?(()=>{const cur=schedule.find(m=>new Date(m.date)>=new Date(todayStr));const bal=cur?cur.balance:schedule[schedule.length-1].balance;return <><Mono color={C.t1} size={22}>{fmt(bal)}</Mono><div style={{fontSize:11,color:C.t3,marginTop:2}}>Original loan: <span style={{color:C.t2}}>{fmt(cfg.principal)}</span></div></>;})():<Mono color={C.t1} size={22}>{fmt(cfg.principal)}</Mono>}
+{schedule.length>0?(()=>{const cur=schedule.find(m=>new Date(m.date)>=new Date(todayStr));const bal=cur?cur.balance:schedule[schedule.length-1].balance;return <><Mono color={C.t1} size={22}>{fmt(bal)}</Mono><div style={{fontSize:11,color:C.t3,marginTop:2}}>Original loan: <span style={{color:C.t2,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(cfg.principal)}</span></div></>;})():<Mono color={C.t1} size={22}>{fmt(cfg.principal)}</Mono>}
 <div style={{fontSize:12,color:C.t3,marginTop:2}}>{cfg.annualRate}% p.a. · {cfg.termYears} yr · from {cfg.startDate}</div>
 </div>
 <Btn onClick={()=>{setCfgD(cfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}>⚙ Setup</Btn>
@@ -711,7 +711,7 @@ return(
 {assets.map(a=>(
 <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{a.label}</span>
-<span style={{fontFamily:F.mono,fontSize:11,color:C.green}}>{fmtS(a.value)}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.green}}>{fmtS(a.value)}</span>
 </div>
 ))}
 </div>
@@ -723,7 +723,7 @@ return(
 {liabilities.map(l=>(
 <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{l.label}</span>
-<span style={{fontFamily:F.mono,fontSize:11,color:C.red}}>{fmtS(l.linkMortgage?liveBal:l.value)}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.linkMortgage?liveBal:l.value)}</span>
 </div>
 ))}
 </div>
@@ -757,7 +757,7 @@ return(
 {hoverSnap!==null&&chartSnaps[hoverSnap]&&(()=>{
 const s=chartSnaps[hoverSnap],cx=xS(hoverSnap),cy=yS(s.netWorth);
 const tx=cx>W*.7?cx-108:cx+8,ty=cy<40?cy+8:cy-52;
-return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} stroke={C.border}/><text x={tx+8} y={ty+14} fill={C.t3} fontSize={9}>{s.date}</text><text x={tx+8} y={ty+30} fill={C.green} fontSize={12} fontWeight="700">{fmt(s.netWorth)}</text></g>;
+return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} stroke={C.border}/><text x={tx+8} y={ty+14} fill={C.t3} fontSize={9}>{s.date}</text><text x={tx+8} y={ty+30} fill={C.green} fontSize={12} fontWeight="700" fontFamily="DM Sans" letterSpacing="-0.02em">{fmt(s.netWorth)}</text></g>;
 })()}
 </svg>
 </div>
@@ -815,7 +815,7 @@ const GoalForm=({value,onChange,onSubmit,onCancel,submitLabel})=>(
 return(
 <div className="card">
 <Row mb={4}><div style={{fontSize:14,fontWeight:700,color:C.t1}}>Savings Goals</div><button onClick={()=>setShowAdd(s=>!s)} className={`rb ${showAdd?"on":""}`}>+ New Goal</button></Row>
-<div style={{fontSize:12,color:C.t4,marginBottom:16}}>Contributing <span style={{color:C.green,fontWeight:700}}>{fmt(savingsContrib)}</span> to savings & <span style={{color:C.cyan,fontWeight:700}}>{fmt(investContrib)}</span> to investments per {pWord}</div>
+<div style={{fontSize:12,color:C.t4,marginBottom:16}}>Contributing <span style={{color:C.green,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(savingsContrib)}</span> to savings & <span style={{color:C.cyan,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(investContrib)}</span> to investments per {pWord}</div>
 {showAdd&&<GoalForm value={draft} onChange={setDraft} onSubmit={()=>{if(!draft.name)return;setGoals(g=>[...g,{...draft,id:Date.now(),target:Number(draft.target)||0,saved:Number(draft.saved)||0}]);setShowAdd(false);setDraft({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:""});}} onCancel={()=>setShowAdd(false)} submitLabel="Add Goal"/>}
 <div style={{display:"flex",flexDirection:"column",gap:14}}>
 {goals.map(g=>{
@@ -834,7 +834,7 @@ return(
 <div style={{height:8,background:C.border,borderRadius:4,overflow:"hidden",marginBottom:8}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${g.color||C.green},${g.color||C.green}88)`,borderRadius:4,transition:"width .6s ease"}}/></div>
 {linked&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,padding:"6px 10px",background:"rgba(110,231,183,.05)",borderRadius:8,border:`1px solid rgba(110,231,183,.1)`}}><span style={{fontSize:10,color:C.t4}}>Contributing</span><Mono color={C.green} size={11}>{fmt(contrib)}</Mono><span style={{fontSize:10,color:C.t4}}>per {pWord} via</span><span style={{fontSize:10,color:C.t2,fontWeight:600}}>{linked.label}</span></div>}
 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t4,alignItems:"center"}}>
-<span>{pct.toFixed(0)}% · {fmtS(remaining)} to go</span>
+<span><Mono color={C.t4} size={11}>{pct.toFixed(0)}%</Mono> · <Mono color={C.t4} size={11}>{fmtS(remaining)}</Mono> to go</span>
 <div style={{display:"flex",gap:6}}>
 <button onClick={()=>{const amt=Number(prompt(`Add to "${g.name}" ($):`));if(amt>0)setGoals(gs=>gs.map(x=>x.id===g.id?{...x,saved:x.saved+amt}:x));}} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:5,padding:"2px 7px",color:C.t3,fontSize:10,cursor:"pointer"}}>+ Add</button>
 <button onClick={()=>{setEditDraft({...g});setEditingId(g.id);setShowAdd(false);}} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:5,padding:"2px 7px",color:C.t3,fontSize:10,cursor:"pointer"}}>✎ Edit</button>
@@ -909,7 +909,7 @@ if(isVar&&showLog)return(
 <span style={{fontSize:11,color:C.t3}}>{a.date}</span>
 <div style={{display:"flex",alignItems:"center",gap:10}}>
 <Mono color={C.t1} size={12}>{fmt(a.amount)}</Mono>
-<span style={{fontSize:10,color:a.amount>entry.amount?C.red:C.green}}>{a.amount>entry.amount?`+${fmt(a.amount-entry.amount)} est`:a.amount<entry.amount?`-${fmt(entry.amount-a.amount)} est`:""}</span>
+<span style={{fontSize:10,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:a.amount>entry.amount?C.red:C.green}}>{a.amount>entry.amount?`+${fmt(a.amount-entry.amount)} est`:a.amount<entry.amount?`-${fmt(entry.amount-a.amount)} est`:""}</span>
 <button onClick={()=>onEdit({...entry,actuals:entry.actuals.filter(x=>x.date!==a.date)})} style={{background:"none",border:"none",color:C.t5,cursor:"pointer",fontSize:13}}>×</button>
 </div>
 </div>
@@ -1132,7 +1132,7 @@ return(
 <input type="text" inputMode="decimal" value={monthlyBase?String(Math.round(monthlyBase*(pDays/30.44))):""} onFocus={e=>e.target.select()} onChange={e=>{const v=e.target.value;setBudgetLimits(prev=>v?{...prev,[cat]:Number(v)*(30.44/pDays)}:Object.fromEntries(Object.entries(prev).filter(([x])=>x!==cat)));}} placeholder="no limit" style={{width:72,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"3px 6px",color:C.t1,fontSize:12,fontFamily:F.mono,textAlign:"right"}}/>
 </div>
 ):(
-<span style={{fontFamily:F.mono,color:overBudget?C.red:C.t1,fontWeight:600}}>{fmt(amt)}{budgetAmt&&<span style={{color:C.t4,fontWeight:400,fontSize:11}}> / {fmt(budgetAmt)}</span>}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:overBudget?C.red:C.t1}}>{fmt(amt)}{budgetAmt&&<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.t4,fontSize:11}}> / {fmt(budgetAmt)}</span>}</span>
 )}
 </div>
 </div>
@@ -1141,7 +1141,7 @@ return(
 {overPct>0&&<div style={{height:"100%",width:`${overPct}%`,background:C.red,borderRadius:"0 3px 3px 0",position:"absolute",top:0,left:`${budgetLinePct}%`}}/>}
 {budgetLinePct&&<div style={{position:"absolute",top:-3,left:`${budgetLinePct}%`,width:2,height:12,background:C.red,borderRadius:1,transform:"translateX(-50%)",boxShadow:`0 0 4px ${C.red}`,zIndex:2}}/>}
 </div>
-{budgetAmt&&!budgetEditing&&<div style={{fontSize:10,color:overBudget?C.red:C.t4,marginTop:3,textAlign:"right"}}>{overBudget?`${fmt(amt-budgetAmt)} over budget`:`${fmt(budgetAmt-amt)} remaining`}</div>}
+{budgetAmt&&!budgetEditing&&<div style={{fontSize:10,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:overBudget?C.red:C.t4,marginTop:3,textAlign:"right"}}>{overBudget?`${fmt(amt-budgetAmt)} over budget`:`${fmt(budgetAmt-amt)} remaining`}</div>}
 </div>
 );
 })}
