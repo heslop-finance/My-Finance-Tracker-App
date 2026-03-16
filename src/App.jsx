@@ -26,6 +26,7 @@ const PWORD={weekly:"week",fortnightly:"fortnight",monthly:"month",yearly:"year"
 const today=new Date();
 const fmt=n=>{const s=Math.abs(n).toLocaleString("en-NZ",{minimumFractionDigits:2,maximumFractionDigits:2});return `$${s.endsWith('.00')?s.slice(0,-3):s}`;};
 const fmtS=n=>`$${Math.abs(n).toLocaleString("en-NZ",{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+const fmtN=n=>n%1===0?n.toFixed(0):n.toFixed(1);
 const pad=n=>String(n).padStart(2,"0");
 const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const todayStr=dateKey(today);
@@ -487,7 +488,7 @@ return(
 <Btn onClick={()=>{setCfgD(cfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}>⚙ Setup</Btn>
 </Row>
 <div className="hscroll" style={{gap:10}}>
-{[{label:pmtLabel,val:fmt(periodPmt),color:C.t1},{label:"Total Interest",val:fmt(totalInterest),color:C.red},{label:"Total Cost",val:fmt(totalCost),color:C.amber},{label:"Paid Off",val:paidOff?`${MON_SHORT[paidOff.getMonth()]} ${paidOff.getFullYear()}`:"—",color:C.green},{label:"Years Left",val:`${(schedule.length/12).toFixed(1)} yrs`,color:C.cyan}].map(s=>(
+{[{label:pmtLabel,val:fmt(periodPmt),color:C.t1},{label:"Total Interest",val:fmt(totalInterest),color:C.red},{label:"Total Cost",val:fmt(totalCost),color:C.amber},{label:"Paid Off",val:paidOff?`${MON_SHORT[paidOff.getMonth()]} ${paidOff.getFullYear()}`:"—",color:C.green},{label:"Years Left",val:`${fmtN(schedule.length/12)} yrs`,color:C.cyan}].map(s=>(
 <div key={s.label} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",minWidth:130,flexShrink:0}}>
 <div style={{fontSize:10,color:C.t4,marginBottom:4,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={14}>{s.val}</Mono>
@@ -584,7 +585,7 @@ return <g key={i}><rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={i
 {chartView==="split"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.red,display:"inline-block",borderRadius:2}}/>Interest</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.green,display:"inline-block",borderRadius:2}}/>Principal</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.purple,display:"inline-block",borderRadius:2}}/>Lump sum</div></>}
 </div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:16}}>
-{[{label:"Interest over life",val:fmt(totalInterest),color:C.red,pct:(totalInterest/totalCost*100).toFixed(1),barColor:C.red},{label:"Principal",val:fmt(cfg.principal),color:C.green,pct:(cfg.principal/totalCost*100).toFixed(1),barColor:C.green}].map(s=>(
+{[{label:"Interest over life",val:fmt(totalInterest),color:C.red,pct:fmtN(totalInterest/totalCost*100),barColor:C.red},{label:"Principal",val:fmt(cfg.principal),color:C.green,pct:fmtN(cfg.principal/totalCost*100),barColor:C.green}].map(s=>(
 <div key={s.label} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
 <div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={16}>{s.val}</Mono>
@@ -672,7 +673,7 @@ return(
 <Btn onClick={()=>setEditMode(e=>!e)} bg={editMode?"rgba(110,231,183,.15)":C.border} border={editMode?C.green:C.t5} color={editMode?C.green:C.t2}>{editMode?"✓ Done":"✏ Edit"}</Btn>
 </Row>
 <div style={{marginBottom:18}}>
-<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t3,marginBottom:6}}><span>Equity {equityPct.toFixed(1)}%</span><span>Liabilities {(100-equityPct).toFixed(1)}%</span></div>
+<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t3,marginBottom:6}}><span>Equity {fmtN(equityPct)}%</span><span>Liabilities {fmtN(100-equityPct)}%</span></div>
 <div style={{height:10,background:C.border,borderRadius:5,overflow:"hidden",display:"flex"}}>
 <div style={{height:"100%",width:`${equityPct}%`,background:`linear-gradient(90deg,${C.green},#3b82f6)`,borderRadius:5,transition:"width .6s ease"}}/>
 </div>
@@ -766,7 +767,7 @@ const first=snapshots[0],last=snapshots[snapshots.length-1];
 const change=last.netWorth-first.netWorth,pct=first.netWorth!==0?(change/Math.abs(first.netWorth))*100:0;
 return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Change</div><Mono color={change>=0?C.green:C.red} size={12}>{change>=0?"+":"−"}{fmt(Math.abs(change))}</Mono></div>
-<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>% Change</div><Mono color={pct>=0?C.green:C.red} size={12}>{pct>=0?"+":""}{pct.toFixed(1)}%</Mono></div>
+<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>% Change</div><Mono color={pct>=0?C.green:C.red} size={12}>{pct>=0?"+":""}{fmtN(pct)}%</Mono></div>
 </div>;
 })()}
 <div style={{marginTop:14}}>
@@ -799,7 +800,7 @@ const fundEntries=useMemo(()=>entries.filter(e=>e.type==="expense"&&e.recur!=="O
 const savingsContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Savings Goal").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
 const investContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Investments").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
 const getContrib=g=>{if(!g.linkedEntryId)return null;const e=entries.find(x=>x.id===Number(g.linkedEntryId)||x.id===g.linkedEntryId);return e?periodAmt(e,pDays):null;};
-const ttr=g=>{const c=getContrib(g);if(!c||c<=0)return null;const r=Math.max(0,g.target-g.saved);if(r<=0)return"Reached! 🎉";const p=r/c;return displayPeriod==="weekly"?`~${Math.ceil(p)} weeks`:displayPeriod==="fortnightly"?`~${Math.ceil(p)} fortnights`:displayPeriod==="monthly"?`~${Math.ceil(p)} months`:`~${p.toFixed(1)} years`;};
+const ttr=g=>{const c=getContrib(g);if(!c||c<=0)return null;const r=Math.max(0,g.target-g.saved);if(r<=0)return"Reached! 🎉";const p=r/c;return displayPeriod==="weekly"?`~${Math.ceil(p)} weeks`:displayPeriod==="fortnightly"?`~${Math.ceil(p)} fortnights`:displayPeriod==="monthly"?`~${Math.ceil(p)} months`:`~${fmtN(p)} years`;};
 const GoalForm=({value,onChange,onSubmit,onCancel,submitLabel})=>(
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
@@ -1071,7 +1072,7 @@ return <div key={key}><label style={{fontSize:10,color:C.purple,display:"block",
 {label:`${periodLabel} Income`,value:fmt(scenarioMode?scenarioIncome:totalIncome),color:C.green,scenario:scenarioMode&&!!scenarioDelta.income},
 {label:`${periodLabel} Outgoings`,value:fmt(scenarioMode?scenarioExpenses:totalExpenses),color:C.red,scenario:scenarioMode&&!!scenarioDelta.expenses},
 {label:"Net Balance",value:((scenarioMode?scenarioBalance:balance)<0?"−":"+")+fmt(Math.abs(scenarioMode?scenarioBalance:balance)),color:(scenarioMode?scenarioBalance:balance)>=0?C.green:(scenarioMode?scenarioBalance:balance)>=-200?C.amber:C.red,scenario:scenarioMode,highlight:true},
-{label:"Savings Rate",value:`${savingsRate.toFixed(1)}%`,color:savingsRate>=20?C.green:savingsRate>=10?C.amber:C.red,sub:savingsRate>=20?"On track":savingsRate>=10?"Could be higher":"Low"},
+{label:"Savings Rate",value:`${fmtN(savingsRate)}%`,color:savingsRate>=20?C.green:savingsRate>=10?C.amber:C.red,sub:savingsRate>=20?"On track":savingsRate>=10?"Could be higher":"Low"},
 ].map(c=>(
 <StatCard key={c.label} label={c.label} value={c.value} color={c.color} sub={c.sub}
 bg={c.scenario?"rgba(167,139,250,.2)":c.highlight?((scenarioMode?scenarioBalance:balance)>=0?"rgba(110,231,183,.08)":(scenarioMode?scenarioBalance:balance)>=-200?"rgba(251,191,36,.08)":"rgba(251,113,133,.08)"):C.card}
@@ -1099,8 +1100,8 @@ labelColor={c.scenario?C.purple:C.t3}/>
 {savingsRatio>0&&<div style={{height:"100%",width:`${Math.min(savingsRatio,100-ratio)}%`,background:"linear-gradient(90deg,#06b6d4,#0ea5e9)",opacity:.6,transition:"width .6s ease",flexShrink:0,borderRadius:"0 7px 7px 0"}}/>}
 </div>
 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t3,marginBottom:8}}>
-<span>{ratio.toFixed(1)}% expenses</span>
-{savingsRatio>0&&<span style={{color:"rgba(6,182,212,.8)"}}>+{savingsRatio.toFixed(1)}% savings</span>}
+<span>{fmtN(ratio)}% expenses</span>
+{savingsRatio>0&&<span style={{color:"rgba(6,182,212,.8)"}}>+{fmtN(savingsRatio)}% savings</span>}
 <span>Target: &lt;75%</span>
 </div>
 <div style={{display:"flex",gap:12,fontSize:11}}>
@@ -1160,7 +1161,7 @@ return(
 <Mono color={C.t1} size={13}>{fmt(amt)}</Mono>
 </div>
 <div style={{height:6,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:CAT_COLORS[cat]||C.green,borderRadius:3,transition:"width .5s ease"}}/></div>
-<div style={{fontSize:10,color:C.t4,marginTop:3,textAlign:"right"}}>{pct.toFixed(1)}% of income</div>
+<div style={{fontSize:10,color:C.t4,marginTop:3,textAlign:"right"}}>{fmtN(pct)}% of income</div>
 </div>
 );
 })}
