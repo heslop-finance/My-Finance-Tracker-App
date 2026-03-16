@@ -1035,7 +1035,7 @@ const handleAdd=()=>{if(!form.label||!form.amount||isNaN(Number(form.amount)))re
 return(
 <div style={{minHeight:"100vh",background:C.bg,fontFamily:F.sans,color:C.t1,paddingBottom:80}}>
 <style>{CSS}</style>
-<div style={{background:"linear-gradient(180deg,#0f172a 0%,#0a0f1e 100%)",borderBottom:`1px solid ${C.border}`,padding:"14px 24px 12px",position:"sticky",top:0,zIndex:50}}>
+<div style={{background:"linear-gradient(180deg,#0f172a 0%,#0a0f1e 100%)",borderBottom:`1px solid ${C.border}`,padding:"14px 24px 12px",paddingTop:'env(safe-area-inset-top)',position:"sticky",top:0,zIndex:50}}>
 <div style={{maxWidth:720,margin:"0 auto"}}>
 <div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}}>My Finance Tracker</div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
