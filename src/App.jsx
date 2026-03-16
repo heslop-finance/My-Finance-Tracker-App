@@ -8,13 +8,13 @@ t1:"#f1f5f9",t2:"#94a3b8",t3:"#64748b",t4:"#475569",t5:"#334155",
 inc:"rgba(110,231,183,.08)",exp:"rgba(251,113,133,.08)",
 incDk:"#0d2420",expDk:"#1f0d12",
 };
-const F={mono:"‘JetBrains Mono’,monospace",sans:"‘DM Sans’,sans-serif"};
+const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const s=(extra={})=>({...extra});
 
 const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Other Income"];
-const EXPENSE_CATS=["Mortgage/Rent","Utilities","Food","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Savings Goal","Investments","Other"];
+const EXPENSE_CATS=["Mortgage","Utilities","Food","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Savings Goal","Investments","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
-const CAT_COLORS={"Mortgage/Rent":"#fb7185","Utilities":"#fbbf24","Food":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Utilities":"#fbbf24","Food":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Other Income":"#f472b6"};
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -87,10 +87,43 @@ return schedule;
 }
 
 // ── CSS ────────────────────────────────────────────────────────
-const CSS=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600;700&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} input,select,textarea{outline:none;} .fi,.fi-16{font-size:16px;} input[type="date"]{-webkit-appearance:none;appearance:none;max-width:100%;min-width:0;} input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.5);} input[type="range"]{accent-color:#6ee7b7;} .hscroll{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:12px;padding-bottom:8px;scrollbar-width:none;} .hscroll::-webkit-scrollbar{display:none;} .hscroll>*{flex-shrink:0;} .card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:20px;margin-bottom:20px;} .fi{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#f1f5f9;font-family:'DM Sans',sans-serif;font-size:16px;width:100%;box-sizing:border-box;} .fi:focus{border-color:#6ee7b7;} .tab-btn{background:none;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .2s;white-space:nowrap;color:#64748b;} .tab-btn.active{background:#1e293b;color:#f1f5f9;} .period-btn{border:1px solid #1e293b;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:#64748b;background:none;white-space:nowrap;} .period-btn.active{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;} .add-btn{background:linear-gradient(135deg,#6ee7b7,#3b82f6);border:none;border-radius:10px;padding:13px 28px;color:#0a0f1e;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;} .tt{display:flex;background:#1e293b;border-radius:10px;padding:4px;gap:4px;} .tb{flex:1;border:none;border-radius:7px;padding:9px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;} .tb.inc{background:rgba(110,231,183,.2);color:#6ee7b7;} .tb.exp{background:rgba(251,113,133,.2);color:#fb7185;} .tb.off{background:transparent;color:#475569;} .rb{border:1px solid #1e293b;cursor:pointer;padding:7px 10px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:#64748b;background:none;white-space:nowrap;} .rb.on{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;} .rb.oo{background:rgba(251,191,36,.1);border-color:#fbbf24;color:#fbbf24;} .cc{background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;} .cc.active{background:rgba(110,231,183,.07);border-color:#6ee7b7;}`;
+const CSS=`
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+input,select,textarea{outline:none;font-size:16px!important;}
+.fi,.fi-16{font-size:16px;}
+input[type="date"]{-webkit-appearance:none;appearance:none;max-width:100%;min-width:0;}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.5);}
+input[type="range"]{accent-color:#6ee7b7;}
+.bnav{position:fixed;bottom:0;left:0;right:0;background:#0f172a;border-top:1px solid #1e293b;display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom);}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;border:none;background:none;cursor:pointer;gap:3px;}
+.bnav-btn span{font-size:18px;line-height:1;}
+.bnav-btn div{font-size:10px;font-weight:600;font-family:'DM Sans',sans-serif;}
+.hscroll{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:12px;padding-bottom:8px;scrollbar-width:none;}
+.hscroll::-webkit-scrollbar{display:none;}
+.hscroll>*{flex-shrink:0;}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:20px;margin-bottom:20px;}
+.fi{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#f1f5f9;font-family:'DM Sans',sans-serif;font-size:16px;width:100%;box-sizing:border-box;}
+.fi:focus{border-color:#6ee7b7;}
+.tab-btn{background:none;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .2s;white-space:nowrap;color:#64748b;}
+.tab-btn.active{background:#1e293b;color:#f1f5f9;}
+.period-btn{border:1px solid #1e293b;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:#64748b;background:none;white-space:nowrap;}
+.period-btn.active{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;}
+.add-btn{background:linear-gradient(135deg,#6ee7b7,#3b82f6);border:none;border-radius:10px;padding:13px 28px;color:#0a0f1e;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;}
+.tt{display:flex;background:#1e293b;border-radius:10px;padding:4px;gap:4px;}
+.tb{flex:1;border:none;border-radius:7px;padding:9px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+.tb.inc{background:rgba(110,231,183,.2);color:#6ee7b7;}
+.tb.exp{background:rgba(251,113,133,.2);color:#fb7185;}
+.tb.off{background:transparent;color:#475569;}
+.rb{border:1px solid #1e293b;cursor:pointer;padding:7px 10px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:#64748b;background:none;white-space:nowrap;}
+.rb.on{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;}
+.rb.oo{background:rgba(251,191,36,.1);border-color:#fbbf24;color:#fbbf24;}
+.cc{background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;}
+.cc.active{background:rgba(110,231,183,.07);border-color:#6ee7b7;}
+`;
 
 // ── SMALL HELPERS ──────────────────────────────────────────────
-const Mono=({children,color,size=14})=><span style={{fontFamily:F.mono,fontSize:size,fontWeight:700,color}}>{children}</span>;
+const Mono=({children,color,size=14})=><span style={{fontFamily:F.sans,fontSize:size,fontWeight:700,color,letterSpacing:"-0.02em"}}>{children}</span>;
 const Label=({children,color=C.t3,size=11,mb=4})=><div style={{fontSize:size,color,marginBottom:mb,textTransform:"uppercase",letterSpacing:".07em",fontWeight:700}}>{children}</div>;
 const Row=({children,mb=0})=><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:mb}}>{children}</div>;
 const Btn=({children,onClick,bg="#1e293b",border="#334155",color=C.t2,style={}})=>(
@@ -100,12 +133,11 @@ const GradBtn=({children,onClick,style={}})=>(
 <button onClick={onClick} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",borderRadius:8,padding:"9px 20px",color:C.bg,fontWeight:700,fontSize:13,cursor:"pointer",width:"100%",...style}}>{children}</button>
 );
 const StatCard=({label,value,color,sub,bg=C.card,border=C.border,labelColor=C.t3})=>(
-
-  <div style={{background:bg,border:`1px solid ${border}`,borderRadius:16,padding:"18px 16px",minWidth:160,width:"calc(50% - 6px)"}}>
-    <div style={{fontSize:10,color:labelColor,marginBottom:8,textTransform:"uppercase",letterSpacing:".05em",lineHeight:1.4,whiteSpace:"nowrap"}}>{label}</div>
-    <Mono color={color} size={14}>{value}</Mono>
-    {sub&&<div style={{fontSize:10,color:C.t4,marginTop:4}}>{sub}</div>}
-  </div>
+<div style={{background:bg,border:`1px solid ${border}`,borderRadius:16,padding:"18px 16px",minWidth:155,flexShrink:0}}>
+<div style={{fontSize:10,color:labelColor,marginBottom:8,textTransform:"uppercase",letterSpacing:".05em",lineHeight:1.4,whiteSpace:"nowrap"}}>{label}</div>
+<Mono color={color} size={14}>{value}</Mono>
+{sub&&<div style={{fontSize:10,color:C.t4,marginTop:4}}>{sub}</div>}
+</div>
 );
 
 // ── HISTOGRAM ─────────────────────────────────────────────────
@@ -190,7 +222,7 @@ return(
 <div className="card">
 <Row mb={12}>
 <div style={{fontSize:12,fontWeight:700,color:C.t2}}>{isYearly?"Monthly":"Daily"} Expenses</div>
-<div style={{fontFamily:F.mono,fontSize:18,fontWeight:700,color:C.red}}>{fmt(bars.reduce((s,b)=>s+b.val,0))}</div>
+<div style={{fontFamily:F.sans,fontSize:18,fontWeight:700,color:C.red}}>{fmt(bars.reduce((s,b)=>s+b.val,0))}</div>
 </Row>
 <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
 {toggles.map(t=><button key={t.label} onClick={()=>t.set(v=>!v)} className={`rb ${t.active?"on":""}`}>{t.label}</button>)}
@@ -914,7 +946,7 @@ style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadi
 // ── SEED DATA ─────────────────────────────────────────────────
 const SEED=[
 {id:1,type:"income",label:"Salary",category:"Salary",amount:5500,recur:"Monthly",startDate:"2025-01-01"},
-{id:2,type:"expense",label:"Mortgage Payment",category:"Mortgage/Rent",amount:1800,recur:"Monthly",startDate:"2025-01-01"},
+{id:2,type:"expense",label:"Mortgage Payment",category:"Mortgage",amount:1800,recur:"Monthly",startDate:"2025-01-01"},
 {id:3,type:"expense",label:"Rates",category:"Rates",amount:80,recur:"Monthly",startDate:"2025-01-01"},
 {id:4,type:"expense",label:"Groceries",category:"Food",amount:220,recur:"Fortnightly",startDate:"2025-01-06"},
 {id:5,type:"expense",label:"House Insurance",category:"Insurance",amount:1200,recur:"Yearly",startDate:"2025-03-01"},
@@ -923,35 +955,44 @@ const SEED=[
 {id:8,type:"income",label:"Moving Bonus",category:"Other Income",amount:500,recur:"One-off",startDate:"2025-03-13"},
 ];
 
+// ── LOCAL STORAGE ─────────────────────────────────────────────
+const loadLS=(key,fallback)=>{try{const s=localStorage.getItem(key);return s?JSON.parse(s):fallback;}catch{return fallback;}};
+
 // ── APP ────────────────────────────────────────────────────────
 export default function App(){
-const[entries,setEntries]=useState(SEED);
+const[entries,setEntries]=useState(()=>loadLS('ft_entries',SEED));
 const[displayPeriod,setDisplayPeriod]=useState("monthly");
 const[view,setView]=useState("dashboard");
-const[tab,setTab]=useState("income");
+const[tab,setTab]=useState(()=>loadLS('ft_tab',"income"));
 const[showPastOneOffs,setShowPastOneOffs]=useState(false);
 const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],amount:"",recur:"Monthly",startDate:todayStr});
-const[mortgageCfg,setMortgageCfg]=useState(DEFAULT_MORT);
-const[mortgageRateChanges,setMortgageRateChanges]=useState([]);
-const[mortgageLumpSums,setMortgageLumpSums]=useState([]);
-const[assets,setAssets]=useState([{id:1,label:"Home Value",value:650000},{id:2,label:"KiwiSaver",value:42000},{id:3,label:"Savings",value:15000},{id:4,label:"Investments",value:8000}]);
-const[liabilities,setLiabilities]=useState([{id:1,label:"Mortgage",value:500000,linkMortgage:true},{id:2,label:"Car Loan",value:12000}]);
-const[networthSnapshots,setNetworthSnapshots]=useState([]);
-const[budgetLimits,setBudgetLimits]=useState({});
+const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
+const[mortgageRateChanges,setMortgageRateChanges]=useState(()=>loadLS('ft_mortgageRateChanges',[]));
+const[mortgageLumpSums,setMortgageLumpSums]=useState(()=>loadLS('ft_mortgageLumpSums',[]));
+const[assets,setAssets]=useState(()=>loadLS('ft_assets',[{id:1,label:"Home Value",value:650000},{id:2,label:"KiwiSaver",value:42000},{id:3,label:"Savings",value:15000},{id:4,label:"Investments",value:8000}]));
+const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000,linkMortgage:true},{id:2,label:"Car Loan",value:12000}]));
+const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
+const[budgetLimits,setBudgetLimits]=useState(()=>loadLS('ft_budgetLimits',{}));
 const[budgetEditing,setBudgetEditing]=useState(false);
 const[scenarioMode,setScenarioMode]=useState(false);
 const[scenarioDelta,setScenarioDelta]=useState({income:0,expenses:0,incomeSign:1,expensesSign:1});
-const[goals,setGoals]=useState([
+const[goals,setGoals]=useState(()=>loadLS('ft_goals',[
 {id:1,name:"Emergency Fund",target:15000,saved:3200,color:C.green,linkedCategory:"Savings Goal",emoji:"🛡"},
 {id:2,name:"Holiday",target:5000,saved:800,color:"#67e8f9",linkedCategory:"Savings Goal",emoji:"✈️"},
 {id:3,name:"New Car",target:20000,saved:0,color:C.amber,linkedCategory:"Savings Goal",emoji:"🚗"},
-]);
-const[showDataPanel,setShowDataPanel]=useState(false);
-const[importText,setImportText]=useState("");
-const[importMsg,setImportMsg]=useState("");
+]));
 
-const exportData=()=>JSON.stringify({v:2,entries,displayPeriod,mortgage:{cfg:mortgageCfg,rateChanges:mortgageRateChanges,lumpSums:mortgageLumpSums},networth:{assets,liabilities,snapshots:networthSnapshots},goals,budgetLimits},null,2);
-const importData=()=>{try{const d=JSON.parse(importText);if(d.entries)setEntries(d.entries);if(d.displayPeriod)setDisplayPeriod(d.displayPeriod);if(d.mortgage){if(d.mortgage.cfg)setMortgageCfg(d.mortgage.cfg);if(d.mortgage.rateChanges)setMortgageRateChanges(d.mortgage.rateChanges);if(d.mortgage.lumpSums)setMortgageLumpSums(d.mortgage.lumpSums);}if(d.networth){if(d.networth.assets)setAssets(d.networth.assets);if(d.networth.liabilities)setLiabilities(d.networth.liabilities);if(d.networth.snapshots)setNetworthSnapshots(d.networth.snapshots);}if(d.goals)setGoals(d.goals);if(d.budgetLimits)setBudgetLimits(d.budgetLimits);setImportMsg("✓ Data restored successfully!");setImportText("");setTimeout(()=>{setImportMsg("");setShowDataPanel(false);},2000);}catch(e){setImportMsg("✗ Invalid data — paste the full exported text.");}};
+// Auto-save to localStorage
+useEffect(()=>{localStorage.setItem('ft_entries',JSON.stringify(entries));},[entries]);
+useEffect(()=>{localStorage.setItem('ft_tab',JSON.stringify(tab));},[tab]);
+useEffect(()=>{localStorage.setItem('ft_mortgageCfg',JSON.stringify(mortgageCfg));},[mortgageCfg]);
+useEffect(()=>{localStorage.setItem('ft_mortgageRateChanges',JSON.stringify(mortgageRateChanges));},[mortgageRateChanges]);
+useEffect(()=>{localStorage.setItem('ft_mortgageLumpSums',JSON.stringify(mortgageLumpSums));},[mortgageLumpSums]);
+useEffect(()=>{localStorage.setItem('ft_assets',JSON.stringify(assets));},[assets]);
+useEffect(()=>{localStorage.setItem('ft_liabilities',JSON.stringify(liabilities));},[liabilities]);
+useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networthSnapshots));},[networthSnapshots]);
+useEffect(()=>{localStorage.setItem('ft_budgetLimits',JSON.stringify(budgetLimits));},[budgetLimits]);
+useEffect(()=>{localStorage.setItem('ft_goals',JSON.stringify(goals));},[goals]);
 
 const mortSchedule=useMemo(()=>buildSchedule(mortgageCfg.principal,mortgageCfg.annualRate,mortgageCfg.termYears,mortgageCfg.startDate,mortgageRateChanges,mortgageLumpSums),[mortgageCfg,mortgageRateChanges,mortgageLumpSums]);
 
@@ -990,215 +1031,191 @@ const handleEdit=updated=>setEntries(prev=>prev.map(e=>e.id===updated.id?updated
 const handleAdd=()=>{if(!form.label||!form.amount||isNaN(Number(form.amount)))return;setEntries(prev=>[...prev,{id:Date.now(),type:form.type,label:form.label,category:form.category,amount:Math.abs(Number(form.amount)),recur:form.recur,startDate:form.startDate,...(form.recur==="Variable"?{actuals:[]}:{})}]);setForm(f=>({...f,label:"",amount:""}));};
 
 return(
-<div style={{minHeight:"100vh",background:C.bg,fontFamily:F.sans,color:C.t1,paddingBottom:60}}>
+<div style={{minHeight:"100vh",background:C.bg,fontFamily:F.sans,color:C.t1,paddingBottom:80}}>
 <style>{CSS}</style>
-<div style={{background:"linear-gradient(180deg,#0f172a 0%,#0a0f1e 100%)",borderBottom:`1px solid ${C.border}`,padding:"28px 24px 20px"}}>
+<div style={{background:"linear-gradient(180deg,#0f172a 0%,#0a0f1e 100%)",borderBottom:`1px solid ${C.border}`,padding:"14px 24px 12px",position:"sticky",top:0,zIndex:50}}>
 <div style={{maxWidth:720,margin:"0 auto"}}>
-<div style={{fontFamily:"‘DM Serif Display’,serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:4}}>My Finance Tracker</div>
-<div style={{fontSize:13,color:C.t3,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-<span>New Zealand · NZD · Keep your new home finances in check</span>
-<Btn onClick={()=>{setShowDataPanel(v=>!v);setImportText("");setImportMsg("");}} bg={showDataPanel?"rgba(110,231,183,.15)":C.border} border={showDataPanel?C.green:C.t5} color={showDataPanel?C.green:C.t2} style={{padding:"5px 12px"}}>💾 Save / Load</Btn>
+<div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}}>My Finance Tracker</div>
+<div style={{display:"flex",gap:4,alignItems:"center"}}>
+{[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>setDisplayPeriod(p.key)} style={{border:`1px solid ${displayPeriod===p.key?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
 </div>
-{showDataPanel&&(
-<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:16,marginBottom:16}}>
-<div style={{fontSize:12,fontWeight:700,color:C.t2,marginBottom:6}}>Save your data</div>
-<div style={{fontSize:11,color:C.t3,marginBottom:10}}>Copy to clipboard, then paste into Notes or email.</div>
-<button onClick={()=>navigator.clipboard.writeText(exportData()).then(()=>setImportMsg("✓ Copied!")).catch(()=>{const el=document.getElementById("eta");if(el){el.style.display="block";el.select();document.execCommand("copy");el.style.display="none";setImportMsg("✓ Copied!");}else setImportMsg("✗ Copy failed.");})} style={{width:"100%",background:`linear-gradient(135deg,${C.green},#3b82f6)`,border:"none",borderRadius:8,padding:"11px 16px",color:C.bg,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:6}}>📋 Copy Data to Clipboard</button>
-<textarea id="eta" readOnly value={exportData()} style={{display:"none",width:"100%",height:1,opacity:0,position:"absolute"}}/>
-<details style={{marginBottom:12}}><summary style={{fontSize:11,color:C.t4,cursor:"pointer"}}>Can’t copy? Tap to select manually</summary><textarea readOnly value={exportData()} onFocus={e=>e.target.select()} style={{marginTop:6,width:"100%",height:100,background:C.border,border:`1px solid ${C.t5}`,borderRadius:8,color:C.green,fontSize:10,fontFamily:F.mono,padding:8,resize:"none",boxSizing:"border-box"}}/></details>
-<div style={{borderTop:`1px solid ${C.border}`,paddingTop:12}}><div style={{fontSize:12,fontWeight:700,color:C.t2,marginBottom:6}}>Restore from backup</div><textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder="Paste your saved data here..." style={{width:"100%",height:90,background:C.border,border:`1px solid ${C.t5}`,borderRadius:8,color:C.t1,fontSize:11,padding:10,resize:"none",boxSizing:"border-box"}}/>{importMsg&&<div style={{fontSize:12,color:importMsg.startsWith("✓")?C.green:C.red,margin:"6px 0",fontWeight:600}}>{importMsg}</div>}<button onClick={importData} disabled={!importText.trim()} style={{marginTop:8,width:"100%",background:C.card,border:`1px solid ${C.green}`,borderRadius:8,padding:"10px 16px",color:C.green,fontWeight:700,fontSize:13,cursor:"pointer",opacity:importText.trim()?1:.35}}>Restore Data</button></div>
+</div>
+</div>
+
+<div style={{maxWidth:720,margin:"0 auto",padding:"20px 16px 0"}}>
+
+{view==="dashboard"&&<>
+<div style={{marginBottom:16}}>
+<button onClick={()=>setScenarioMode(v=>!v)} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+<span>🔮 Scenario Mode{scenarioMode?" — ON":""}</span>
+{scenarioMode&&<span style={{fontSize:11,color:C.t3}}>What if my income/expenses changed?</span>}
+</button>
+{scenarioMode&&(
+<div style={{background:"rgba(167,139,250,.18)",border:`1px solid rgba(167,139,250,.5)`,borderRadius:"0 0 10px 10px",padding:"14px 16px",marginTop:-1}}>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:10}}>
+{[{key:"income",label:`Income per ${scenarioPWord}`,signKey:"incomeSign"},{key:"expenses",label:`Expenses per ${scenarioPWord}`,signKey:"expensesSign"}].map(({key,label,signKey})=>{
+const isNeg=scenarioDelta[signKey]===-1;const absVal=Math.abs(scenarioDelta[key])||"";
+return <div key={key}><label style={{fontSize:10,color:C.purple,display:"block",marginBottom:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</label><div style={{display:"flex",gap:6,alignItems:"center"}}><button onClick={()=>setScenarioDelta(d=>({...d,[signKey]:d[signKey]*-1}))} style={{background:isNeg?"rgba(251,113,133,.2)":"rgba(110,231,183,.2)",border:`1px solid ${isNeg?C.red:C.green}`,borderRadius:6,padding:"6px 10px",color:isNeg?C.red:C.green,fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>{isNeg?"−":"+"}</button><input type="text" inputMode="numeric" className="fi" placeholder="0" value={absVal} onFocus={e=>e.target.select()} onChange={e=>{const v=Number(e.target.value.replace(/[^0-9.]/g,""))||0;setScenarioDelta(d=>({...d,[key]:v}));}} style={{flex:1,minWidth:0}}/></div></div>;
+})}
+</div>
+<div style={{fontSize:11,color:C.t3}}>Scenario balance: <Mono color={scenarioBalance>=0?C.green:C.red} size={11}>{scenarioBalance>=0?"+":"−"}{fmt(Math.abs(scenarioBalance))}</Mono> <span style={{color:C.t5}}>vs actual {balance>=0?"+":"−"}{fmt(Math.abs(balance))}</span></div>
+<button onClick={()=>setScenarioDelta({income:0,expenses:0,incomeSign:1,expensesSign:1})} style={{marginTop:8,background:"none",border:`1px solid ${C.t5}`,borderRadius:6,padding:"3px 10px",color:C.t4,fontSize:11,cursor:"pointer"}}>Reset</button>
 </div>
 )}
-<div style={{marginBottom:16}}>
-<div style={{fontSize:11,color:C.t3,textTransform:"uppercase",letterSpacing:".07em",fontWeight:700,marginBottom:8}}>View figures as</div>
-<div className="hscroll">{PERIODS.map(p=><button key={p.key} className={`period-btn ${displayPeriod===p.key?"active":""}`} onClick={()=>setDisplayPeriod(p.key)}>{p.label}</button>)}</div>
-</div>
-</div>
 </div>
 
-```
-  <div style={{maxWidth:720,margin:"0 auto",padding:"24px 24px 0"}}>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:20,background:C.card,borderRadius:12,padding:4}}>
-      {[{key:"income",label:"Income vs Expenses"},{key:"goals",label:"Goals & Investments"},{key:"mortgage",label:"Mortgage"},{key:"networth",label:"Net Worth"}].map(t=>(
-        <button key={t.key} onClick={()=>setTab(t.key)} style={{padding:"10px 8px",borderRadius:8,border:"none",fontSize:12,fontWeight:600,cursor:"pointer",textAlign:"center",lineHeight:1.3,background:tab===t.key?C.border:"transparent",color:tab===t.key?C.t1:C.t3,boxShadow:tab===t.key?"0 1px 3px rgba(0,0,0,.4)":"none"}}>{t.label}</button>
-      ))}
-    </div>
-
-    {tab==="income"&&<>
-      <div className="hscroll" style={{background:C.card,borderRadius:10,padding:4,gap:2,marginBottom:20}}>
-        {["dashboard","entries","add"].map(t=>(
-          <button key={t} className={`tab-btn ${view===t?"active":""}`} onClick={()=>setView(t)}>{t==="dashboard"?"📊 Overview":t==="entries"?"📋 Entries":"➕ Add Entry"}</button>
-        ))}
-      </div>
-
-      {view==="dashboard"&&<>
-        {/* Scenario Mode */}
-        <div style={{marginBottom:16}}>
-          <button onClick={()=>setScenarioMode(v=>!v)} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <span>🔮 Scenario Mode{scenarioMode?" — ON":""}</span>
-            {scenarioMode&&<span style={{fontSize:11,color:C.t3}}>What if my income/expenses changed?</span>}
-          </button>
-          {scenarioMode&&(
-            <div style={{background:"rgba(167,139,250,.18)",border:`1px solid rgba(167,139,250,.5)`,borderRadius:"0 0 10px 10px",padding:"14px 16px",marginTop:-1}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:10}}>
-                {[{key:"income",label:`Income per ${scenarioPWord}`,signKey:"incomeSign"},{key:"expenses",label:`Expenses per ${scenarioPWord}`,signKey:"expensesSign"}].map(({key,label,signKey})=>{
-                  const isNeg=scenarioDelta[signKey]===-1;const absVal=Math.abs(scenarioDelta[key])||"";
-                  return <div key={key}><label style={{fontSize:10,color:C.purple,display:"block",marginBottom:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</label><div style={{display:"flex",gap:6,alignItems:"center"}}><button onClick={()=>setScenarioDelta(d=>({...d,[signKey]:d[signKey]*-1}))} style={{background:isNeg?"rgba(251,113,133,.2)":"rgba(110,231,183,.2)",border:`1px solid ${isNeg?C.red:C.green}`,borderRadius:6,padding:"6px 10px",color:isNeg?C.red:C.green,fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>{isNeg?"−":"+"}</button><input type="text" inputMode="numeric" className="fi" placeholder="0" value={absVal} onFocus={e=>e.target.select()} onChange={e=>{const v=Number(e.target.value.replace(/[^0-9.]/g,""))||0;setScenarioDelta(d=>({...d,[key]:v}));}} style={{flex:1,minWidth:0}}/></div></div>;
-                })}
-              </div>
-              <div style={{fontSize:11,color:C.t3}}>Scenario balance: <Mono color={scenarioBalance>=0?C.green:C.red} size={11}>{scenarioBalance>=0?"+":"−"}{fmt(Math.abs(scenarioBalance))}</Mono> <span style={{color:C.t5}}>vs actual {balance>=0?"+":"−"}{fmt(Math.abs(balance))}</span></div>
-              <button onClick={()=>setScenarioDelta({income:0,expenses:0,incomeSign:1,expensesSign:1})} style={{marginTop:8,background:"none",border:`1px solid ${C.t5}`,borderRadius:6,padding:"3px 10px",color:C.t4,fontSize:11,cursor:"pointer"}}>Reset</button>
-            </div>
-          )}
-        </div>
-
-        {/* Summary cards */}
-        <div className="hscroll" style={{marginBottom:20}}>
-          {[
-            {label:`${periodLabel} Income`,value:fmt(scenarioMode?scenarioIncome:totalIncome),color:C.green,scenario:scenarioMode&&!!scenarioDelta.income},
-            {label:`${periodLabel} Outgoings`,value:fmt(scenarioMode?scenarioExpenses:totalExpenses),color:C.red,scenario:scenarioMode&&!!scenarioDelta.expenses},
-            {label:"Net Balance",value:((scenarioMode?scenarioBalance:balance)<0?"−":"+")+fmt(Math.abs(scenarioMode?scenarioBalance:balance)),color:(scenarioMode?scenarioBalance:balance)>=0?C.green:(scenarioMode?scenarioBalance:balance)>=-200?C.amber:C.red,scenario:scenarioMode,highlight:true},
-            {label:"Savings Rate",value:`${savingsRate.toFixed(1)}%`,color:savingsRate>=20?C.green:savingsRate>=10?C.amber:C.red,sub:savingsRate>=20?"On track":savingsRate>=10?"Could be higher":"Low"},
-          ].map(c=>(
-            <StatCard key={c.label} label={c.label} value={c.value} color={c.color} sub={c.sub}
-              bg={c.scenario?"rgba(167,139,250,.2)":c.highlight?((scenarioMode?scenarioBalance:balance)>=0?"rgba(110,231,183,.08)":(scenarioMode?scenarioBalance:balance)>=-200?"rgba(251,191,36,.08)":"rgba(251,113,133,.08)"):C.card}
-              border={c.scenario?"rgba(167,139,250,.7)":c.highlight?((scenarioMode?scenarioBalance:balance)>=0?"rgba(110,231,183,.2)":(scenarioMode?scenarioBalance:balance)>=-200?"rgba(251,191,36,.2)":"rgba(251,113,133,.2)"):C.border}
-              labelColor={c.scenario?C.purple:C.t3}/>
-          ))}
-        </div>
-
-        {/* Period comparison */}
-        <div className="card">
-          <div style={{fontSize:13,fontWeight:600,color:C.t2,marginBottom:14}}>Net balance across all periods <span style={{fontSize:11,color:C.t4}}>· tap to switch</span></div>
-          <div className="hscroll">
-            {PERIODS.map(p=>{let inc=0,exp=0;entries.filter(e=>e.recur!=="One-off").forEach(e=>{const a=periodAmt(e,p.days);if(e.type==="income")inc+=a;else exp+=a;});const bal=inc-exp;return(
-              <div key={p.key} className={`cc ${displayPeriod===p.key?"active":""}`} onClick={()=>setDisplayPeriod(p.key)} style={{minWidth:110,width:"calc(25% - 9px)"}}>
-                <div style={{fontSize:10,color:displayPeriod===p.key?C.green:C.t3,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:".07em"}}>{p.label}</div>
-                <Mono color={bal>=0?C.green:C.red} size={13}>{bal>=0?"+":"−"}{fmt(bal)}</Mono>
-              </div>
-            );})}
-          </div>
-        </div>
-
-        {/* Expense Ratio */}
-        <div className="card" style={scenarioMode?{background:"rgba(167,139,250,.18)",border:`1px solid rgba(167,139,250,.5)`}:{}}>
-          <Row mb={14}><div style={{fontSize:14,fontWeight:600}}>Expense Ratio</div><div style={{background:`${statusColor}22`,color:statusColor,padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700}}>{statusLabel}</div></Row>
-          <div style={{height:14,background:C.border,borderRadius:7,overflow:"hidden",marginBottom:10,display:"flex"}}>
-            <div style={{height:"100%",width:`${Math.min(ratio,100)}%`,background:`linear-gradient(90deg,${C.green},${statusColor})`,borderRadius:savingsRatio>0?"7px 0 0 7px":"7px",transition:"width .6s ease",flexShrink:0}}/>
-            {savingsRatio>0&&<div style={{height:"100%",width:`${Math.min(savingsRatio,100-ratio)}%`,background:"linear-gradient(90deg,#06b6d4,#0ea5e9)",opacity:.6,transition:"width .6s ease",flexShrink:0,borderRadius:"0 7px 7px 0"}}/>}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t3,marginBottom:8}}>
-            <span>{ratio.toFixed(1)}% expenses</span>
-            {savingsRatio>0&&<span style={{color:"rgba(6,182,212,.8)"}}>+{savingsRatio.toFixed(1)}% savings</span>}
-            <span>Target: &lt;75%</span>
-          </div>
-          <div style={{display:"flex",gap:12,fontSize:11}}>
-            <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:statusColor}}/><span style={{color:C.t3}}>Expenses ({fmt(displayTrueExp)})</span></div>
-            {savingsRatio>0&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:"rgba(6,182,212,.6)"}}/><span style={{color:C.t3}}>Savings ({fmt(savingsTotal)})</span></div>}
-          </div>
-        </div>
-
-        {/* Spending by Category */}
-        {expByCategory.length>0&&(
-          <div className="card">
-            <Row mb={16}><div style={{fontSize:14,fontWeight:600}}>Spending by Category <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div><button onClick={()=>setBudgetEditing(v=>!v)} className={`rb ${budgetEditing?"on":""}`}>{budgetEditing?"Done":"Budget"}</button></Row>
-            {expByCategory.map(([cat,amt])=>{
-              const pct=totalExpenses>0?(amt/totalExpenses)*100:0;
-              const budgetAmt=budgetLimits[`${cat}_${displayPeriod}`]||budgetLimits[cat]||null;
-              const overBudget=budgetAmt&&amt>budgetAmt;
-              const budgetPct=budgetAmt?Math.min((amt/budgetAmt)*100,100):null;
-              const budgetLinePct=budgetAmt&&totalExpenses>0?Math.min((budgetAmt/totalExpenses)*100,100):null;
-              const overPct=budgetAmt&&pct>budgetLinePct?pct-budgetLinePct:0;
-              const pw=({weekly:"wk",fortnightly:"fn",monthly:"mo",yearly:"yr"})[displayPeriod];
-              return(
-                <div key={cat} style={{marginBottom:14}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,marginBottom:5}}>
-                    <span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.t2}}/>{cat}{overBudget&&<span style={{fontSize:10,background:"rgba(251,113,133,.15)",color:C.red,borderRadius:6,padding:"1px 6px",fontWeight:700}}>over</span>}</span>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      {budgetEditing?(
-                        <div style={{display:"flex",alignItems:"center",gap:4}}>
-                          <span style={{fontSize:10,color:C.t4}}>$/{pw}</span>
-                          <input type="text" inputMode="decimal" value={budgetLimits[`${cat}_${displayPeriod}`]||""} onFocus={e=>e.target.select()} onChange={e=>{const v=e.target.value,k=`${cat}_${displayPeriod}`;setBudgetLimits(prev=>v?{...prev,[k]:Number(v)}:Object.fromEntries(Object.entries(prev).filter(([x])=>x!==k)));}} placeholder="no limit" style={{width:72,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"3px 6px",color:C.t1,fontSize:12,fontFamily:F.mono,textAlign:"right"}}/>
-                        </div>
-                      ):(
-                        <span style={{fontFamily:F.mono,color:overBudget?C.red:C.t1,fontWeight:600}}>{fmt(amt)}{budgetAmt&&<span style={{color:C.t4,fontWeight:400,fontSize:11}}> / {fmt(budgetAmt)}</span>}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{height:6,background:C.border,borderRadius:3,overflow:"visible",position:"relative"}}>
-                    <div style={{height:"100%",width:`${budgetAmt?Math.min(pct,budgetLinePct):pct}%`,background:CAT_COLORS[cat]||C.t2,borderRadius:3,transition:"width .5s ease",position:"absolute",top:0,left:0}}/>
-                    {overPct>0&&<div style={{height:"100%",width:`${overPct}%`,background:C.red,borderRadius:"0 3px 3px 0",position:"absolute",top:0,left:`${budgetLinePct}%`}}/>}
-                    {budgetLinePct&&<div style={{position:"absolute",top:-3,left:`${budgetLinePct}%`,width:2,height:12,background:C.red,borderRadius:1,transform:"translateX(-50%)",boxShadow:`0 0 4px ${C.red}`,zIndex:2}}/>}
-                  </div>
-                  {budgetAmt&&!budgetEditing&&<div style={{fontSize:10,color:overBudget?C.red:C.t4,marginTop:3,textAlign:"right"}}>{overBudget?`${fmt(amt-budgetAmt)} over budget`:`${fmt(budgetAmt-amt)} remaining`}</div>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Income by Source */}
-        {incByCategory.length>0&&(
-          <div className="card">
-            <div style={{fontSize:14,fontWeight:600,marginBottom:16}}>Income by Source <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div>
-            {incByCategory.map(([cat,amt])=>{
-              const pct=totalIncome>0?(amt/totalIncome)*100:0;
-              return(
-                <div key={cat} style={{marginBottom:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}>
-                    <span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.green}}/>{cat}</span>
-                    <Mono color={C.t1} size={13}>{fmt(amt)}</Mono>
-                  </div>
-                  <div style={{height:6,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:CAT_COLORS[cat]||C.green,borderRadius:3,transition:"width .5s ease"}}/></div>
-                  <div style={{fontSize:10,color:C.t4,marginTop:3,textAlign:"right"}}>{pct.toFixed(1)}% of income</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div style={{fontSize:11,color:C.t4,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:12,marginTop:4}}>{displayPeriod==="yearly"?"Monthly Charts":"Daily Charts"}</div>
-        <Histogram entries={entries} displayPeriod={displayPeriod}/>
-        <CalendarWidget entries={entries} displayPeriod={displayPeriod}/>
-      </>}
-
-      {view==="entries"&&<>
-        <div style={{textAlign:"center",marginBottom:16}}><span style={{background:C.border,color:C.t2,fontSize:12,padding:"4px 14px",borderRadius:20}}>Recurring amounts shown as <strong style={{color:C.t1}}>{periodLabel}</strong> · NZD</span></div>
-        {entries.length===0?<div style={{textAlign:"center",color:C.t4,padding:"60px 0",fontSize:14}}>No entries yet</div>:(()=>{
-          const pastOneOffs=entries.filter(e=>e.recur==="One-off"&&e.startDate<todayStr);
-          const active=entries.filter(e=>!(e.recur==="One-off"&&e.startDate<todayStr));
-          return <>
-            {active.filter(e=>e.type==="income").length>0&&<div style={{marginBottom:20}}><div style={{fontSize:11,color:C.green,letterSpacing:".08em",textTransform:"uppercase",fontWeight:700,marginBottom:10}}>Income</div>{active.filter(e=>e.type==="income").map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
-            {active.filter(e=>e.type==="expense").length>0&&<div style={{marginBottom:20}}><div style={{fontSize:11,color:C.red,letterSpacing:".08em",textTransform:"uppercase",fontWeight:700,marginBottom:10}}>Expenses, Savings &amp; Investments</div>{active.filter(e=>e.type==="expense").map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
-            {pastOneOffs.length>0&&<div style={{marginTop:8}}><div onClick={()=>setShowPastOneOffs(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"8px 12px",background:C.card,borderRadius:10,marginBottom:showPastOneOffs?10:0}}><div style={{fontSize:11,color:C.t4,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Past one-offs <span style={{background:C.border,color:C.t3,borderRadius:10,padding:"1px 8px",marginLeft:6,fontSize:10}}>{pastOneOffs.length}</span></div><span style={{color:C.t4,fontSize:13,display:"inline-block",transform:showPastOneOffs?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▾</span></div>{showPastOneOffs&&pastOneOffs.map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
-          </>;
-        })()}
-      </>}
-
-      {view==="add"&&(
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:24}}>
-          <div style={{fontSize:16,fontWeight:700,marginBottom:20}}>Add Entry</div>
-          <div className="tt" style={{marginBottom:16}}>
-            <button className={`tb ${form.type==="income"?"inc":"off"}`} onClick={()=>setForm(f=>({...f,type:"income",category:INCOME_CATS[0]}))}>Income</button>
-            <button className={`tb ${form.type==="expense"?"exp":"off"}`} onClick={()=>setForm(f=>({...f,type:"expense",category:EXPENSE_CATS[0]}))}>Expense / Savings / Investment</button>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-            <div><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>Description</label><input className="fi" placeholder="e.g. Netflix" value={form.label} onChange={e=>setForm(f=>({...f,label:e.target.value}))}/></div>
-            <div><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>Category</label><select className="fi" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>{(form.type==="income"?INCOME_CATS:EXPENSE_CATS).map(c=><option key={c}>{c}</option>)}</select></div>
-            <div><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>{form.recur==="Variable"?"Estimate ($)":"Amount ($)"}</label><input className="fi" type="text" inputMode="decimal" placeholder="0.00" value={form.amount} onFocus={e=>e.target.select()} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></div>
-          </div>
-          <div style={{marginBottom:12}}><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:8}}>Frequency</label><div className="hscroll">{RECUR_OPT.map(r=>{const isActive=form.recur===r;return <button key={r} className={`rb ${isActive?(r==="One-off"||r==="Variable"?"oo":"on"):""}`} onClick={()=>setForm(f=>({...f,recur:r}))}>{r}</button>;})}</div>{form.recur==="Variable"&&<div style={{fontSize:11,color:C.amber,marginTop:5}}>Amount is a monthly estimate. Log actual bills from Entries tab.</div>}</div>
-          <div style={{marginBottom:20}}><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>{form.recur==="One-off"?"Date":"Start Date"}</label><input className="fi" type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))}/>{form.recur!=="One-off"&&<div style={{fontSize:11,color:C.t4,marginTop:5}}>Repeats {form.recur.toLowerCase()} from this date.</div>}{form.recur==="One-off"&&<div style={{fontSize:11,color:C.amber,marginTop:5}}>Appears in calendar on this date only.</div>}</div>
-          <button className="add-btn" style={{width:"100%"}} onClick={handleAdd}>Add Entry</button>
-        </div>
-      )}
-    </>}
-
-    {tab==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals}/>}
-    {tab==="mortgage"&&<MortgageWidget cfg={mortgageCfg} setCfg={setMortgageCfg} rateChanges={mortgageRateChanges} setRateChanges={setMortgageRateChanges} lumpSums={mortgageLumpSums} setLumpSums={setMortgageLumpSums} displayPeriod={displayPeriod}/>}
-    {tab==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots}/>}
-  </div>
+<div className="hscroll" style={{marginBottom:20}}>
+{[
+{label:`${periodLabel} Income`,value:fmt(scenarioMode?scenarioIncome:totalIncome),color:C.green,scenario:scenarioMode&&!!scenarioDelta.income},
+{label:`${periodLabel} Outgoings`,value:fmt(scenarioMode?scenarioExpenses:totalExpenses),color:C.red,scenario:scenarioMode&&!!scenarioDelta.expenses},
+{label:"Net Balance",value:((scenarioMode?scenarioBalance:balance)<0?"−":"+")+fmt(Math.abs(scenarioMode?scenarioBalance:balance)),color:(scenarioMode?scenarioBalance:balance)>=0?C.green:(scenarioMode?scenarioBalance:balance)>=-200?C.amber:C.red,scenario:scenarioMode,highlight:true},
+{label:"Savings Rate",value:`${savingsRate.toFixed(1)}%`,color:savingsRate>=20?C.green:savingsRate>=10?C.amber:C.red,sub:savingsRate>=20?"On track":savingsRate>=10?"Could be higher":"Low"},
+].map(c=>(
+<StatCard key={c.label} label={c.label} value={c.value} color={c.color} sub={c.sub}
+bg={c.scenario?"rgba(167,139,250,.2)":c.highlight?((scenarioMode?scenarioBalance:balance)>=0?"rgba(110,231,183,.08)":(scenarioMode?scenarioBalance:balance)>=-200?"rgba(251,191,36,.08)":"rgba(251,113,133,.08)"):C.card}
+border={c.scenario?"rgba(167,139,250,.7)":c.highlight?((scenarioMode?scenarioBalance:balance)>=0?"rgba(110,231,183,.2)":(scenarioMode?scenarioBalance:balance)>=-200?"rgba(251,191,36,.2)":"rgba(251,113,133,.2)"):C.border}
+labelColor={c.scenario?C.purple:C.t3}/>
+))}
 </div>
 
+<div className="card">
+<div style={{fontSize:13,fontWeight:600,color:C.t2,marginBottom:14}}>Net balance across all periods <span style={{fontSize:11,color:C.t4}}>· tap to switch</span></div>
+<div className="hscroll">
+{PERIODS.map(p=>{let inc=0,exp=0;entries.filter(e=>e.recur!=="One-off").forEach(e=>{const a=periodAmt(e,p.days);if(e.type==="income")inc+=a;else exp+=a;});const bal=inc-exp;return(
+<div key={p.key} className={`cc ${displayPeriod===p.key?"active":""}`} onClick={()=>setDisplayPeriod(p.key)} style={{minWidth:110,width:"calc(25% - 9px)"}}>
+<div style={{fontSize:10,color:displayPeriod===p.key?C.green:C.t3,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:".07em"}}>{p.label}</div>
+<Mono color={bal>=0?C.green:C.red} size={13}>{bal>=0?"+":"−"}{fmt(bal)}</Mono>
+</div>
+);})}
+</div>
+</div>
+
+<div className="card" style={scenarioMode?{background:"rgba(167,139,250,.18)",border:`1px solid rgba(167,139,250,.5)`}:{}}>
+<Row mb={14}><div style={{fontSize:14,fontWeight:600}}>Expense Ratio</div><div style={{background:`${statusColor}22`,color:statusColor,padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700}}>{statusLabel}</div></Row>
+<div style={{height:14,background:C.border,borderRadius:7,overflow:"hidden",marginBottom:10,display:"flex"}}>
+<div style={{height:"100%",width:`${Math.min(ratio,100)}%`,background:`linear-gradient(90deg,${C.green},${statusColor})`,borderRadius:savingsRatio>0?"7px 0 0 7px":"7px",transition:"width .6s ease",flexShrink:0}}/>
+{savingsRatio>0&&<div style={{height:"100%",width:`${Math.min(savingsRatio,100-ratio)}%`,background:"linear-gradient(90deg,#06b6d4,#0ea5e9)",opacity:.6,transition:"width .6s ease",flexShrink:0,borderRadius:"0 7px 7px 0"}}/>}
+</div>
+<div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t3,marginBottom:8}}>
+<span>{ratio.toFixed(1)}% expenses</span>
+{savingsRatio>0&&<span style={{color:"rgba(6,182,212,.8)"}}>+{savingsRatio.toFixed(1)}% savings</span>}
+<span>Target: &lt;75%</span>
+</div>
+<div style={{display:"flex",gap:12,fontSize:11}}>
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:statusColor}}/><span style={{color:C.t3}}>Expenses ({fmt(displayTrueExp)})</span></div>
+{savingsRatio>0&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:"rgba(6,182,212,.6)"}}/><span style={{color:C.t3}}>Savings ({fmt(savingsTotal)})</span></div>}
+</div>
+</div>
+
+{expByCategory.length>0&&(
+<div className="card">
+<Row mb={16}><div style={{fontSize:14,fontWeight:600}}>Spending by Category <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div><button onClick={()=>setBudgetEditing(v=>!v)} className={`rb ${budgetEditing?"on":""}`}>{budgetEditing?"Done":"Budget"}</button></Row>
+{expByCategory.map(([cat,amt])=>{
+const pct=totalExpenses>0?(amt/totalExpenses)*100:0;
+const budgetAmt=budgetLimits[`${cat}_${displayPeriod}`]||budgetLimits[cat]||null;
+const overBudget=budgetAmt&&amt>budgetAmt;
+const budgetPct=budgetAmt?Math.min((amt/budgetAmt)*100,100):null;
+const budgetLinePct=budgetAmt&&totalExpenses>0?Math.min((budgetAmt/totalExpenses)*100,100):null;
+const overPct=budgetAmt&&pct>budgetLinePct?pct-budgetLinePct:0;
+const pw=({weekly:"wk",fortnightly:"fn",monthly:"mo",yearly:"yr"})[displayPeriod];
+return(
+<div key={cat} style={{marginBottom:14}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,marginBottom:5}}>
+<span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.t2}}/>{cat}{overBudget&&<span style={{fontSize:10,background:"rgba(251,113,133,.15)",color:C.red,borderRadius:6,padding:"1px 6px",fontWeight:700}}>over</span>}</span>
+<div style={{display:"flex",alignItems:"center",gap:8}}>
+{budgetEditing?(
+<div style={{display:"flex",alignItems:"center",gap:4}}>
+<span style={{fontSize:10,color:C.t4}}>$/{pw}</span>
+<input type="text" inputMode="decimal" value={budgetLimits[`${cat}_${displayPeriod}`]||""} onFocus={e=>e.target.select()} onChange={e=>{const v=e.target.value,k=`${cat}_${displayPeriod}`;setBudgetLimits(prev=>v?{...prev,[k]:Number(v)}:Object.fromEntries(Object.entries(prev).filter(([x])=>x!==k)));}} placeholder="no limit" style={{width:72,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"3px 6px",color:C.t1,fontSize:12,fontFamily:F.mono,textAlign:"right"}}/>
+</div>
+):(
+<span style={{fontFamily:F.mono,color:overBudget?C.red:C.t1,fontWeight:600}}>{fmt(amt)}{budgetAmt&&<span style={{color:C.t4,fontWeight:400,fontSize:11}}> / {fmt(budgetAmt)}</span>}</span>
+)}
+</div>
+</div>
+<div style={{height:6,background:C.border,borderRadius:3,overflow:"visible",position:"relative"}}>
+<div style={{height:"100%",width:`${budgetAmt?Math.min(pct,budgetLinePct):pct}%`,background:CAT_COLORS[cat]||C.t2,borderRadius:3,transition:"width .5s ease",position:"absolute",top:0,left:0}}/>
+{overPct>0&&<div style={{height:"100%",width:`${overPct}%`,background:C.red,borderRadius:"0 3px 3px 0",position:"absolute",top:0,left:`${budgetLinePct}%`}}/>}
+{budgetLinePct&&<div style={{position:"absolute",top:-3,left:`${budgetLinePct}%`,width:2,height:12,background:C.red,borderRadius:1,transform:"translateX(-50%)",boxShadow:`0 0 4px ${C.red}`,zIndex:2}}/>}
+</div>
+{budgetAmt&&!budgetEditing&&<div style={{fontSize:10,color:overBudget?C.red:C.t4,marginTop:3,textAlign:"right"}}>{overBudget?`${fmt(amt-budgetAmt)} over budget`:`${fmt(budgetAmt-amt)} remaining`}</div>}
+</div>
+);
+})}
+</div>
+)}
+
+{incByCategory.length>0&&(
+<div className="card">
+<div style={{fontSize:14,fontWeight:600,marginBottom:16}}>Income by Source <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div>
+{incByCategory.map(([cat,amt])=>{
+const pct=totalIncome>0?(amt/totalIncome)*100:0;
+return(
+<div key={cat} style={{marginBottom:12}}>
+<div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}>
+<span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.green}}/>{cat}</span>
+<Mono color={C.t1} size={13}>{fmt(amt)}</Mono>
+</div>
+<div style={{height:6,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:CAT_COLORS[cat]||C.green,borderRadius:3,transition:"width .5s ease"}}/></div>
+<div style={{fontSize:10,color:C.t4,marginTop:3,textAlign:"right"}}>{pct.toFixed(1)}% of income</div>
+</div>
+);
+})}
+</div>
+)}
+<div style={{fontSize:11,color:C.t4,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:12,marginTop:4}}>{displayPeriod==="yearly"?"Monthly Charts":"Daily Charts"}</div>
+<Histogram entries={entries} displayPeriod={displayPeriod}/>
+<CalendarWidget entries={entries} displayPeriod={displayPeriod}/>
+</>}
+
+{view==="entries"&&<>
+<div style={{textAlign:"center",marginBottom:16}}><span style={{background:C.border,color:C.t2,fontSize:12,padding:"4px 14px",borderRadius:20}}>Recurring amounts shown as <strong style={{color:C.t1}}>{periodLabel}</strong> · NZD</span></div>
+<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:24,marginBottom:20}}>
+<div style={{fontSize:16,fontWeight:700,marginBottom:20}}>Add Entry</div>
+<div className="tt" style={{marginBottom:16}}>
+<button className={`tb ${form.type==="income"?"inc":"off"}`} onClick={()=>setForm(f=>({...f,type:"income",category:INCOME_CATS[0]}))}>Income</button>
+<button className={`tb ${form.type==="expense"?"exp":"off"}`} onClick={()=>setForm(f=>({...f,type:"expense",category:EXPENSE_CATS[0]}))}>Expense / Savings / Investment</button>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+<div><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>Description</label><input className="fi" placeholder="e.g. Netflix" value={form.label} onChange={e=>setForm(f=>({...f,label:e.target.value}))}/></div>
+<div><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>Category</label><select className="fi" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>{(form.type==="income"?INCOME_CATS:EXPENSE_CATS).map(c=><option key={c}>{c}</option>)}</select></div>
+<div><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>{form.recur==="Variable"?"Estimate ($)":"Amount ($)"}</label><input className="fi" type="text" inputMode="decimal" placeholder="0.00" value={form.amount} onFocus={e=>e.target.select()} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></div>
+</div>
+<div style={{marginBottom:12}}><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:8}}>Frequency</label><div className="hscroll">{RECUR_OPT.map(r=>{const isActive=form.recur===r;return <button key={r} className={`rb ${isActive?(r==="One-off"||r==="Variable"?"oo":"on"):""}`} onClick={()=>setForm(f=>({...f,recur:r}))}>{r}</button>;})}</div>{form.recur==="Variable"&&<div style={{fontSize:11,color:C.amber,marginTop:5}}>Amount is a monthly estimate. Log actual bills from Entries tab.</div>}</div>
+<div style={{marginBottom:20}}><label style={{fontSize:12,color:C.t3,display:"block",marginBottom:6}}>{form.recur==="One-off"?"Date":"Start Date"}</label><input className="fi" type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))}/>{form.recur!=="One-off"&&<div style={{fontSize:11,color:C.t4,marginTop:5}}>Repeats {form.recur.toLowerCase()} from this date.</div>}{form.recur==="One-off"&&<div style={{fontSize:11,color:C.amber,marginTop:5}}>Appears in calendar on this date only.</div>}</div>
+<button className="add-btn" style={{width:"100%"}} onClick={handleAdd}>Add Entry</button>
+</div>
+{entries.length===0?<div style={{textAlign:"center",color:C.t4,padding:"60px 0",fontSize:14}}>No entries yet</div>:(()=>{
+const pastOneOffs=entries.filter(e=>e.recur==="One-off"&&e.startDate<todayStr);
+const active=entries.filter(e=>!(e.recur==="One-off"&&e.startDate<todayStr));
+return <>
+{active.filter(e=>e.type==="income").length>0&&<div style={{marginBottom:20}}><div style={{fontSize:11,color:C.green,letterSpacing:".08em",textTransform:"uppercase",fontWeight:700,marginBottom:10}}>Income</div>{active.filter(e=>e.type==="income").map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
+{active.filter(e=>e.type==="expense").length>0&&<div style={{marginBottom:20}}><div style={{fontSize:11,color:C.red,letterSpacing:".08em",textTransform:"uppercase",fontWeight:700,marginBottom:10}}>Expenses, Savings &amp; Investments</div>{active.filter(e=>e.type==="expense").map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
+{pastOneOffs.length>0&&<div style={{marginTop:8}}><div onClick={()=>setShowPastOneOffs(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"8px 12px",background:C.card,borderRadius:10,marginBottom:showPastOneOffs?10:0}}><div style={{fontSize:11,color:C.t4,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Past one-offs <span style={{background:C.border,color:C.t3,borderRadius:10,padding:"1px 8px",marginLeft:6,fontSize:10}}>{pastOneOffs.length}</span></div><span style={{color:C.t4,fontSize:13,display:"inline-block",transform:showPastOneOffs?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▾</span></div>{showPastOneOffs&&pastOneOffs.map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
+</>;
+})()}
+</>}
+
+{view==="mortgage"&&<MortgageWidget cfg={mortgageCfg} setCfg={setMortgageCfg} rateChanges={mortgageRateChanges} setRateChanges={setMortgageRateChanges} lumpSums={mortgageLumpSums} setLumpSums={setMortgageLumpSums} displayPeriod={displayPeriod}/>}
+{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots}/>}
+{view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals}/>}
+
+</div>
+
+<nav className="bnav">
+{[
+{v:"dashboard",label:"Overview",icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>},
+{v:"entries",label:"Entries",icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>},
+{v:"mortgage",label:"Mortgage",icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>},
+{v:"networth",label:"Net Worth",icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>},
+{v:"goals",label:"Goals",icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>},
+].map(({v,label,icon})=>(
+<button key={v} className="bnav-btn" onClick={()=>setView(v)} style={{color:view===v?C.green:C.t4}}>
+<span>{icon}</span>
+<div>{label}</div>
+</button>
+))}
+</nav>
+</div>
 );
 }
-
