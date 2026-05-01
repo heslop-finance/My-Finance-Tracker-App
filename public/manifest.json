@@ -1,6 +1,6 @@
 {
-  "name": "My Finance Tracker",
-  "short_name": "Finance",
+  "name": "Ledgerly",
+  "short_name": "Ledgerly",
   "description": "Personal finance tracker for New Zealand households",
   "start_url": "/",
   "display": "standalone",

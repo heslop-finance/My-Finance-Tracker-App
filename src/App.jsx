@@ -12,9 +12,9 @@ const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const s=(extra={})=>({...extra});
 
 const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Other Income"];
-const EXPENSE_CATS=["Mortgage","Utilities","Food","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Savings Goal","Investments","Other"];
+const EXPENSE_CATS=["Mortgage","Rent","Utilities","Food","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Savings Goal","Investments","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
-const CAT_COLORS={"Mortgage":"#fb7185","Utilities":"#fbbf24","Food":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Food":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Other Income":"#f472b6"};
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -1038,7 +1038,7 @@ return(
 <style>{CSS}</style>
 <div style={{background:"linear-gradient(180deg,#0f172a 0%,#0a0f1e 100%)",borderBottom:`1px solid ${C.border}`,padding:"14px 24px 12px",paddingTop:'env(safe-area-inset-top)',position:"sticky",top:0,zIndex:50}}>
 <div style={{maxWidth:720,margin:"0 auto"}}>
-<div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}}>My Finance Tracker</div>
+<div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}}>Ledgerly</div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
 {[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>setDisplayPeriod(p.key)} style={{border:`1px solid ${displayPeriod===p.key?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
 </div>
