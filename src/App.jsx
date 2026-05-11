@@ -271,7 +271,7 @@ return(
 </div>
 )}
 <div style={{overflowX:"auto",paddingBottom:6}}>
-<svg width={Math.max(W,bars.length*22)} height={H+20} style={{display:"block"}}>
+<svg width={isAllYears?Math.max(W,bars.length*26):W} height={H+20} style={{display:"block"}}>
 {showAvg&&rollingAvg>0&&<>
 <rect x={PAD} y={avgY-(H-PAD*2)*.1} width={W-PAD*2} height={(H-PAD*2)*.2} fill={`${C.green}12`}/>
 <line x1={PAD} y1={avgY} x2={W-PAD} y2={avgY} stroke={C.green} strokeWidth={1} strokeDasharray="4 2"/>
@@ -289,7 +289,7 @@ return(
 const ch=(b.bycat[c]/maxVal)*(H-PAD*2);yStack-=ch;
 return <rect key={c} x={x} y={yStack} width={barW} height={ch} rx={1} fill={CAT_COLORS[c]||C.t2} opacity={b.isFuture?.15:.8}/>;
 })}
-{(isAllYears||(bars.length<=32&&(i%2===0||displayPeriod!=="monthly")))&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
+{(isAllYears?i%2===0:(bars.length<=32&&(i%2===0||displayPeriod!=="monthly")))&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
 </g>
 );
 }else{
@@ -298,7 +298,7 @@ const by=H-PAD-bh;
 return(
 <g key={i}>
 <rect x={x} y={by} width={barW} height={bh} rx={2} fill={showAvg&&rollingAvg>0&&b.val>rollingAvg*1.1?C.red:CAT_COLORS[catFilter]||C.red} opacity={b.val===0?.12:b.isFuture?.15:b.val===mostVal?1:.65}/>
-{(isAllYears||(bars.length<=32&&(i%2===0||displayPeriod!=="monthly")))&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
+{(isAllYears?i%2===0:(bars.length<=32&&(i%2===0||displayPeriod!=="monthly")))&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
 </g>
 );
 }
@@ -320,6 +320,8 @@ const isAllYears=displayPeriod==="allyears";
 const[calYear,setCalYear]=useState(today.getFullYear());
 const[calMonth,setCalMonth]=useState(today.getMonth());
 const[sel,setSel]=useState(null);
+const[selMonth,setSelMonth]=useState(null);
+const[selYear,setSelYear]=useState(null);
 const prev=()=>{setSel(null);if(isYearly)setCalYear(y=>y-1);else if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}else setCalMonth(m=>m-1);};
 const next=()=>{setSel(null);if(isYearly)setCalYear(y=>y+1);else if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}else setCalMonth(m=>m+1);};
 if(isAllYears){
@@ -341,12 +343,19 @@ else exp+=e.amount;
 }
 return{year:y,inc,exp,sav,isCurrent:y===currentYear,isFuture};
 });
+const selYearData=selYear!==null?yearList.find(y=>y.year===selYear):null;
+const monthlyBreakdown=selYearData&&!selYearData.isFuture?Array.from({length:12},(_,m)=>{
+const isFutureMon=selYear===currentYear&&m>today.getMonth();
+let minc=0,mexp=0;
+if(!isFutureMon){datesInRange(new Date(selYear,m,1),new Date(selYear,m+1,0)).forEach(d=>{entries.filter(e=>e.type==="income"&&occursOn(e,d)).forEach(e=>{minc+=e.amount;});entries.filter(e=>e.type==="expense"&&!SAVINGS_CATS.has(e.category)&&occursOn(e,d)).forEach(e=>{mexp+=e.amount;});});}
+return{m,inc:minc,exp:mexp,isFutureMon};
+}):null;
 return(
 <div className="card" style={{padding:16}}>
-<div style={{fontSize:14,fontWeight:700,color:C.t2,marginBottom:14}}>Year by Year</div>
+<div style={{fontSize:14,fontWeight:700,color:C.t2,marginBottom:14}}>Yearly View</div>
 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
 {yearList.map(y=>(
-<div key={y.year} style={{background:C.bg,border:`1px solid ${y.isCurrent?C.green:C.border}`,borderRadius:10,padding:"8px 10px",opacity:y.isFuture?0.35:1}}>
+<div key={y.year} onClick={()=>setSelYear(selYear===y.year?null:y.year)} style={{background:selYear===y.year?"rgba(110,231,183,.18)":C.bg,border:`1px solid ${selYear===y.year?C.green:y.isCurrent?C.green:C.border}`,borderRadius:10,padding:"8px 10px",opacity:y.isFuture?0.35:1,cursor:"pointer"}}>
 <div style={{fontSize:11,fontWeight:700,color:y.isCurrent?C.green:C.t3,marginBottom:4}}>{y.year}</div>
 {y.isFuture?<div style={{fontSize:10,color:C.t5}}>—</div>:<>
 {y.inc>0&&<div style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,letterSpacing:"-0.02em",color:C.green}}>+{fmtS(y.inc)}</div>}
@@ -362,13 +371,43 @@ return(
 <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,background:C.red,borderRadius:2,display:"inline-block"}}/>Expenses</div>
 <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,background:C.cyan,borderRadius:2,display:"inline-block"}}/>Savings</div>
 </div>
+{selYearData&&!selYearData.isFuture&&(
+<div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginTop:14}}>
+<Row mb={12}><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{selYearData.year}</div><button onClick={()=>setSelYear(null)} style={{background:"none",border:"none",color:C.t4,fontSize:18,cursor:"pointer"}}>×</button></Row>
+<div style={{display:"flex",gap:8,marginBottom:10}}>
+<div style={{flex:1,background:"rgba(110,231,183,.06)",border:`1px solid rgba(110,231,183,.15)`,borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Income</div><Mono color={C.green} size={14}>{fmtS(selYearData.inc)}</Mono></div>
+<div style={{flex:1,background:"rgba(251,113,133,.06)",border:`1px solid rgba(251,113,133,.15)`,borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Expenses</div><Mono color={C.red} size={14}>{fmtS(selYearData.exp)}</Mono></div>
+<div style={{flex:1,background:"rgba(6,182,212,.06)",border:`1px solid rgba(6,182,212,.15)`,borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Savings</div><Mono color={C.cyan} size={14}>{fmtS(selYearData.sav)}</Mono></div>
+</div>
+<div style={{fontSize:12,fontWeight:700,color:selYearData.inc-selYearData.exp-selYearData.sav>=0?C.green:C.red,marginBottom:12}}>Net {selYearData.inc-selYearData.exp-selYearData.sav>=0?"+":"−"}{fmtS(Math.abs(selYearData.inc-selYearData.exp-selYearData.sav))}</div>
+{monthlyBreakdown&&<>
+<div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:".07em",fontWeight:700,marginBottom:8}}>Monthly Breakdown</div>
+{monthlyBreakdown.filter(mo=>!mo.isFutureMon).map(mo=>(
+<div key={mo.m} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
+<span style={{fontSize:11,color:C.t3,width:32}}>{MON_SHORT[mo.m]}</span>
+<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:C.green,fontWeight:600}}>{mo.inc>0?"+"+fmtS(mo.inc):"—"}</span>
+<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:C.red,fontWeight:600}}>{mo.exp>0?"−"+fmtS(mo.exp):"—"}</span>
+</div>
+))}
+</>}
+</div>
+)}
 </div>
 );
 }
 if(isYearly){
+let mInc=[],mExp=[],mTotalIn=0,mTotalOut=0;
+if(selMonth!==null){
+const seenIds=new Set();const monthEntries=[];
+datesInRange(new Date(calYear,selMonth,1),new Date(calYear,selMonth+1,0)).forEach(d=>{entries.filter(e=>occursOn(e,d)).forEach(e=>{if(!seenIds.has(e.id)){seenIds.add(e.id);monthEntries.push(e);}});});
+mInc=monthEntries.filter(e=>e.type==="income");
+mExp=monthEntries.filter(e=>e.type==="expense");
+mTotalIn=mInc.reduce((s,e)=>s+periodAmt(e,30.44),0);
+mTotalOut=mExp.reduce((s,e)=>s+periodAmt(e,30.44),0);
+}
 return(
 <div className="card" style={{padding:16}}>
-<Row mb={14}><span style={{fontSize:14,fontWeight:700,color:C.t2}}>Monthly Overview</span>
+<Row mb={14}><span style={{fontSize:14,fontWeight:700,color:C.t2}}>Monthly View</span>
 <div style={{display:"flex",alignItems:"center",gap:10}}>
 <button onClick={prev} style={{background:"none",border:"none",color:C.t3,cursor:"pointer",fontSize:18}}>‹</button>
 <span style={{fontSize:13,fontWeight:700,color:C.t1}}>{calYear}</span>
@@ -380,9 +419,10 @@ return(
 const from=new Date(calYear,m,1),to=new Date(calYear,m+1,0);
 let inc=0,exp=0;
 datesInRange(from,to).forEach(d=>{inc+=dailyTotal(entries,d,"income");exp+=dailyTotal(entries,d,"expense");});
+const isCurrentMonth=calYear===today.getFullYear()&&m===today.getMonth();
 return(
-<div key={m} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px 10px"}}>
-<div style={{fontSize:11,fontWeight:700,color:C.t3,marginBottom:4}}>{MON_SHORT[m]}</div>
+<div key={m} onClick={()=>setSelMonth(selMonth===m?null:m)} style={{background:selMonth===m?"rgba(110,231,183,.18)":isCurrentMonth?"rgba(110,231,183,.08)":C.bg,border:`1px solid ${selMonth===m?C.green:isCurrentMonth?C.green:C.border}`,borderRadius:10,padding:"8px 10px",cursor:"pointer"}}>
+<div style={{fontSize:11,fontWeight:700,color:isCurrentMonth?C.green:C.t3,marginBottom:4}}>{MON_SHORT[m]}</div>
 {inc>0&&<div style={{fontSize:11,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.green}}>+{fmtS(inc)}</div>}
 {exp>0&&<div style={{fontSize:11,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.red}}>−{fmtS(exp)}</div>}
 {!inc&&!exp&&<div style={{fontSize:10,color:C.t5}}>—</div>}
@@ -390,6 +430,40 @@ return(
 );
 })}
 </div>
+{selMonth!==null&&(
+<div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginTop:14}}>
+<Row mb={12}>
+<span style={{fontSize:13,fontWeight:700,color:C.t1}}>{MON_SHORT[selMonth]} {calYear}</span>
+<button onClick={()=>setSelMonth(null)} style={{background:"none",border:"none",color:C.t4,fontSize:18,cursor:"pointer"}}>×</button>
+</Row>
+{mInc.length===0&&mExp.length===0&&<div style={{textAlign:"center",padding:"12px 0",color:C.t5,fontSize:13}}>No entries this month</div>}
+{mInc.length>0&&<>
+<Label color={C.green} mb={6}>Income</Label>
+{mInc.map(e=>(
+<div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:"rgba(110,231,183,.06)",borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.green}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{e.label}</div><div style={{fontSize:10,color:C.t4}}>{e.category}{e.recur!=="One-off"?` · ${e.recur}`:""}</div></div>
+<Mono color={C.green} size={13}>+{fmt(periodAmt(e,30.44))}</Mono>
+</div>
+))}
+</>}
+{mExp.length>0&&<>
+<Label color={C.red} mb={6}>Expenses</Label>
+{mExp.map(e=>(
+<div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:"rgba(251,113,133,.06)",borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.red}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{e.label}</div><div style={{fontSize:10,color:C.t4}}>{e.category}{e.recur!=="One-off"?` · ${e.recur}`:""}</div></div>
+<Mono color={C.red} size={13}>−{fmt(periodAmt(e,30.44))}</Mono>
+</div>
+))}
+</>}
+{(mInc.length>0||mExp.length>0)&&(
+<div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
+{mTotalIn>0&&<Mono color={C.green} size={12}>+{fmt(mTotalIn)} in</Mono>}
+{mTotalOut>0&&<Mono color={C.red} size={12}>−{fmt(mTotalOut)} out</Mono>}
+{mTotalIn>0&&mTotalOut>0&&<Mono color={mTotalIn-mTotalOut>=0?C.green:C.red} size={12}>{mTotalIn-mTotalOut>=0?"+":"−"}{fmt(Math.abs(mTotalIn-mTotalOut))} net</Mono>}
+</div>
+)}
+</div>
+)}
 </div>
 );
 }
