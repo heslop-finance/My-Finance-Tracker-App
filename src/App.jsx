@@ -21,6 +21,15 @@ const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MON_SHORT=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const RECURDAYS={Weekly:7,Fortnightly:14,Monthly:30.44,Yearly:365};
 const PWORD={weekly:"week",fortnightly:"fortnight",monthly:"month",yearly:"year"};
+const AKAHU_ACCOUNTS={
+'acc_cmp10amt5000002jy6g9lbdzw':{name:'YouMoney',treat:'transactions'},
+'acc_cmp10amtq000102jyg87s1g5v':{name:'Travel',treat:'savings'},
+'acc_cmp10amut000202jy57yv6lxu':{name:'Sony 200-600mm',treat:'savings'},
+'acc_cmp10amvb000302jyeonj9pi4':{name:'Expenses',treat:'transactions'},
+'acc_cmp10amvd000402jyhyhsb873':{name:'Rainy Day',treat:'savings'},
+'acc_cmp10iudy000002l42skl21mf':{name:'Student Loan',treat:'balance_only'},
+'acc_cmp10lt9u000002l49rfchell':{name:'Sharesies',treat:'balance_only'},
+};
 
 // ── HELPERS ────────────────────────────────────────────────────
 const today=new Date();
@@ -1125,6 +1134,10 @@ const[allTime,setAllTime]=useState(false);
 const[view,setView]=useState("dashboard");
 const[tab,setTab]=useState(()=>loadLS('ft_tab',"income"));
 const[showPastOneOffs,setShowPastOneOffs]=useState(false);
+const[syncedTransactions,setSyncedTransactions]=useState(()=>loadLS('ft_transactions',[]));
+const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
+const[akahuBalances,setAkahuBalances]=useState(()=>loadLS('ft_akahuBalances',[]));
+const[syncing,setSyncing]=useState(false);
 const[showAddForm,setShowAddForm]=useState(false);
 const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],amount:"",recur:"Monthly",startDate:todayStr});
 const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
@@ -1155,7 +1168,55 @@ useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networ
 useEffect(()=>{localStorage.setItem('ft_budgetLimits',JSON.stringify(budgetLimits));},[budgetLimits]);
 useEffect(()=>{localStorage.setItem('ft_goals',JSON.stringify(goals));},[goals]);
 useEffect(()=>{localStorage.setItem('ft_displayPeriod',JSON.stringify(displayPeriod));},[displayPeriod]);
+useEffect(()=>{localStorage.setItem('ft_transactions',JSON.stringify(syncedTransactions));},[syncedTransactions]);
+useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));},[lastSynced]);
+useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
 
+const CATEGORY_MAP={'Food':'Food','Supermarkets and grocery stores':'Food','Restaurants and cafes':'Food','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Entertainment':'Entertainment','Clothing':'Clothing','Shopping':'Other','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
+const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Benefits','Investment':'Investment Returns'};
+async function handleSync(){
+setSyncing(true);
+try{
+const[txRes,balRes]=await Promise.all([
+fetch('/.netlify/functions/akahu-transactions'),
+fetch('/.netlify/functions/akahu-balances'),
+]);
+const txData=await txRes.json();
+const balData=await balRes.json();
+setAkahuBalances(balData.items||[]);
+const incoming=txData.items||[];
+const processed=[];
+for(const t of incoming){
+const treat=(AKAHU_ACCOUNTS[t.account]||{treat:'transactions'}).treat;
+if(treat==='balance_only')continue;
+if(treat==='savings'){
+if(t.amount>0){
+processed.push({...t,ledgerlyCategory:'Savings Goal',ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false});
+}
+continue;
+}
+if(t.type==='TRANSFER'||t.type==='PAYMENT')continue;
+const desc=t.description||'';
+if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04'].some(s=>desc.includes(s)))continue;
+const ledgerlyType=t.amount>=0?'income':'expense';
+const map=ledgerlyType==='income'?INCOME_CATEGORY_MAP:CATEGORY_MAP;
+const mapped=t.akahuCategory?map[t.akahuCategory]:undefined;
+const ledgerlyCategory=mapped||'Other';
+const needsReview=!mapped;
+processed.push({...t,ledgerlyType,ledgerlyCategory,needsReview});
+}
+setSyncedTransactions(prev=>{
+const existingIds=new Set(prev.map(t=>t.id));
+const newTxs=processed.filter(t=>!existingIds.has(t.id));
+return [...prev,...newTxs];
+});
+setLastSynced(new Date().toISOString());
+}catch(err){
+console.error('Sync failed:',err);
+}finally{
+setSyncing(false);
+}
+}
 const mortSchedule=useMemo(()=>buildSchedule(mortgageCfg.principal,mortgageCfg.annualRate,mortgageCfg.termYears,mortgageCfg.startDate,mortgageRateChanges,mortgageLumpSums),[mortgageCfg,mortgageRateChanges,mortgageLumpSums]);
 
 // Auto monthly net worth snapshot
@@ -1361,6 +1422,35 @@ return <>
 {active.filter(e=>e.type==="expense").length>0&&<div style={{marginBottom:20}}><div style={{fontSize:11,color:C.red,letterSpacing:".08em",textTransform:"uppercase",fontWeight:700,marginBottom:10}}>Expenses, Savings &amp; Investments</div>{active.filter(e=>e.type==="expense").map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
 {pastOneOffs.length>0&&<div style={{marginTop:8}}><div onClick={()=>setShowPastOneOffs(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"8px 12px",background:C.card,borderRadius:10,marginBottom:showPastOneOffs?10:0}}><div style={{fontSize:11,color:C.t4,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Past one-offs <span style={{background:C.border,color:C.t3,borderRadius:10,padding:"1px 8px",marginLeft:6,fontSize:10}}>{pastOneOffs.length}</span></div><span style={{color:C.t4,fontSize:13,display:"inline-block",transform:showPastOneOffs?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▾</span></div>{showPastOneOffs&&pastOneOffs.map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
 </>;
+})()}
+<div style={{borderTop:`1px solid ${C.border}`,marginTop:24,paddingTop:20,marginBottom:16}}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+<div>
+<div style={{fontSize:13,fontWeight:700,color:C.t1}}>Bank Transactions</div>
+<div style={{fontSize:11,color:C.t3,marginTop:2}}>
+{lastSynced?`Last synced: ${new Date(lastSynced).toLocaleString('en-NZ')}`:'Not yet synced'}
+</div>
+</div>
+<button onClick={handleSync} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
+{syncing?"↻ Syncing...":"↻ Sync"}
+</button>
+</div>
+<div style={{fontSize:12,color:C.t4,fontStyle:"italic",marginTop:8}}>
+{syncedTransactions.length>0?`${syncedTransactions.length} transactions stored`:"Press sync to fetch your bank transactions"}
+</div>
+</div>
+{(()=>{
+const storageUsed=Object.keys(localStorage).filter(key=>key.startsWith('ft_')).reduce((total,key)=>{const item=localStorage.getItem(key);return total+(item?new Blob([item]).size:0);},0);
+const storageMB=(storageUsed/(1024*1024)).toFixed(1);
+const storagePct=Math.min((storageUsed/(5*1024*1024))*100,100);
+return(
+<div style={{marginTop:32,paddingBottom:8}}>
+<div style={{fontSize:10,color:C.t4,marginBottom:4}}>Storage: {storageMB}MB / 5MB</div>
+<div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
+<div style={{height:"100%",width:`${storagePct}%`,background:storagePct>80?C.red:storagePct>60?C.amber:C.green,borderRadius:2,transition:"width .5s ease"}}/>
+</div>
+</div>
+);
 })()}
 </>}
 
