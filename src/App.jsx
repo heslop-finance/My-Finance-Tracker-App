@@ -1211,6 +1211,7 @@ const newTxs=processed.filter(t=>!existingIds.has(t.id));
 return [...prev,...newTxs];
 });
 setLastSynced(new Date().toISOString());
+localStorage.setItem('ft_init','true');
 }catch(err){
 console.error('Sync failed:',err);
 }finally{
@@ -1440,11 +1441,12 @@ return <>
 </div>
 </div>
 {(()=>{
+void lastSynced;void syncedTransactions;
 const storageUsed=Object.keys(localStorage).filter(key=>key.startsWith('ft_')).reduce((total,key)=>{const item=localStorage.getItem(key);return total+(item?new Blob([item]).size:0);},0);
 const storageMB=(storageUsed/(1024*1024)).toFixed(1);
 const storagePct=Math.min((storageUsed/(5*1024*1024))*100,100);
 return(
-<div style={{marginTop:32,paddingBottom:8}}>
+<div style={{marginTop:32,paddingBottom:32,marginBottom:16}}>
 <div style={{fontSize:10,color:C.t4,marginBottom:4}}>Storage: {storageMB}MB / 5MB</div>
 <div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
 <div style={{height:"100%",width:`${storagePct}%`,background:storagePct>80?C.red:storagePct>60?C.amber:C.green,borderRadius:2,transition:"width .5s ease"}}/>
