@@ -144,6 +144,7 @@ const StatCard=({label,value,color,sub,bg=C.card,border=C.border,labelColor=C.t3
 // ── HISTOGRAM ─────────────────────────────────────────────────
 function Histogram({entries,displayPeriod}){
 const isYearly=displayPeriod==="yearly";
+const isAllYears=displayPeriod==="allyears";
 const[catFilter,setCatFilter]=useState("All Expenses");
 const[showStacked,setShowStacked]=useState(false);
 const[showAvg,setShowAvg]=useState(true);
@@ -156,6 +157,22 @@ const filteredEntries=useMemo(()=>catFilter==="All Expenses"?allExpEntries:allEx
 const stackCats=useMemo(()=>[...new Set(allExpEntries.map(e=>e.category))],[allExpEntries]);
 const bars=useMemo(()=>{
 const now=new Date();
+if(isAllYears){
+const earliest=entries.reduce((min,e)=>{const y=parseDt(e.startDate).getFullYear();return y<min?y:min;},now.getFullYear());
+const currentYear=now.getFullYear();
+const totalYears=Math.max(12,currentYear-earliest+1);
+return Array.from({length:totalYears},(_,i)=>{
+const y=earliest+i;
+const isFuture=y>currentYear;
+const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
+if(!isFuture){
+const relevantEntries=catFilter==="All Expenses"?allExpEntries:allExpEntries.filter(e=>e.category===catFilter);
+datesInRange(new Date(y,0,1),new Date(y,11,31)).forEach(d=>{relevantEntries.filter(e=>occursOn(e,d)).forEach(e=>{bycat[e.category]=(bycat[e.category]||0)+e.amount;});});
+}
+const val=Object.values(bycat).reduce((s,v)=>s+v,0);
+return{label:String(y),val,bycat,isFuture};
+});
+}
 if(isYearly){
 return Array.from({length:12},(_,m)=>{
 const from=new Date(now.getFullYear(),m,1),to=new Date(now.getFullYear(),m+1,0);
@@ -177,7 +194,8 @@ return{label:pad(d.getDate()),val,bycat,isFuture:false,date:d};
 },[filteredEntries,allExpEntries,displayPeriod,isYearly,stackCats]);
 
 const rollingAvg=useMemo(()=>{
-const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
+if(isAllYears)return 0;
+const pDays=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
 const from=new Date();from.setFullYear(from.getFullYear()-1);
 const to=new Date();
 let total=0;
@@ -189,8 +207,8 @@ return total*(pDays/365);
 
 const cumulativeData=useMemo(()=>{let sum=0;return bars.map(b=>{sum+=b.val;return sum;});},[bars]);
 const projection=useMemo(()=>{
-if(!showProj||isYearly)return null;
-const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
+if(isAllYears||!showProj||isYearly)return null;
+const pDays=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
 const relevantEntries=entries.filter(e=>e.type==="expense");
 let val=0;
 const periodStart=new Date();periodStart.setDate(periodStart.getDate()-Math.round(pDays)+1);
@@ -212,7 +230,9 @@ const yOf=v=>H-PAD-(v/maxVal)*(H-PAD*2);
 const avgY=yOf(rollingAvg);
 const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData]);
 
-const toggles=[
+const toggles=isAllYears?[
+{label:"Stack",active:showStacked,set:setShowStacked},
+]:[
 {label:"Stack",active:showStacked,set:setShowStacked},
 {label:"Avg",active:showAvg,set:setShowAvg},
 {label:"Cumul.",active:showCumul,set:setShowCumul},
@@ -267,9 +287,9 @@ return(
 <g key={i}>
 {stackCats.filter(c=>b.bycat[c]>0).map(c=>{
 const ch=(b.bycat[c]/maxVal)*(H-PAD*2);yStack-=ch;
-return <rect key={c} x={x} y={yStack} width={barW} height={ch} rx={1} fill={CAT_COLORS[c]||C.t2} opacity={b.isFuture?.4:.8}/>;
+return <rect key={c} x={x} y={yStack} width={barW} height={ch} rx={1} fill={CAT_COLORS[c]||C.t2} opacity={b.isFuture?.15:.8}/>;
 })}
-{bars.length<=32&&(i%2===0||displayPeriod!=="monthly")&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
+{(isAllYears||(bars.length<=32&&(i%2===0||displayPeriod!=="monthly")))&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
 </g>
 );
 }else{
@@ -277,8 +297,8 @@ const bh=Math.max(2,(b.val/maxVal)*(H-PAD*2));
 const by=H-PAD-bh;
 return(
 <g key={i}>
-<rect x={x} y={by} width={barW} height={bh} rx={2} fill={showAvg&&rollingAvg>0&&b.val>rollingAvg*1.1?C.red:CAT_COLORS[catFilter]||C.red} opacity={b.val===0?.12:b.isFuture?.3:b.val===mostVal?1:.65}/>
-{bars.length<=32&&(i%2===0||displayPeriod!=="monthly")&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
+<rect x={x} y={by} width={barW} height={bh} rx={2} fill={showAvg&&rollingAvg>0&&b.val>rollingAvg*1.1?C.red:CAT_COLORS[catFilter]||C.red} opacity={b.val===0?.12:b.isFuture?.15:b.val===mostVal?1:.65}/>
+{(isAllYears||(bars.length<=32&&(i%2===0||displayPeriod!=="monthly")))&&<text x={x+barW/2} y={H+16} textAnchor="middle" fill={C.t5} fontSize={9}>{b.label}</text>}
 </g>
 );
 }
@@ -296,11 +316,55 @@ return(
 // ── CALENDAR ──────────────────────────────────────────────────
 function CalendarWidget({entries,displayPeriod}){
 const isYearly=displayPeriod==="yearly";
+const isAllYears=displayPeriod==="allyears";
 const[calYear,setCalYear]=useState(today.getFullYear());
 const[calMonth,setCalMonth]=useState(today.getMonth());
 const[sel,setSel]=useState(null);
 const prev=()=>{setSel(null);if(isYearly)setCalYear(y=>y-1);else if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}else setCalMonth(m=>m-1);};
 const next=()=>{setSel(null);if(isYearly)setCalYear(y=>y+1);else if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}else setCalMonth(m=>m+1);};
+if(isAllYears){
+const earliest=entries.reduce((min,e)=>{const y=parseDt(e.startDate).getFullYear();return y<min?y:min;},today.getFullYear());
+const currentYear=today.getFullYear();
+const totalYears=Math.max(12,currentYear-earliest+1);
+const yearList=Array.from({length:totalYears},(_,i)=>{
+const y=earliest+i;
+const isFuture=y>currentYear;
+let inc=0,exp=0,sav=0;
+if(!isFuture){
+datesInRange(new Date(y,0,1),new Date(y,11,31)).forEach(d=>{
+entries.filter(e=>e.type==="income"&&occursOn(e,d)).forEach(e=>{inc+=e.amount;});
+entries.filter(e=>e.type==="expense"&&occursOn(e,d)).forEach(e=>{
+if(SAVINGS_CATS.has(e.category))sav+=e.amount;
+else exp+=e.amount;
+});
+});
+}
+return{year:y,inc,exp,sav,isCurrent:y===currentYear,isFuture};
+});
+return(
+<div className="card" style={{padding:16}}>
+<div style={{fontSize:14,fontWeight:700,color:C.t2,marginBottom:14}}>Year by Year</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+{yearList.map(y=>(
+<div key={y.year} style={{background:C.bg,border:`1px solid ${y.isCurrent?C.green:C.border}`,borderRadius:10,padding:"8px 10px",opacity:y.isFuture?0.35:1}}>
+<div style={{fontSize:11,fontWeight:700,color:y.isCurrent?C.green:C.t3,marginBottom:4}}>{y.year}</div>
+{y.isFuture?<div style={{fontSize:10,color:C.t5}}>—</div>:<>
+{y.inc>0&&<div style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,letterSpacing:"-0.02em",color:C.green}}>+{fmtS(y.inc)}</div>}
+{y.exp>0&&<div style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,letterSpacing:"-0.02em",color:C.red}}>−{fmtS(y.exp)}</div>}
+{y.sav>0&&<div style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,letterSpacing:"-0.02em",color:C.cyan}}>↑{fmtS(y.sav)}</div>}
+{!y.inc&&!y.exp&&!y.sav&&<div style={{fontSize:10,color:C.t5}}>—</div>}
+</>}
+</div>
+))}
+</div>
+<div style={{display:"flex",gap:14,fontSize:10,color:C.t3,marginTop:12,flexWrap:"wrap"}}>
+<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,background:C.green,borderRadius:2,display:"inline-block"}}/>Income</div>
+<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,background:C.red,borderRadius:2,display:"inline-block"}}/>Expenses</div>
+<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,background:C.cyan,borderRadius:2,display:"inline-block"}}/>Savings</div>
+</div>
+</div>
+);
+}
 if(isYearly){
 return(
 <div className="card" style={{padding:16}}>
@@ -963,6 +1027,7 @@ const loadLS=(key,fallback)=>{try{const s=localStorage.getItem(key);return s?JSO
 export default function App(){
 const[entries,setEntries]=useState(()=>loadLS('ft_entries',SEED));
 const[displayPeriod,setDisplayPeriod]=useState(()=>loadLS('ft_displayPeriod',"monthly"));
+const[allTime,setAllTime]=useState(false);
 const[view,setView]=useState("dashboard");
 const[tab,setTab]=useState(()=>loadLS('ft_tab',"income"));
 const[showPastOneOffs,setShowPastOneOffs]=useState(false);
@@ -1040,7 +1105,7 @@ return(
 <div style={{maxWidth:720,margin:"0 auto"}}>
 <div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}}>Ledgerly</div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
-{[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>setDisplayPeriod(p.key)} style={{border:`1px solid ${displayPeriod===p.key?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
+{[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>{setDisplayPeriod(p.key);setAllTime(false);}} style={{border:`1px solid ${displayPeriod===p.key&&!allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key&&!allTime?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key&&!allTime?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
 </div>
 </div>
 </div>
@@ -1167,9 +1232,12 @@ return(
 })}
 </div>
 )}
-<div style={{fontSize:11,color:C.t4,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700,marginBottom:12,marginTop:4}}>{displayPeriod==="yearly"?"Monthly Charts":"Daily Charts"}</div>
-<Histogram entries={entries} displayPeriod={displayPeriod}/>
-<CalendarWidget entries={entries} displayPeriod={displayPeriod}/>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,marginTop:4}}>
+<div style={{fontSize:11,color:C.t4,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{allTime?"All Time Charts":displayPeriod==="yearly"?"Monthly Charts":"Daily Charts"}</div>
+<button onClick={()=>setAllTime(v=>!v)} style={{border:`1px solid ${allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:allTime?"rgba(110,231,183,.1)":"none",color:allTime?C.green:C.t3,whiteSpace:"nowrap"}}>All time</button>
+</div>
+<Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod}/>
+<CalendarWidget entries={entries} displayPeriod={allTime?"allyears":displayPeriod}/>
 </>}
 
 {view==="entries"&&<>
