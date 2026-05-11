@@ -344,12 +344,22 @@ else exp+=e.amount;
 return{year:y,inc,exp,sav,isCurrent:y===currentYear,isFuture};
 });
 const selYearData=selYear!==null?yearList.find(y=>y.year===selYear):null;
-const monthlyBreakdown=selYearData&&!selYearData.isFuture?Array.from({length:12},(_,m)=>{
-const isFutureMon=selYear===currentYear&&m>today.getMonth();
-let minc=0,mexp=0;
-if(!isFutureMon){datesInRange(new Date(selYear,m,1),new Date(selYear,m+1,0)).forEach(d=>{entries.filter(e=>e.type==="income"&&occursOn(e,d)).forEach(e=>{minc+=e.amount;});entries.filter(e=>e.type==="expense"&&!SAVINGS_CATS.has(e.category)&&occursOn(e,d)).forEach(e=>{mexp+=e.amount;});});}
-return{m,inc:minc,exp:mexp,isFutureMon};
-}):null;
+const yearEntryTotals=selYearData&&!selYearData.isFuture?(()=>{
+const totals={};
+datesInRange(new Date(selYear,0,1),new Date(selYear,11,31)).forEach(d=>{
+const mk=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+entries.filter(e=>occursOn(e,d)).forEach(e=>{
+const amt=e.recur==="Variable"?varActual(e,mk):e.amount;
+if(!totals[e.id])totals[e.id]={entry:e,total:0};
+totals[e.id].total+=amt;
+});
+});
+return Object.values(totals);
+})():null;
+const yearInc=yearEntryTotals?yearEntryTotals.filter(({entry:e})=>e.type==="income"):[];
+const yearExp=yearEntryTotals?yearEntryTotals.filter(({entry:e})=>e.type==="expense"):[];
+const yearTotalIn=yearInc.reduce((s,{total})=>s+total,0);
+const yearTotalOut=yearExp.reduce((s,{total})=>s+total,0);
 return(
 <div className="card" style={{padding:16}}>
 <div style={{fontSize:14,fontWeight:700,color:C.t2,marginBottom:14}}>Yearly View</div>
@@ -374,22 +384,32 @@ return(
 {selYearData&&!selYearData.isFuture&&(
 <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginTop:14}}>
 <Row mb={12}><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{selYearData.year}</div><button onClick={()=>setSelYear(null)} style={{background:"none",border:"none",color:C.t4,fontSize:18,cursor:"pointer"}}>×</button></Row>
-<div style={{display:"flex",gap:8,marginBottom:10}}>
-<div style={{flex:1,background:"rgba(110,231,183,.06)",border:`1px solid rgba(110,231,183,.15)`,borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Income</div><Mono color={C.green} size={14}>{fmtS(selYearData.inc)}</Mono></div>
-<div style={{flex:1,background:"rgba(251,113,133,.06)",border:`1px solid rgba(251,113,133,.15)`,borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Expenses</div><Mono color={C.red} size={14}>{fmtS(selYearData.exp)}</Mono></div>
-<div style={{flex:1,background:"rgba(6,182,212,.06)",border:`1px solid rgba(6,182,212,.15)`,borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Savings</div><Mono color={C.cyan} size={14}>{fmtS(selYearData.sav)}</Mono></div>
-</div>
-<div style={{fontSize:12,fontWeight:700,color:selYearData.inc-selYearData.exp-selYearData.sav>=0?C.green:C.red,marginBottom:12}}>Net {selYearData.inc-selYearData.exp-selYearData.sav>=0?"+":"−"}{fmtS(Math.abs(selYearData.inc-selYearData.exp-selYearData.sav))}</div>
-{monthlyBreakdown&&<>
-<div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:".07em",fontWeight:700,marginBottom:8}}>Monthly Breakdown</div>
-{monthlyBreakdown.filter(mo=>!mo.isFutureMon).map(mo=>(
-<div key={mo.m} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
-<span style={{fontSize:11,color:C.t3,width:32}}>{MON_SHORT[mo.m]}</span>
-<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:C.green,fontWeight:600}}>{mo.inc>0?"+"+fmtS(mo.inc):"—"}</span>
-<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:C.red,fontWeight:600}}>{mo.exp>0?"−"+fmtS(mo.exp):"—"}</span>
+{yearInc.length===0&&yearExp.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.t5,fontSize:13}}>No payments this year</div>}
+{yearInc.length>0&&<>
+<Label color={C.green} mb={6}>Incoming</Label>
+{yearInc.map(({entry:e,total})=>(
+<div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:"rgba(110,231,183,.06)",borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.green}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{e.label}</div><div style={{fontSize:10,color:C.t4}}>{e.category}{e.recur!=="One-off"?` · ${e.recur}`:""}</div></div>
+<Mono color={C.green} size={13}>+{fmt(total)}</Mono>
 </div>
 ))}
 </>}
+{yearExp.length>0&&<>
+<Label color={C.red} mb={6}>Outgoings</Label>
+{yearExp.map(({entry:e,total})=>(
+<div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:"rgba(251,113,133,.06)",borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.red}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{e.label}</div><div style={{fontSize:10,color:C.t4}}>{e.category}{e.recur!=="One-off"?` · ${e.recur}`:""}</div></div>
+<Mono color={C.red} size={13}>−{fmt(total)}</Mono>
+</div>
+))}
+</>}
+{(yearInc.length>0||yearExp.length>0)&&(
+<div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
+{yearTotalIn>0&&<Mono color={C.green} size={12}>+{fmt(yearTotalIn)} in</Mono>}
+{yearTotalOut>0&&<Mono color={C.red} size={12}>−{fmt(yearTotalOut)} out</Mono>}
+{yearTotalIn>0&&yearTotalOut>0&&<Mono color={yearTotalIn-yearTotalOut>=0?C.green:C.red} size={12}>{yearTotalIn-yearTotalOut>=0?"+":"−"}{fmt(Math.abs(yearTotalIn-yearTotalOut))} net</Mono>}
+</div>
+)}
 </div>
 )}
 </div>
