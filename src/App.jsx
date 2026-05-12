@@ -1179,6 +1179,7 @@ useEffect(()=>{localStorage.setItem('ft_transactions',JSON.stringify(syncedTrans
 useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));},[lastSynced]);
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
+useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
 
 const CATEGORY_MAP={'Food':'Food','Supermarkets and grocery stores':'Food','Restaurants and cafes':'Food','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Entertainment':'Entertainment','Clothing':'Clothing','Shopping':'Other','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Benefits','Investment':'Investment Returns'};
@@ -1216,6 +1217,11 @@ if(t.type==='TRANSFER'||t.type==='PAYMENT')continue;
 const desc=t.description||'';
 if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04'].some(s=>desc.includes(s)))continue;
 const ledgerlyType=t.amount>=0?'income':'expense';
+const descUpper=(t.description||'').toUpperCase();
+if(['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'].some(p=>descUpper.includes(p))){
+processed.push({...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false});
+continue;
+}
 const merchant=t.merchant||null;
 const rule=categoryRules.find(r=>r.merchant&&merchant&&r.merchant.toLowerCase()===merchant.toLowerCase());
 if(rule){
@@ -1508,7 +1514,7 @@ return(
 <optgroup label="Expenses">{EXPENSE_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
 <optgroup label="Income">{INCOME_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
 </select>
-<button onClick={()=>{const cur=syncedTransactions.find(x=>x.id===t.id);const newCat=cur?.ledgerlyCategory||t.ledgerlyCategory;const newType=INCOME_CATS.includes(newCat)?'income':'expense';const merchant=t.merchant||t.description;setCategoryRules(prev=>{const exists=prev.find(r=>r.merchant?.toLowerCase()===merchant.toLowerCase());if(exists)return prev.map(r=>r.merchant?.toLowerCase()===merchant.toLowerCase()?{...r,ledgerlyCategory:newCat,ledgerlyType:newType}:r);return[...prev,{id:Date.now(),merchant,ledgerlyCategory:newCat,ledgerlyType:newType}];});setTxEditingId(null);}} style={{background:"rgba(110,231,183,.1)",border:`1px solid ${C.green}`,borderRadius:8,padding:"7px 12px",color:C.green,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Save as rule</button>
+<button onClick={()=>{const cur=syncedTransactions.find(x=>x.id===t.id);const newCat=cur?.ledgerlyCategory||t.ledgerlyCategory;const newType=INCOME_CATS.includes(newCat)?'income':'expense';const merchant=t.merchant||t.description;setCategoryRules(prev=>{const exists=prev.find(r=>r.merchant?.toLowerCase()===merchant.toLowerCase());if(exists)return prev.map(r=>r.merchant?.toLowerCase()===merchant.toLowerCase()?{...r,ledgerlyCategory:newCat,ledgerlyType:newType}:r);return[...prev,{id:Date.now(),merchant,ledgerlyCategory:newCat,ledgerlyType:newType}];});const merchantLower=merchant.toLowerCase();setSyncedTransactions(prev=>prev.map(x=>{if((x.merchant||x.description||'').toLowerCase()===merchantLower){return{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false};}return x;}));setTxEditingId(null);}} style={{background:"rgba(110,231,183,.1)",border:`1px solid ${C.green}`,borderRadius:8,padding:"7px 12px",color:C.green,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Save as rule</button>
 <button onClick={()=>setTxEditingId(null)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 12px",color:C.t4,fontSize:11,cursor:"pointer"}}>Cancel</button>
 </div>
 <div style={{fontSize:10,color:C.t4,marginTop:6}}>"Save as rule" will automatically categorise all future {t.merchant||t.description} transactions</div>
