@@ -1142,6 +1142,7 @@ const[syncError,setSyncError]=useState(null);
 const[categoryRules,setCategoryRules]=useState(()=>loadLS('ft_categoryRules',[]));
 const[txSearch,setTxSearch]=useState('');
 const[txCatFilter,setTxCatFilter]=useState('');
+const[txLimit,setTxLimit]=useState(90);
 const[txEditingId,setTxEditingId]=useState(null);
 const[showRules,setShowRules]=useState(false);
 const[showAddForm,setShowAddForm]=useState(false);
@@ -1240,7 +1241,8 @@ console.error('Sync failed:',err);
 setSyncing(false);
 }
 }
-const displayedTransactions=useMemo(()=>[...syncedTransactions].filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,90),[syncedTransactions,txSearch,txCatFilter]);
+const filteredTransactionCount=useMemo(()=>syncedTransactions.filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).length,[syncedTransactions,txSearch,txCatFilter]);
+const displayedTransactions=useMemo(()=>[...syncedTransactions].filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,txLimit),[syncedTransactions,txSearch,txCatFilter,txLimit]);
 const mortSchedule=useMemo(()=>buildSchedule(mortgageCfg.principal,mortgageCfg.annualRate,mortgageCfg.termYears,mortgageCfg.startDate,mortgageRateChanges,mortgageLumpSums),[mortgageCfg,mortgageRateChanges,mortgageLumpSums]);
 
 // Auto monthly net worth snapshot
@@ -1470,8 +1472,8 @@ return <>
 ):(
 <>
 <div style={{display:"flex",gap:8,marginBottom:12}}>
-<input className="fi" placeholder="Search transactions..." value={txSearch} onChange={e=>setTxSearch(e.target.value)} style={{flex:1,padding:"8px 12px",fontSize:14}}/>
-<select className="fi" value={txCatFilter} onChange={e=>setTxCatFilter(e.target.value)} style={{width:130,padding:"8px 10px",fontSize:13}}>
+<input className="fi" placeholder="Search transactions..." value={txSearch} onChange={e=>{setTxSearch(e.target.value);setTxLimit(90);}} style={{flex:1,padding:"8px 12px",fontSize:14}}/>
+<select className="fi" value={txCatFilter} onChange={e=>{setTxCatFilter(e.target.value);setTxLimit(90);}} style={{width:130,padding:"8px 10px",fontSize:13}}>
 <option value="">All categories</option>
 {[...EXPENSE_CATS,...INCOME_CATS].map(c=><option key={c} value={c}>{c}</option>)}
 </select>
@@ -1515,12 +1517,15 @@ return(
 </div>
 );
 })}
-</div>
-{syncedTransactions.length>90&&(
-<div style={{fontSize:11,color:C.t4,textAlign:"center",marginTop:8,fontStyle:"italic"}}>
-{`Showing ${displayedTransactions.length} of ${syncedTransactions.length} transactions — use search or filters to narrow down.`}
+{txLimit<filteredTransactionCount&&(
+<div style={{textAlign:"center",padding:"12px 0 4px"}}>
+<button onClick={e=>{e.stopPropagation();setTxLimit(v=>v+90);}} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 20px",color:C.t3,fontSize:12,fontWeight:600,cursor:"pointer"}}>Load more</button>
 </div>
 )}
+</div>
+<div style={{fontSize:11,color:C.t4,marginBottom:8}}>
+{`Showing ${Math.min(txLimit,filteredTransactionCount)} of ${filteredTransactionCount} transactions`}
+</div>
 {categoryRules.length>0&&(
 <div style={{marginTop:16}}>
 <div onClick={()=>setShowRules(v=>!v)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:8}}>
