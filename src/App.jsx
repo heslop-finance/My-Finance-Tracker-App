@@ -1181,6 +1181,7 @@ useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalan
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'||t.ledgerlyCategory==='Food & Drink'?{...t,ledgerlyCategory:'Groceries'}:t));},[]);
+useEffect(()=>{setSyncedTransactions(prev=>{const ids=new Set();prev.forEach((a,ai)=>{if(ids.has(a.id))return;prev.forEach((b,bi)=>{if(ai===bi||ids.has(b.id))return;const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));const withinTimeWindow=timeDiff<=5*60*1000;if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){ids.add(a.id);ids.add(b.id);}});});return prev.filter(t=>!ids.has(t.id));});},[]);
 
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Dining Out','Fast food':'Dining Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
@@ -1235,9 +1236,27 @@ const ledgerlyCategory=mapped||'Other';
 const needsReview=!mapped;
 processed.push({...t,ledgerlyType,ledgerlyCategory,needsReview});
 }
+const transferIds=new Set();
+processed.forEach((a,ai)=>{
+if(transferIds.has(a.id))return;
+processed.forEach((b,bi)=>{
+if(ai===bi)return;
+if(transferIds.has(b.id))return;
+const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);
+const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);
+const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];
+const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
+const withinTimeWindow=timeDiff<=5*60*1000;
+if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){
+transferIds.add(a.id);
+transferIds.add(b.id);
+}
+});
+});
+const dedupedTransactions=processed.filter(t=>!transferIds.has(t.id));
 setSyncedTransactions(prev=>{
 const existingIds=new Set(prev.map(t=>t.id));
-const newTxs=processed.filter(t=>!existingIds.has(t.id));
+const newTxs=dedupedTransactions.filter(t=>!existingIds.has(t.id));
 return [...prev,...newTxs];
 });
 setLastSynced(new Date().toISOString());

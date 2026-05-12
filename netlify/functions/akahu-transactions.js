@@ -39,6 +39,7 @@ exports.handler = async (event) => {
       id: t._id,
       account: t._account,
       date: t.date.slice(0, 10),
+      timestamp: t.date,
       amount: t.amount,
       merchant: t.merchant?.name || null,
       description: t.description,
