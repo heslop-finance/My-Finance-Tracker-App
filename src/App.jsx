@@ -39,6 +39,21 @@ const fmtN=n=>n%1===0?n.toFixed(0):n.toFixed(1);
 const pad=n=>String(n).padStart(2,"0");
 const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const todayStr=dateKey(today);
+const PAY_CYCLE_ANCHOR=new Date('2026-05-05');
+function getPeriodStart(periodKey){
+const now=new Date();
+const todayMidnight=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+if(periodKey==='weekly'){const start=new Date(todayMidnight);start.setDate(start.getDate()-6);return start;}
+if(periodKey==='fortnightly'){const daysSinceAnchor=Math.floor((todayMidnight-PAY_CYCLE_ANCHOR)/86400000);const daysSinceLastPay=((daysSinceAnchor%14)+14)%14;const start=new Date(todayMidnight);start.setDate(start.getDate()-daysSinceLastPay);return start;}
+if(periodKey==='monthly'){return new Date(now.getFullYear(),now.getMonth(),1);}
+if(periodKey==='yearly'){return new Date(now.getFullYear(),0,1);}
+return new Date(todayMidnight);
+}
+function getTransactionsForPeriod(transactions,periodKey){
+const start=getPeriodStart(periodKey);
+const startStr=dateKey(start);
+return transactions.filter(t=>t.date>=startStr&&t.date<=todayStr);
+}
 const parseDt=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);};
 
 function varActual(e,mk){
@@ -151,7 +166,7 @@ const StatCard=({label,value,color,sub,bg=C.card,border=C.border,labelColor=C.t3
 );
 
 // ── HISTOGRAM ─────────────────────────────────────────────────
-function Histogram({entries,displayPeriod}){
+function Histogram({entries,displayPeriod,actualsMode=false,syncedTransactions=[]}){
 const isYearly=displayPeriod==="yearly";
 const isAllYears=displayPeriod==="allyears";
 const[catFilter,setCatFilter]=useState("All Expenses");
@@ -170,6 +185,18 @@ if(isAllYears){
 const earliest=entries.reduce((min,e)=>{const y=parseDt(e.startDate).getFullYear();return y<min?y:min;},now.getFullYear());
 const currentYear=now.getFullYear();
 const totalYears=Math.max(12,currentYear-earliest+1);
+if(actualsMode){
+return Array.from({length:totalYears},(_,i)=>{
+const y=earliest+i;
+const isFuture=y>currentYear;
+const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
+if(!isFuture){
+syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&t.date.startsWith(String(y))&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
+}
+const val=Object.values(bycat).reduce((s,v)=>s+v,0);
+return{label:String(y),val,bycat,isFuture};
+});
+}
 return Array.from({length:totalYears},(_,i)=>{
 const y=earliest+i;
 const isFuture=y>currentYear;
@@ -183,6 +210,17 @@ return{label:String(y),val,bycat,isFuture};
 });
 }
 if(isYearly){
+if(actualsMode){
+return Array.from({length:12},(_,m)=>{
+const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
+syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{
+const td=parseDt(t.date);
+if(td.getFullYear()===now.getFullYear()&&td.getMonth()===m){const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);}
+});
+const val=Object.values(bycat).reduce((s,v)=>s+v,0);
+return{label:MON_SHORT[m],val,bycat,isFuture:m>now.getMonth()};
+});
+}
 return Array.from({length:12},(_,m)=>{
 const from=new Date(now.getFullYear(),m,1),to=new Date(now.getFullYear(),m+1,0);
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
@@ -191,6 +229,19 @@ const val=Object.values(bycat).reduce((s,v)=>s+v,0);
 return{label:MON_SHORT[m],val,bycat,isFuture:m>now.getMonth()};
 });
 }else{
+if(actualsMode){
+const start=getPeriodStart(displayPeriod);
+const todayMidnight=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+const days=Math.max(1,Math.round((todayMidnight-start)/86400000)+1);
+return Array.from({length:days},(_,di)=>{
+const d=new Date(start);d.setDate(d.getDate()+di);
+const dStr=dateKey(d);
+const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
+syncedTransactions.filter(t=>t.date===dStr&&t.ledgerlyType==='expense'&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
+const val=Object.values(bycat).reduce((s,v)=>s+v,0);
+return{label:pad(d.getDate()),val,bycat,isFuture:false,date:d};
+});
+}
 const days=PERIODS.find(p=>p.key===displayPeriod).days;
 return Array.from({length:Math.round(days)},(_,di)=>{
 const d=new Date(now);d.setDate(d.getDate()-Math.round(days)+di+1);
@@ -200,11 +251,17 @@ const val=Object.values(bycat).reduce((s,v)=>s+v,0);
 return{label:pad(d.getDate()),val,bycat,isFuture:false,date:d};
 });
 }
-},[filteredEntries,allExpEntries,displayPeriod,isYearly,stackCats]);
+},[filteredEntries,allExpEntries,displayPeriod,isYearly,stackCats,actualsMode,syncedTransactions,catFilter]);
 
 const rollingAvg=useMemo(()=>{
 if(isAllYears)return 0;
 const pDays=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
+if(actualsMode){
+const oneYearAgo=new Date();oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
+const oneYearAgoStr=dateKey(oneYearAgo);
+const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&t.date>oneYearAgoStr&&t.date<=todayStr&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).reduce((s,t)=>s+Math.abs(t.amount),0);
+return total*(pDays/365);
+}
 const from=new Date();from.setFullYear(from.getFullYear()-1);
 const to=new Date();
 let total=0;
@@ -212,7 +269,7 @@ datesInRange(from,to).forEach(d=>{
 filteredEntries.filter(e=>occursOn(e,d)).forEach(e=>{total+=e.amount;});
 });
 return total*(pDays/365);
-},[filteredEntries,displayPeriod]);
+},[filteredEntries,displayPeriod,actualsMode,syncedTransactions,catFilter]);
 
 const cumulativeData=useMemo(()=>{let sum=0;return bars.map(b=>{sum+=b.val;return sum;});},[bars]);
 const projection=useMemo(()=>{
@@ -238,6 +295,28 @@ const xOf=i=>PAD+i*(W-PAD*2)/bars.length;
 const yOf=v=>H-PAD-(v/maxVal)*(H-PAD*2);
 const avgY=yOf(rollingAvg);
 const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData]);
+
+const allYearsAvg=useMemo(()=>{
+if(!isAllYears)return 0;
+const nonFuture=bars.filter(b=>!b.isFuture);
+if(!nonFuture.length)return 0;
+return nonFuture.reduce((s,b)=>s+b.val,0)/nonFuture.length;
+},[isAllYears,bars]);
+
+const allYearsTrend=useMemo(()=>{
+if(!isAllYears)return null;
+const nf=bars.filter(b=>!b.isFuture);
+const n=nf.length;
+if(n<2)return null;
+const ys=nf.map(b=>b.val);
+const sumX=n*(n-1)/2;
+const sumY=ys.reduce((s,y)=>s+y,0);
+const sumXY=ys.reduce((s,y,i)=>s+i*y,0);
+const sumX2=n*(n-1)*(2*n-1)/6;
+const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+const intercept=(sumY-slope*sumX)/n;
+return{slope,intercept,n};
+},[isAllYears,bars]);
 
 const toggles=isAllYears?[
 {label:"Stack",active:showStacked,set:setShowStacked},
@@ -313,6 +392,25 @@ return(
 }
 })}
 {showProj&&projection!=null&&<text x={W-PAD-4} y={yOf(projection)} fill={C.amber} fontSize={8} fontWeight="700" textAnchor="end" dominantBaseline="middle">proj</text>}
+{isAllYears&&allYearsAvg>0&&(
+<>
+<line x1={xOf(0)+barW/2} y1={yOf(allYearsAvg)} x2={xOf(bars.length-1)+barW/2} y2={yOf(allYearsAvg)} stroke={C.green} strokeWidth={1} strokeDasharray="4 3" opacity={.55}/>
+<text x={xOf(bars.length-1)+barW/2+3} y={yOf(allYearsAvg)-3} textAnchor="start" fill={C.green} fontSize={8} opacity={.7}>avg</text>
+</>
+)}
+{isAllYears&&allYearsTrend&&(()=>{
+const clamp=v=>Math.max(0,Math.min(maxVal*1.05,v));
+const y0=clamp(allYearsTrend.intercept);
+const y1=clamp(allYearsTrend.slope*(allYearsTrend.n-1)+allYearsTrend.intercept);
+const x0=xOf(0)+barW/2;
+const x1=xOf(allYearsTrend.n-1)+barW/2;
+return(
+<>
+<line x1={x0} y1={yOf(y0)} x2={x1} y2={yOf(y1)} stroke={C.cyan} strokeWidth={1.5} opacity={.55}/>
+<text x={x1+3} y={yOf(y1)-3} textAnchor="start" fill={C.cyan} fontSize={8} opacity={.7}>trend</text>
+</>
+);
+})()}
 </svg>
 </div>
 <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:10,color:C.t3}}>
@@ -1145,6 +1243,7 @@ const[txCatFilter,setTxCatFilter]=useState('');
 const[txLimit,setTxLimit]=useState(90);
 const[txEditingId,setTxEditingId]=useState(null);
 const[showRules,setShowRules]=useState(false);
+const[actualsMode,setActualsMode]=useState(false);
 const[showAddForm,setShowAddForm]=useState(false);
 const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],amount:"",recur:"Monthly",startDate:todayStr});
 const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
@@ -1298,6 +1397,27 @@ const savingsRatio=displayIncome>0?(savingsTotal/displayIncome)*100:0;
 const expByCategory=useMemo(()=>{const map={};entries.filter(e=>e.type==="expense"&&e.recur!=="One-off").forEach(e=>{map[e.category]=(map[e.category]||0)+periodAmt(e,pDays);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[entries,pDays]);
 const incByCategory=useMemo(()=>{const map={};entries.filter(e=>e.type==="income"&&e.recur!=="One-off").forEach(e=>{map[e.category]=(map[e.category]||0)+periodAmt(e,pDays);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[entries,pDays]);
 const savingsRate=useMemo(()=>{if(totalIncome<=0)return 0;const sv=entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,pDays),0);return Math.min(100,(sv/totalIncome)*100);},[entries,totalIncome,pDays]);
+const periodTransactions=useMemo(()=>actualsMode?getTransactionsForPeriod(syncedTransactions,displayPeriod):[],[actualsMode,syncedTransactions,displayPeriod]);
+const actualIncome=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
+const actualTrueExp=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
+const actualSavingsRatioAmt=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
+const actualExpenses=actualTrueExp+actualSavingsRatioAmt;
+const actualSavingsRate=actualIncome>0?Math.min(100,(actualSavingsRatioAmt/actualIncome)*100):0;
+const actualByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='expense').forEach(t=>{const c=t.ledgerlyCategory||'Other';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
+const actualIncByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='income').forEach(t=>{const c=t.ledgerlyCategory||'Other Income';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
+const hasActualData=periodTransactions.length>0;
+const isEstimate=actualsMode&&!hasActualData;
+const displayIncomeFigure=actualsMode&&hasActualData?actualIncome:(scenarioMode?scenarioIncome:totalIncome);
+const displayExpensesFigure=actualsMode&&hasActualData?actualExpenses:(scenarioMode?scenarioExpenses:totalExpenses);
+const displayBalance=actualsMode&&hasActualData?actualIncome-actualExpenses:(scenarioMode?scenarioBalance:balance);
+const displaySavingsRate=actualsMode&&hasActualData?actualSavingsRate:savingsRate;
+const combinedExpCategories=useMemo(()=>{const all=new Set([...expByCategory.map(([c])=>c),...actualByCategory.map(([c])=>c)]);return[...all].map(c=>({cat:c,budgetAmt:expByCategory.find(([x])=>x===c)?.[1]||0,actualAmt:actualByCategory.find(([x])=>x===c)?.[1]||0})).sort((a,b)=>b.actualAmt-a.actualAmt||b.budgetAmt-a.budgetAmt);},[expByCategory,actualByCategory]);
+const combinedIncCategories=useMemo(()=>{const all=new Set([...incByCategory.map(([c])=>c),...actualIncByCategory.map(([c])=>c)]);return[...all].map(c=>({cat:c,budgetAmt:incByCategory.find(([x])=>x===c)?.[1]||0,actualAmt:actualIncByCategory.find(([x])=>x===c)?.[1]||0})).sort((a,b)=>b.actualAmt-a.actualAmt||b.budgetAmt-a.budgetAmt);},[incByCategory,actualIncByCategory]);
+const displayRatioIncome=actualsMode&&hasActualData?actualIncome:displayIncome;
+const displayRatio=displayRatioIncome>0?(actualsMode&&hasActualData?actualTrueExp:displayTrueExp)/displayRatioIncome*100:0;
+const displaySavingsRatio=displayRatioIncome>0?(actualsMode&&hasActualData?actualSavingsRatioAmt:savingsTotal)/displayRatioIncome*100:0;
+const displayStatusColor=displayRatio<60?C.green:displayRatio<85?C.amber:C.red;
+const displayStatusLabel=displayRatio<60?"Healthy":displayRatio<85?"Moderate":"Over-stretched";
 const statusColor=ratio<60?C.green:ratio<85?C.amber:C.red;
 const statusLabel=ratio<60?"Healthy":ratio<85?"Moderate":"Over-stretched";
 const periodLabel=PERIODS.find(p=>p.key===displayPeriod).label;
@@ -1321,7 +1441,11 @@ return(
 
 {view==="dashboard"&&<>
 <div style={{marginBottom:16}}>
-<button onClick={()=>setScenarioMode(v=>!v)} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+<button onClick={()=>{setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+<span>📊 Actuals Mode{actualsMode?" — ON":""}</span>
+<span style={{fontSize:11,color:C.t3}}>Show real bank transaction data</span>
+</button>
+<button onClick={()=>{setScenarioMode(v=>!v);setActualsMode(false);}} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
 <span>🔮 Scenario Mode{scenarioMode?" — ON":""}</span>
 {scenarioMode&&<span style={{fontSize:11,color:C.t3}}>What if my income/expenses changed?</span>}
 </button>
@@ -1341,14 +1465,14 @@ return <div key={key}><label style={{fontSize:10,color:C.purple,display:"block",
 
 <div className="hscroll" style={{marginBottom:20}}>
 {[
-{label:`${periodLabel} Income`,value:fmt(scenarioMode?scenarioIncome:totalIncome),color:C.green,scenario:scenarioMode&&!!scenarioDelta.income},
-{label:`${periodLabel} Outgoings`,value:fmt(scenarioMode?scenarioExpenses:totalExpenses),color:C.red,scenario:scenarioMode&&!!scenarioDelta.expenses},
-{label:"Net Balance",value:((scenarioMode?scenarioBalance:balance)<0?"−":"+")+fmt(Math.abs(scenarioMode?scenarioBalance:balance)),color:(scenarioMode?scenarioBalance:balance)>=0?C.green:(scenarioMode?scenarioBalance:balance)>=-200?C.amber:C.red,scenario:scenarioMode,highlight:true},
-{label:"Savings Rate",value:`${fmtN(savingsRate)}%`,color:savingsRate>=20?C.green:savingsRate>=10?C.amber:C.red,sub:savingsRate>=20?"On track":savingsRate>=10?"Could be higher":"Low"},
+{label:`${periodLabel} Income${isEstimate?" (est.)":""}`,value:fmt(displayIncomeFigure),color:C.green,scenario:scenarioMode&&!!scenarioDelta.income},
+{label:`${periodLabel} Outgoings${isEstimate?" (est.)":""}`,value:fmt(displayExpensesFigure),color:C.red,scenario:scenarioMode&&!!scenarioDelta.expenses},
+{label:`Net Balance${isEstimate?" (est.)":""}`,value:(displayBalance<0?"−":"+")+fmt(Math.abs(displayBalance)),color:displayBalance>=0?C.green:displayBalance>=-200?C.amber:C.red,scenario:scenarioMode,highlight:true},
+{label:"Savings Rate",value:`${fmtN(displaySavingsRate)}%`,color:displaySavingsRate>=20?C.green:displaySavingsRate>=10?C.amber:C.red,sub:displaySavingsRate>=20?"On track":displaySavingsRate>=10?"Could be higher":"Low"},
 ].map(c=>(
 <StatCard key={c.label} label={c.label} value={c.value} color={c.color} sub={c.sub}
-bg={c.scenario?"rgba(167,139,250,.2)":c.highlight?((scenarioMode?scenarioBalance:balance)>=0?"rgba(110,231,183,.08)":(scenarioMode?scenarioBalance:balance)>=-200?"rgba(251,191,36,.08)":"rgba(251,113,133,.08)"):C.card}
-border={c.scenario?"rgba(167,139,250,.7)":c.highlight?((scenarioMode?scenarioBalance:balance)>=0?"rgba(110,231,183,.2)":(scenarioMode?scenarioBalance:balance)>=-200?"rgba(251,191,36,.2)":"rgba(251,113,133,.2)"):C.border}
+bg={c.scenario?"rgba(167,139,250,.2)":c.highlight?(displayBalance>=0?"rgba(110,231,183,.08)":displayBalance>=-200?"rgba(251,191,36,.08)":"rgba(251,113,133,.08)"):C.card}
+border={c.scenario?"rgba(167,139,250,.7)":c.highlight?(displayBalance>=0?"rgba(110,231,183,.2)":displayBalance>=-200?"rgba(251,191,36,.2)":"rgba(251,113,133,.2)"):C.border}
 labelColor={c.scenario?C.purple:C.t3}/>
 ))}
 </div>
@@ -1356,7 +1480,7 @@ labelColor={c.scenario?C.purple:C.t3}/>
 <div className="card">
 <div style={{fontSize:13,fontWeight:600,color:C.t2,marginBottom:14}}>Net balance across all periods <span style={{fontSize:11,color:C.t4}}>· tap to switch</span></div>
 <div className="hscroll">
-{PERIODS.map(p=>{let inc=0,exp=0;entries.filter(e=>e.recur!=="One-off").forEach(e=>{const a=periodAmt(e,p.days);if(e.type==="income")inc+=a;else exp+=a;});const bal=inc-exp;return(
+{PERIODS.map(p=>{let inc=0,exp=0;entries.filter(e=>e.recur!=="One-off").forEach(e=>{const a=periodAmt(e,p.days);if(e.type==="income")inc+=a;else exp+=a;});let bal=inc-exp;if(actualsMode&&hasActualData&&p.key===displayPeriod){bal=actualIncome-actualExpenses;}return(
 <div key={p.key} className={`cc ${displayPeriod===p.key?"active":""}`} onClick={()=>setDisplayPeriod(p.key)} style={{minWidth:110,width:"calc(25% - 9px)"}}>
 <div style={{fontSize:10,color:displayPeriod===p.key?C.green:C.t3,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:".07em"}}>{p.label}</div>
 <Mono color={bal>=0?C.green:C.red} size={13}>{bal>=0?"+":"−"}{fmt(bal)}</Mono>
@@ -1365,27 +1489,40 @@ labelColor={c.scenario?C.purple:C.t3}/>
 </div>
 </div>
 
-<div className="card" style={scenarioMode?{background:"rgba(167,139,250,.18)",border:`1px solid rgba(167,139,250,.5)`}:{}}>
-<Row mb={14}><div style={{fontSize:14,fontWeight:600}}>Expense Ratio</div><div style={{background:`${statusColor}22`,color:statusColor,padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700}}>{statusLabel}</div></Row>
+<div className="card" style={scenarioMode?{background:"rgba(167,139,250,.18)",border:`1px solid rgba(167,139,250,.5)`}:actualsMode?{background:"rgba(6,182,212,.06)",border:`1px solid rgba(6,182,212,.2)`}:{}}>
+<Row mb={14}><div style={{fontSize:14,fontWeight:600}}>Expense Ratio</div><div style={{background:`${displayStatusColor}22`,color:displayStatusColor,padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700}}>{displayStatusLabel}</div></Row>
 <div style={{height:14,background:C.border,borderRadius:7,overflow:"hidden",marginBottom:10,display:"flex"}}>
-<div style={{height:"100%",width:`${Math.min(ratio,100)}%`,background:`linear-gradient(90deg,${C.green},${statusColor})`,borderRadius:savingsRatio>0?"7px 0 0 7px":"7px",transition:"width .6s ease",flexShrink:0}}/>
-{savingsRatio>0&&<div style={{height:"100%",width:`${Math.min(savingsRatio,100-ratio)}%`,background:"linear-gradient(90deg,#06b6d4,#0ea5e9)",opacity:.6,transition:"width .6s ease",flexShrink:0,borderRadius:"0 7px 7px 0"}}/>}
+<div style={{height:"100%",width:`${Math.min(displayRatio,100)}%`,background:`linear-gradient(90deg,${C.green},${displayStatusColor})`,borderRadius:displaySavingsRatio>0?"7px 0 0 7px":"7px",transition:"width .6s ease",flexShrink:0}}/>
+{displaySavingsRatio>0&&<div style={{height:"100%",width:`${Math.min(displaySavingsRatio,100-displayRatio)}%`,background:"linear-gradient(90deg,#06b6d4,#0ea5e9)",opacity:.6,transition:"width .6s ease",flexShrink:0,borderRadius:"0 7px 7px 0"}}/>}
 </div>
 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t3,marginBottom:8}}>
-<span>{fmtN(ratio)}% expenses</span>
-{savingsRatio>0&&<span style={{color:"rgba(6,182,212,.8)"}}>+{fmtN(savingsRatio)}% savings</span>}
+<span>{fmtN(displayRatio)}% expenses</span>
+{displaySavingsRatio>0&&<span style={{color:"rgba(6,182,212,.8)"}}>+{fmtN(displaySavingsRatio)}% savings</span>}
 <span>Target: &lt;75%</span>
 </div>
 <div style={{display:"flex",gap:12,fontSize:11}}>
-<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:statusColor}}/><span style={{color:C.t3}}>Expenses ({fmt(displayTrueExp)})</span></div>
-{savingsRatio>0&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:"rgba(6,182,212,.6)"}}/><span style={{color:C.t3}}>Savings ({fmt(savingsTotal)})</span></div>}
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:displayStatusColor}}/><span style={{color:C.t3}}>Expenses ({fmt(actualsMode&&hasActualData?actualTrueExp:displayTrueExp)})</span></div>
+{displaySavingsRatio>0&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{display:"inline-block",width:10,height:10,borderRadius:2,background:"rgba(6,182,212,.6)"}}/><span style={{color:C.t3}}>Savings ({fmt(actualsMode&&hasActualData?actualSavingsRatioAmt:savingsTotal)})</span></div>}
 </div>
 </div>
 
-{expByCategory.length>0&&(
+{(expByCategory.length>0||actualByCategory.length>0)&&(
 <div className="card">
-<Row mb={16}><div style={{fontSize:14,fontWeight:600}}>Spending by Category <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div><button onClick={()=>setBudgetEditing(v=>!v)} className={`rb ${budgetEditing?"on":""}`}>{budgetEditing?"Done":"Budget"}</button></Row>
-{expByCategory.map(([cat,amt])=>{
+<Row mb={16}><div style={{fontSize:14,fontWeight:600}}>Spending by Category <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div>{!actualsMode&&<button onClick={()=>setBudgetEditing(v=>!v)} className={`rb ${budgetEditing?"on":""}`}>{budgetEditing?"Done":"Budget"}</button>}</Row>
+{actualsMode&&hasActualData?combinedExpCategories.map(({cat,budgetAmt:bAmt,actualAmt})=>{
+const maxAmt=Math.max(bAmt,actualAmt,1);
+const overBudget=bAmt>0&&actualAmt>bAmt;
+return(
+<div key={cat} style={{marginBottom:14}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,marginBottom:5}}>
+<span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.t2}}/>{cat}{overBudget&&<span style={{fontSize:10,background:"rgba(251,113,133,.15)",color:C.red,borderRadius:6,padding:"1px 6px",fontWeight:700}}>over</span>}</span>
+<div style={{display:"flex",alignItems:"center",gap:6}}>{bAmt>0&&<span style={{fontSize:10,color:C.t5,fontFamily:F.mono}}>{fmt(bAmt)}</span>}<Mono color={overBudget?C.red:C.t1} size={13}>{fmt(actualAmt)}</Mono></div>
+</div>
+{bAmt>0&&<div style={{height:5,background:C.border,borderRadius:3,marginBottom:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((bAmt/maxAmt)*100,100)}%`,background:CAT_COLORS[cat]||C.t2,opacity:0.3,borderRadius:3}}/></div>}
+<div style={{height:5,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((actualAmt/maxAmt)*100,100)}%`,background:overBudget?C.red:CAT_COLORS[cat]||C.t2,borderRadius:3}}/></div>
+</div>
+);
+}):expByCategory.map(([cat,amt])=>{
 const pct=totalExpenses>0?(amt/totalExpenses)*100:0;
 const monthlyBase=budgetLimits[cat]||null;
 const budgetAmt=monthlyBase?monthlyBase*(pDays/30.44):null;
@@ -1421,10 +1558,22 @@ return(
 </div>
 )}
 
-{incByCategory.length>0&&(
+{(incByCategory.length>0||actualIncByCategory.length>0)&&(
 <div className="card">
 <div style={{fontSize:14,fontWeight:600,marginBottom:16}}>Income by Source <span style={{fontSize:11,color:C.t3,fontWeight:400}}>({periodLabel})</span></div>
-{incByCategory.map(([cat,amt])=>{
+{actualsMode&&hasActualData?combinedIncCategories.map(({cat,budgetAmt:bAmt,actualAmt})=>{
+const maxAmt=Math.max(bAmt,actualAmt,1);
+return(
+<div key={cat} style={{marginBottom:12}}>
+<div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}>
+<span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.green}}/>{cat}</span>
+<div style={{display:"flex",alignItems:"center",gap:6}}>{bAmt>0&&<span style={{fontSize:10,color:C.t5,fontFamily:F.mono}}>{fmt(bAmt)}</span>}<Mono color={C.green} size={13}>{fmt(actualAmt)}</Mono></div>
+</div>
+{bAmt>0&&<div style={{height:4,background:C.border,borderRadius:3,marginBottom:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((bAmt/maxAmt)*100,100)}%`,background:CAT_COLORS[cat]||C.green,opacity:0.3,borderRadius:3}}/></div>}
+<div style={{height:6,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((actualAmt/maxAmt)*100,100)}%`,background:CAT_COLORS[cat]||C.green,borderRadius:3}}/></div>
+</div>
+);
+}):incByCategory.map(([cat,amt])=>{
 const pct=totalIncome>0?(amt/totalIncome)*100:0;
 return(
 <div key={cat} style={{marginBottom:12}}>
@@ -1443,7 +1592,7 @@ return(
 <div style={{fontSize:11,color:C.t4,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{allTime?"All Time Charts":displayPeriod==="yearly"?"Monthly Charts":"Daily Charts"}</div>
 <button onClick={()=>setAllTime(v=>!v)} style={{border:`1px solid ${allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:allTime?"rgba(110,231,183,.1)":"none",color:allTime?C.green:C.t3,whiteSpace:"nowrap"}}>All time</button>
 </div>
-<Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod}/>
+<Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
 <CalendarWidget entries={entries} displayPeriod={allTime?"allyears":displayPeriod}/>
 </>}
 
