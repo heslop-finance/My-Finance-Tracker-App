@@ -11,10 +11,10 @@ incDk:"#0d2420",expDk:"#1f0d12",
 const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const s=(extra={})=>({...extra});
 
-const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Other Income"];
-const EXPENSE_CATS=["Mortgage","Rent","Utilities","Food","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Savings Goal","Investments","Other"];
+const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Government Benefits","Other Income"];
+const EXPENSE_CATS=["Mortgage","Rent","Utilities","Food & Drink","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Dining Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Investments","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
-const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Food":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Food & Drink":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Dining Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -1116,7 +1116,7 @@ const SEED=[
 {id:1,type:"income",label:"Salary",category:"Salary",amount:5500,recur:"Monthly",startDate:"2025-01-01"},
 {id:2,type:"expense",label:"Mortgage Payment",category:"Mortgage",amount:1800,recur:"Monthly",startDate:"2025-01-01"},
 {id:3,type:"expense",label:"Rates",category:"Rates",amount:80,recur:"Monthly",startDate:"2025-01-01"},
-{id:4,type:"expense",label:"Groceries",category:"Food",amount:220,recur:"Fortnightly",startDate:"2025-01-06"},
+{id:4,type:"expense",label:"Groceries",category:"Food & Drink",amount:220,recur:"Fortnightly",startDate:"2025-01-06"},
 {id:5,type:"expense",label:"House Insurance",category:"Insurance",amount:1200,recur:"Yearly",startDate:"2025-03-01"},
 {id:6,type:"expense",label:"Emergency Fund",category:"Savings Goal",amount:200,recur:"Monthly",startDate:"2025-01-01"},
 {id:7,type:"expense",label:"Sharesies",category:"Investments",amount:300,recur:"Monthly",startDate:"2025-01-01"},
@@ -1180,9 +1180,10 @@ useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
+useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'?{...t,ledgerlyCategory:'Food & Drink'}:t));},[]);
 
-const CATEGORY_MAP={'Food':'Food','Supermarkets and grocery stores':'Food','Restaurants and cafes':'Food','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Entertainment':'Entertainment','Clothing':'Clothing','Shopping':'Other','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
-const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Benefits','Investment':'Investment Returns'};
+const CATEGORY_MAP={'Food':'Food & Drink','Supermarkets and grocery stores':'Food & Drink','Restaurants and cafes':'Dining Out','Fast food':'Dining Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
+const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
 async function handleSync(){
 setSyncing(true);
 try{
