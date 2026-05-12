@@ -1138,6 +1138,12 @@ const[syncedTransactions,setSyncedTransactions]=useState(()=>loadLS('ft_transact
 const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
 const[akahuBalances,setAkahuBalances]=useState(()=>loadLS('ft_akahuBalances',[]));
 const[syncing,setSyncing]=useState(false);
+const[syncError,setSyncError]=useState(null);
+const[categoryRules,setCategoryRules]=useState(()=>loadLS('ft_categoryRules',[]));
+const[txSearch,setTxSearch]=useState('');
+const[txCatFilter,setTxCatFilter]=useState('');
+const[txEditingId,setTxEditingId]=useState(null);
+const[showRules,setShowRules]=useState(false);
 const[showAddForm,setShowAddForm]=useState(false);
 const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],amount:"",recur:"Monthly",startDate:todayStr});
 const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
@@ -1171,16 +1177,26 @@ useEffect(()=>{localStorage.setItem('ft_displayPeriod',JSON.stringify(displayPer
 useEffect(()=>{localStorage.setItem('ft_transactions',JSON.stringify(syncedTransactions));},[syncedTransactions]);
 useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));},[lastSynced]);
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
+useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 
 const CATEGORY_MAP={'Food':'Food','Supermarkets and grocery stores':'Food','Restaurants and cafes':'Food','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Entertainment':'Entertainment','Clothing':'Clothing','Shopping':'Other','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Benefits','Investment':'Investment Returns'};
 async function handleSync(){
 setSyncing(true);
 try{
+const mostRecent=syncedTransactions.length?syncedTransactions.reduce((latest,t)=>t.date>latest?t.date:latest,'2000-01-01'):null;
+const startParam=mostRecent?`?start=${mostRecent}`:'';
 const[txRes,balRes]=await Promise.all([
-fetch('/.netlify/functions/akahu-transactions'),
+fetch(`/.netlify/functions/akahu-transactions${startParam}`),
 fetch('/.netlify/functions/akahu-balances'),
 ]);
+if(txRes.status===429){
+const nextAvailable=lastSynced?new Date(new Date(lastSynced).getTime()+60*60*1000):null;
+const timeStr=nextAvailable?nextAvailable.toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'}):'soon';
+setSyncError(`Rate limited — next sync available at ${timeStr}`);
+return;
+}
+setSyncError(null);
 const txData=await txRes.json();
 const balData=await balRes.json();
 setAkahuBalances(balData.items||[]);
@@ -1199,6 +1215,12 @@ if(t.type==='TRANSFER'||t.type==='PAYMENT')continue;
 const desc=t.description||'';
 if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04'].some(s=>desc.includes(s)))continue;
 const ledgerlyType=t.amount>=0?'income':'expense';
+const merchant=t.merchant||null;
+const rule=categoryRules.find(r=>r.merchant&&merchant&&r.merchant.toLowerCase()===merchant.toLowerCase());
+if(rule){
+processed.push({...t,ledgerlyType:rule.ledgerlyType,ledgerlyCategory:rule.ledgerlyCategory,needsReview:false});
+continue;
+}
 const map=ledgerlyType==='income'?INCOME_CATEGORY_MAP:CATEGORY_MAP;
 const mapped=t.akahuCategory?map[t.akahuCategory]:undefined;
 const ledgerlyCategory=mapped||'Other';
@@ -1218,6 +1240,7 @@ console.error('Sync failed:',err);
 setSyncing(false);
 }
 }
+const displayedTransactions=useMemo(()=>[...syncedTransactions].filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,90),[syncedTransactions,txSearch,txCatFilter]);
 const mortSchedule=useMemo(()=>buildSchedule(mortgageCfg.principal,mortgageCfg.annualRate,mortgageCfg.termYears,mortgageCfg.startDate,mortgageRateChanges,mortgageLumpSums),[mortgageCfg,mortgageRateChanges,mortgageLumpSums]);
 
 // Auto monthly net worth snapshot
@@ -1436,10 +1459,87 @@ return <>
 {syncing?"↻ Syncing...":"↻ Sync"}
 </button>
 </div>
-<div style={{fontSize:12,color:C.t4,fontStyle:"italic",marginTop:8}}>
-{syncedTransactions.length>0?`${syncedTransactions.length} transactions stored`:"Press sync to fetch your bank transactions"}
+</div>
+{syncError&&(
+<div style={{background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.3)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:C.amber}}>
+⏱ {syncError}
+</div>
+)}
+{syncedTransactions.length===0?(
+<div style={{fontSize:12,color:C.t4,fontStyle:"italic",marginTop:8}}>Press sync to fetch your bank transactions</div>
+):(
+<>
+<div style={{display:"flex",gap:8,marginBottom:12}}>
+<input className="fi" placeholder="Search transactions..." value={txSearch} onChange={e=>setTxSearch(e.target.value)} style={{flex:1,padding:"8px 12px",fontSize:14}}/>
+<select className="fi" value={txCatFilter} onChange={e=>setTxCatFilter(e.target.value)} style={{width:130,padding:"8px 10px",fontSize:13}}>
+<option value="">All categories</option>
+{[...EXPENSE_CATS,...INCOME_CATS].map(c=><option key={c} value={c}>{c}</option>)}
+</select>
+</div>
+<div style={{maxHeight:480,overflowY:"auto"}}>
+{displayedTransactions.map(t=>{
+const isEditing=txEditingId===t.id;
+const accountName=AKAHU_ACCOUNTS[t.account]?.name||'Unknown';
+const catColor=CAT_COLORS[t.ledgerlyCategory]||C.t3;
+return(
+<div key={t.id} style={{background:t.needsReview?"rgba(251,191,36,.06)":C.bg,border:`1px solid ${t.needsReview?"rgba(251,191,36,.3)":C.border}`,borderLeft:`3px solid ${t.needsReview?C.amber:catColor}`,borderRadius:10,padding:"10px 12px",marginBottom:6,cursor:"pointer"}} onClick={()=>setTxEditingId(isEditing?null:t.id)}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontSize:13,fontWeight:600,color:C.t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.merchant||t.description}</div>
+<div style={{fontSize:10,color:C.t3,marginTop:2,display:"flex",gap:8,alignItems:"center"}}>
+<span>{t.date}</span><span>·</span><span>{accountName}</span><span>·</span>
+<span style={{color:catColor}}>{t.ledgerlyCategory}</span>
+{t.needsReview&&<span style={{background:"rgba(251,191,36,.15)",color:C.amber,borderRadius:4,padding:"1px 5px",fontSize:9,fontWeight:700}}>Review</span>}
 </div>
 </div>
+<div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+<span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:13,letterSpacing:"-0.02em",color:t.ledgerlyType==="income"?C.green:C.red}}>
+{t.ledgerlyType==="income"?"+":"−"}{Math.abs(t.amount).toLocaleString("en-NZ",{minimumFractionDigits:2,maximumFractionDigits:2})}
+</span>
+</div>
+</div>
+{isEditing&&(
+<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}} onClick={e=>e.stopPropagation()}>
+<div style={{fontSize:11,color:C.t3,marginBottom:6}}>Recategorise</div>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+<select className="fi" defaultValue={t.ledgerlyCategory} onChange={e=>{const newCat=e.target.value;const newType=INCOME_CATS.includes(newCat)?'income':'expense';setSyncedTransactions(prev=>prev.map(x=>x.id===t.id?{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false}:x));}} style={{flex:1,padding:"7px 10px",fontSize:13}}>
+<optgroup label="Expenses">{EXPENSE_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
+<optgroup label="Income">{INCOME_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
+</select>
+<button onClick={()=>{const cur=syncedTransactions.find(x=>x.id===t.id);const newCat=cur?.ledgerlyCategory||t.ledgerlyCategory;const newType=INCOME_CATS.includes(newCat)?'income':'expense';const merchant=t.merchant||t.description;setCategoryRules(prev=>{const exists=prev.find(r=>r.merchant?.toLowerCase()===merchant.toLowerCase());if(exists)return prev.map(r=>r.merchant?.toLowerCase()===merchant.toLowerCase()?{...r,ledgerlyCategory:newCat,ledgerlyType:newType}:r);return[...prev,{id:Date.now(),merchant,ledgerlyCategory:newCat,ledgerlyType:newType}];});setTxEditingId(null);}} style={{background:"rgba(110,231,183,.1)",border:`1px solid ${C.green}`,borderRadius:8,padding:"7px 12px",color:C.green,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Save as rule</button>
+<button onClick={()=>setTxEditingId(null)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 12px",color:C.t4,fontSize:11,cursor:"pointer"}}>Cancel</button>
+</div>
+<div style={{fontSize:10,color:C.t4,marginTop:6}}>"Save as rule" will automatically categorise all future {t.merchant||t.description} transactions</div>
+</div>
+)}
+</div>
+);
+})}
+</div>
+{syncedTransactions.length>90&&(
+<div style={{fontSize:11,color:C.t4,textAlign:"center",marginTop:8,fontStyle:"italic"}}>
+{`Showing ${displayedTransactions.length} of ${syncedTransactions.length} transactions — use search or filters to narrow down.`}
+</div>
+)}
+{categoryRules.length>0&&(
+<div style={{marginTop:16}}>
+<div onClick={()=>setShowRules(v=>!v)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:8}}>
+<div style={{fontSize:11,color:C.t4,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Categorisation Rules<span style={{background:C.border,color:C.t3,borderRadius:10,padding:"1px 8px",marginLeft:6,fontSize:10}}>{categoryRules.length}</span></div>
+<span style={{color:C.t4,fontSize:13,display:"inline-block",transform:showRules?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▾</span>
+</div>
+{showRules&&categoryRules.map(r=>(
+<div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,marginBottom:4}}>
+<div>
+<div style={{fontSize:12,fontWeight:600,color:C.t1}}>{r.merchant}</div>
+<div style={{fontSize:10,color:CAT_COLORS[r.ledgerlyCategory]||C.t3,marginTop:1}}>→ {r.ledgerlyCategory}</div>
+</div>
+<button onClick={()=>setCategoryRules(prev=>prev.filter(x=>x.id!==r.id))} style={{background:"none",border:"none",color:C.t5,cursor:"pointer",fontSize:16}}>×</button>
+</div>
+))}
+</div>
+)}
+</>
+)}
 {(()=>{
 void lastSynced;void syncedTransactions;
 const storageUsed=Object.keys(localStorage).filter(key=>key.startsWith('ft_')).reduce((total,key)=>{const item=localStorage.getItem(key);return total+(item?new Blob([item]).size:0);},0);

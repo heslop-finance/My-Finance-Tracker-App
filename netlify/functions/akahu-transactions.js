@@ -1,53 +1,53 @@
 exports.handler = async (event) => {
   const appToken = process.env.AKAHU_APP_TOKEN;
   const userToken = process.env.AKAHU_USER_TOKEN;
+  const start = event.queryStringParameters?.start || null;
 
-  const strip = (t) => ({
-    id: t._id,
-    account: t._account,
-    date: t.date.slice(0, 10),
-    amount: t.amount,
-    merchant: t.merchant?.name || null,
-    description: t.description,
-    akahuCategory: t.category?.groups?.personal_finance?.name || null,
-    type: t.type || null,
-  });
+  const fetchPage = async (cursor) => {
+    const params = new URLSearchParams();
+    if (cursor) params.set('cursor', cursor);
+    if (start) params.set('start', start);
+    const url = `https://api.akahu.io/v1/transactions?${params.toString()}`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${userToken}`,
+        'X-Akahu-ID': appToken,
+      }
+    });
+    return res.json();
+  };
 
   try {
-    let allTransactions = [];
-    let cursor = event.queryStringParameters?.cursor || null;
-
+    let allItems = [];
+    let cursor = null;
     do {
-      const url = new URL('https://api.akahu.io/v1/transactions');
-      if (cursor) url.searchParams.set('cursor', cursor);
-
-      const response = await fetch(url.toString(), {
-        headers: {
-          'Authorization': `Bearer ${userToken}`,
-          'X-Akahu-ID': appToken,
-        }
-      });
-      const data = await response.json();
-
+      const data = await fetchPage(cursor);
       if (!data.success) {
-        return {
-          statusCode: 502,
-          body: JSON.stringify({ error: 'Akahu API error', detail: data })
-        };
+        if (data.status === 429) {
+          return {
+            statusCode: 429,
+            body: JSON.stringify({ error: 'rate_limited', message: data.message || 'Rate limited' })
+          };
+        }
+        throw new Error(data.message || 'Akahu error');
       }
-
-      allTransactions = allTransactions.concat((data.items || []).map(strip));
+      allItems = allItems.concat(data.items || []);
       cursor = data.cursor?.next || null;
     } while (cursor);
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ items: allTransactions })
-    };
+    const stripped = allItems.map(t => ({
+      id: t._id,
+      account: t._account,
+      date: t.date.slice(0, 10),
+      amount: t.amount,
+      merchant: t.merchant?.name || null,
+      description: t.description,
+      akahuCategory: t.category?.groups?.personal_finance?.name || null,
+      type: t.type || null
+    }));
+
+    return { statusCode: 200, body: JSON.stringify({ items: stripped }) };
   } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message })
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
