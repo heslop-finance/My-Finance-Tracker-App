@@ -39,7 +39,7 @@ const fmtN=n=>n%1===0?n.toFixed(0):n.toFixed(1);
 const pad=n=>String(n).padStart(2,"0");
 const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const todayStr=dateKey(today);
-const PAY_CYCLE_ANCHOR=new Date('2026-05-05');
+const PAY_CYCLE_ANCHOR=new Date(2026,4,5);
 function getPeriodStart(periodKey){
 const now=new Date();
 const todayMidnight=new Date(now.getFullYear(),now.getMonth(),now.getDate());
@@ -178,7 +178,12 @@ const[openCat,setOpenCat]=useState(false);
 const expCats=Object.keys(CAT_COLORS).filter(c=>EXPENSE_CATS.includes(c));
 const allExpEntries=useMemo(()=>entries.filter(e=>e.type==="expense"),[entries]);
 const filteredEntries=useMemo(()=>catFilter==="All Expenses"?allExpEntries:allExpEntries.filter(e=>e.category===catFilter),[allExpEntries,catFilter]);
-const stackCats=useMemo(()=>[...new Set(allExpEntries.map(e=>e.category))],[allExpEntries]);
+const stackCats=useMemo(()=>{
+const fromEntries=[...new Set(allExpEntries.map(e=>e.category))];
+if(!actualsMode)return fromEntries;
+const fromTransactions=[...new Set(syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).map(t=>t.ledgerlyCategory).filter(Boolean))];
+return[...new Set([...fromEntries,...fromTransactions])];
+},[allExpEntries,actualsMode,syncedTransactions]);
 const bars=useMemo(()=>{
 const now=new Date();
 if(isAllYears){
@@ -191,7 +196,7 @@ const y=earliest+i;
 const isFuture=y>currentYear;
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
 if(!isFuture){
-syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&t.date.startsWith(String(y))&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
+syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date.startsWith(String(y))&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
 }
 const val=Object.values(bycat).reduce((s,v)=>s+v,0);
 return{label:String(y),val,bycat,isFuture};
@@ -213,7 +218,7 @@ if(isYearly){
 if(actualsMode){
 return Array.from({length:12},(_,m)=>{
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
-syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{
+syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{
 const td=parseDt(t.date);
 if(td.getFullYear()===now.getFullYear()&&td.getMonth()===m){const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);}
 });
@@ -237,14 +242,16 @@ return Array.from({length:days},(_,di)=>{
 const d=new Date(start);d.setDate(d.getDate()+di);
 const dStr=dateKey(d);
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
-syncedTransactions.filter(t=>t.date===dStr&&t.ledgerlyType==='expense'&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
+syncedTransactions.filter(t=>t.date===dStr&&t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
 const val=Object.values(bycat).reduce((s,v)=>s+v,0);
 return{label:pad(d.getDate()),val,bycat,isFuture:false,date:d};
 });
 }
-const days=PERIODS.find(p=>p.key===displayPeriod).days;
-return Array.from({length:Math.round(days)},(_,di)=>{
-const d=new Date(now);d.setDate(d.getDate()-Math.round(days)+di+1);
+const periodStart=getPeriodStart(displayPeriod);
+const todayMidnight=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+const days=Math.max(1,Math.round((todayMidnight-periodStart)/86400000)+1);
+return Array.from({length:days},(_,di)=>{
+const d=new Date(periodStart);d.setDate(d.getDate()+di);
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
 allExpEntries.filter(e=>occursOn(e,d)).forEach(e=>{bycat[e.category]=(bycat[e.category]||0)+e.amount;});
 const val=Object.values(bycat).reduce((s,v)=>s+v,0);
@@ -259,7 +266,7 @@ const pDays=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
 if(actualsMode){
 const oneYearAgo=new Date();oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
 const oneYearAgoStr=dateKey(oneYearAgo);
-const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&t.date>oneYearAgoStr&&t.date<=todayStr&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).reduce((s,t)=>s+Math.abs(t.amount),0);
+const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date>oneYearAgoStr&&t.date<=todayStr&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).reduce((s,t)=>s+Math.abs(t.amount),0);
 return total*(pDays/365);
 }
 const from=new Date();from.setFullYear(from.getFullYear()-1);
@@ -286,7 +293,7 @@ else relevantEntries.filter(e=>e.category===catFilter&&occursOn(e,d)).forEach(e=
 return val;
 },[showProj,entries,displayPeriod,catFilter,isYearly]);
 
-const maxVal=Math.max(...bars.map(b=>b.val),rollingAvg,projection||0,1);
+const maxVal=Math.max(...bars.map(b=>b.val),projection||0,1);
 const mostVal=Math.max(...bars.map(b=>b.val));
 const mostBar=bars.find(b=>b.val===mostVal&&b.val>0);
 const leastBar=bars.filter(b=>b.val>0).sort((a,b)=>a.val-b.val)[0];
@@ -330,7 +337,7 @@ const toggles=isAllYears?[
 return(
 <div className="card">
 <Row mb={12}>
-<div style={{fontSize:12,fontWeight:700,color:C.t2}}>{isYearly?"Monthly":"Daily"} Expenses</div>
+<div style={{fontSize:12,fontWeight:700,color:C.t2}}>{isAllYears?"Yearly":isYearly?"Monthly":"Daily"} Expenses</div>
 <div style={{fontFamily:F.sans,fontSize:18,fontWeight:700,color:C.red}}>{fmt(bars.reduce((s,b)=>s+b.val,0))}</div>
 </Row>
 <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
@@ -1280,6 +1287,7 @@ useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalan
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'||t.ledgerlyCategory==='Food & Drink'?{...t,ledgerlyCategory:'Groceries'}:t));},[]);
+useEffect(()=>{setEntries(prev=>prev.map(e=>e.category==='Food'?{...e,category:'Groceries'}:e));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>{const ids=new Set();prev.forEach((a,ai)=>{if(ids.has(a.id))return;prev.forEach((b,bi)=>{if(ai===bi||ids.has(b.id))return;const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));const withinTimeWindow=timeDiff<=5*60*1000;if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){ids.add(a.id);ids.add(b.id);}});});return prev.filter(t=>!ids.has(t.id));});},[]);
 
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Dining Out','Fast food':'Dining Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
@@ -1399,8 +1407,8 @@ const incByCategory=useMemo(()=>{const map={};entries.filter(e=>e.type==="income
 const savingsRate=useMemo(()=>{if(totalIncome<=0)return 0;const sv=entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,pDays),0);return Math.min(100,(sv/totalIncome)*100);},[entries,totalIncome,pDays]);
 const periodTransactions=useMemo(()=>actualsMode?getTransactionsForPeriod(syncedTransactions,displayPeriod):[],[actualsMode,syncedTransactions,displayPeriod]);
 const actualIncome=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
-const actualTrueExp=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
-const actualSavingsRatioAmt=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
+const actualTrueExp=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
+const actualSavingsRatioAmt=useMemo(()=>periodTransactions.filter(t=>t.isSavingsDeposit||SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
 const actualExpenses=actualTrueExp+actualSavingsRatioAmt;
 const actualSavingsRate=actualIncome>0?Math.min(100,(actualSavingsRatioAmt/actualIncome)*100):0;
 const actualByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='expense').forEach(t=>{const c=t.ledgerlyCategory||'Other';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
@@ -1442,7 +1450,7 @@ return(
 {view==="dashboard"&&<>
 <div style={{marginBottom:16}}>
 <button onClick={()=>{setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-<span>📊 Actuals Mode{actualsMode?" — ON":""}</span>
+<span>🔍 Actuals Mode{actualsMode?" — ON":""}</span>
 <span style={{fontSize:11,color:C.t3}}>Show real bank transaction data</span>
 </button>
 <button onClick={()=>{setScenarioMode(v=>!v);setActualsMode(false);}} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1512,14 +1520,16 @@ labelColor={c.scenario?C.purple:C.t3}/>
 {actualsMode&&hasActualData?combinedExpCategories.map(({cat,budgetAmt:bAmt,actualAmt})=>{
 const maxAmt=Math.max(bAmt,actualAmt,1);
 const overBudget=bAmt>0&&actualAmt>bAmt;
+const isSavingsCat=SAVINGS_CATS.has(cat);
+const overColor=isSavingsCat?C.green:C.red;
 return(
 <div key={cat} style={{marginBottom:14}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,marginBottom:5}}>
-<span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.t2}}/>{cat}{overBudget&&<span style={{fontSize:10,background:"rgba(251,113,133,.15)",color:C.red,borderRadius:6,padding:"1px 6px",fontWeight:700}}>over</span>}</span>
-<div style={{display:"flex",alignItems:"center",gap:6}}>{bAmt>0&&<span style={{fontSize:10,color:C.t5,fontFamily:F.mono}}>{fmt(bAmt)}</span>}<Mono color={overBudget?C.red:C.t1} size={13}>{fmt(actualAmt)}</Mono></div>
+<span style={{color:C.t2,display:"flex",alignItems:"center",gap:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:CAT_COLORS[cat]||C.t2}}/>{cat}{overBudget&&<span style={{fontSize:10,background:isSavingsCat?"rgba(110,231,183,.15)":"rgba(251,113,133,.15)",color:overColor,borderRadius:6,padding:"1px 6px",fontWeight:700}}>over</span>}</span>
+<div style={{display:"flex",alignItems:"center",gap:6}}>{bAmt>0&&<span style={{fontSize:10,color:C.t5,fontFamily:F.mono}}>{fmt(bAmt)}</span>}<Mono color={overBudget?overColor:C.t1} size={13}>{fmt(actualAmt)}</Mono></div>
 </div>
 {bAmt>0&&<div style={{height:5,background:C.border,borderRadius:3,marginBottom:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((bAmt/maxAmt)*100,100)}%`,background:CAT_COLORS[cat]||C.t2,opacity:0.3,borderRadius:3}}/></div>}
-<div style={{height:5,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((actualAmt/maxAmt)*100,100)}%`,background:overBudget?C.red:CAT_COLORS[cat]||C.t2,borderRadius:3}}/></div>
+<div style={{height:5,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((actualAmt/maxAmt)*100,100)}%`,background:overBudget?overColor:CAT_COLORS[cat]||C.t2,borderRadius:3}}/></div>
 </div>
 );
 }):expByCategory.map(([cat,amt])=>{
