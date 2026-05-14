@@ -174,6 +174,8 @@ const[showStacked,setShowStacked]=useState(false);
 const[showAvg,setShowAvg]=useState(true);
 const[showCumul,setShowCumul]=useState(false);
 const[showProj,setShowProj]=useState(false);
+const[showAllTimeAvg,setShowAllTimeAvg]=useState(true);
+const[showAllTimeTrend,setShowAllTimeTrend]=useState(true);
 const[openCat,setOpenCat]=useState(false);
 const expCats=Object.keys(CAT_COLORS).filter(c=>EXPENSE_CATS.includes(c));
 const allExpEntries=useMemo(()=>entries.filter(e=>e.type==="expense"),[entries]);
@@ -327,6 +329,8 @@ return{slope,intercept,n};
 
 const toggles=isAllYears?[
 {label:"Stack",active:showStacked,set:setShowStacked},
+{label:"Avg",active:showAllTimeAvg,set:setShowAllTimeAvg},
+{label:"Trend",active:showAllTimeTrend,set:setShowAllTimeTrend},
 ]:[
 {label:"Stack",active:showStacked,set:setShowStacked},
 {label:"Avg",active:showAvg,set:setShowAvg},
@@ -399,13 +403,13 @@ return(
 }
 })}
 {showProj&&projection!=null&&<text x={W-PAD-4} y={yOf(projection)} fill={C.amber} fontSize={8} fontWeight="700" textAnchor="end" dominantBaseline="middle">proj</text>}
-{isAllYears&&allYearsAvg>0&&(
+{isAllYears&&showAllTimeAvg&&allYearsAvg>0&&(
 <>
 <line x1={xOf(0)+barW/2} y1={yOf(allYearsAvg)} x2={xOf(bars.length-1)+barW/2} y2={yOf(allYearsAvg)} stroke={C.green} strokeWidth={1} strokeDasharray="4 3" opacity={.55}/>
 <text x={xOf(bars.length-1)+barW/2+3} y={yOf(allYearsAvg)-3} textAnchor="start" fill={C.green} fontSize={8} opacity={.7}>avg</text>
 </>
 )}
-{isAllYears&&allYearsTrend&&(()=>{
+{isAllYears&&showAllTimeTrend&&allYearsTrend&&(()=>{
 const clamp=v=>Math.max(0,Math.min(maxVal*1.05,v));
 const y0=clamp(allYearsTrend.intercept);
 const y1=clamp(allYearsTrend.slope*(allYearsTrend.n-1)+allYearsTrend.intercept);
@@ -428,7 +432,7 @@ return(
 }
 
 // ── CALENDAR ──────────────────────────────────────────────────
-function CalendarWidget({entries,displayPeriod}){
+function CalendarWidget({entries,displayPeriod,actualsMode=false,syncedTransactions=[]}){
 const isYearly=displayPeriod==="yearly";
 const isAllYears=displayPeriod==="allyears";
 const[calYear,setCalYear]=useState(today.getFullYear());
@@ -447,6 +451,13 @@ const y=earliest+i;
 const isFuture=y>currentYear;
 let inc=0,exp=0,sav=0;
 if(!isFuture){
+if(actualsMode){
+syncedTransactions.filter(t=>t.date.startsWith(String(y))).forEach(t=>{
+if(t.ledgerlyType==='income')inc+=Math.abs(t.amount);
+else if(t.isSavingsDeposit)sav+=Math.abs(t.amount);
+else if(t.ledgerlyType==='expense')exp+=Math.abs(t.amount);
+});
+}else{
 datesInRange(new Date(y,0,1),new Date(y,11,31)).forEach(d=>{
 entries.filter(e=>e.type==="income"&&occursOn(e,d)).forEach(e=>{inc+=e.amount;});
 entries.filter(e=>e.type==="expense"&&occursOn(e,d)).forEach(e=>{
@@ -454,6 +465,7 @@ if(SAVINGS_CATS.has(e.category))sav+=e.amount;
 else exp+=e.amount;
 });
 });
+}
 }
 return{year:y,inc,exp,sav,isCurrent:y===currentYear,isFuture};
 });
@@ -498,6 +510,40 @@ return(
 {selYearData&&!selYearData.isFuture&&(
 <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginTop:14}}>
 <Row mb={12}><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{selYearData.year}</div><button onClick={()=>setSelYear(null)} style={{background:"none",border:"none",color:C.t4,fontSize:18,cursor:"pointer"}}>×</button></Row>
+{actualsMode?(()=>{
+const yStr=String(selYearData.year);
+const yTxns=syncedTransactions.filter(t=>t.date.startsWith(yStr));
+const yInc=yTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0);
+const yExp=yTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
+const ySav=yTxns.filter(t=>t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
+const monthRows=Array.from({length:12},(_,m)=>{
+const mStr=`${yStr}-${pad(m+1)}`;
+const mTxns=yTxns.filter(t=>t.date.startsWith(mStr));
+const mInc=mTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0);
+const mExp=mTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
+return{m,mInc,mExp,hasTxns:mTxns.length>0};
+});
+return(<>
+{yTxns.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:C.t5,fontSize:13}}>No transactions this year</div>}
+{yTxns.length>0&&<>
+<div style={{display:'flex',gap:12,marginBottom:12}}>
+{yInc>0&&<div style={{flex:1,background:'rgba(110,231,183,.07)',borderRadius:8,padding:'8px 12px'}}><div style={{fontSize:10,color:C.t4,marginBottom:2}}>Income</div><Mono color={C.green} size={14}>+{fmt(yInc)}</Mono></div>}
+{yExp>0&&<div style={{flex:1,background:'rgba(251,113,133,.07)',borderRadius:8,padding:'8px 12px'}}><div style={{fontSize:10,color:C.t4,marginBottom:2}}>Expenses</div><Mono color={C.red} size={14}>−{fmt(yExp)}</Mono></div>}
+{ySav>0&&<div style={{flex:1,background:'rgba(6,182,212,.07)',borderRadius:8,padding:'8px 12px'}}><div style={{fontSize:10,color:C.t4,marginBottom:2}}>Savings</div><Mono color={C.cyan} size={14}>↑{fmt(ySav)}</Mono></div>}
+</div>
+<div style={{fontSize:11,fontWeight:700,color:C.t3,marginBottom:6,textTransform:'uppercase',letterSpacing:'.06em'}}>Monthly breakdown</div>
+{monthRows.filter(r=>r.hasTxns).map(({m,mInc,mExp})=>(
+<div key={m} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:`1px solid ${C.border}`}}>
+<span style={{fontSize:12,color:C.t3,width:34}}>{MON_SHORT[m]}</span>
+{mInc>0?<Mono color={C.green} size={11}>+{fmtS(mInc)}</Mono>:<span/>}
+{mExp>0?<Mono color={C.red} size={11}>−{fmtS(mExp)}</Mono>:<span/>}
+<Mono color={mInc-mExp>=0?C.green:C.red} size={11}>{mInc-mExp>=0?'+':'−'}{fmtS(Math.abs(mInc-mExp))}</Mono>
+</div>
+))}
+</>}
+</>);
+})():(
+<>
 {yearInc.length===0&&yearExp.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.t5,fontSize:13}}>No payments this year</div>}
 {yearInc.length>0&&<>
 <Label color={C.green} mb={6}>Incoming</Label>
@@ -523,6 +569,8 @@ return(
 {yearTotalOut>0&&<Mono color={C.red} size={12}>−{fmt(yearTotalOut)} out</Mono>}
 {yearTotalIn>0&&yearTotalOut>0&&<Mono color={yearTotalIn-yearTotalOut>=0?C.green:C.red} size={12}>{yearTotalIn-yearTotalOut>=0?"+":"−"}{fmt(Math.abs(yearTotalIn-yearTotalOut))} net</Mono>}
 </div>
+)}
+</>
 )}
 </div>
 )}
@@ -552,7 +600,15 @@ return(
 {Array.from({length:12},(_,m)=>{
 const from=new Date(calYear,m,1),to=new Date(calYear,m+1,0);
 let inc=0,exp=0;
+if(actualsMode){
+const mStr=`${calYear}-${pad(m+1)}`;
+syncedTransactions.filter(t=>t.date.startsWith(mStr)).forEach(t=>{
+if(t.ledgerlyType==='income')inc+=Math.abs(t.amount);
+else if(t.ledgerlyType==='expense'&&!t.isSavingsDeposit)exp+=Math.abs(t.amount);
+});
+}else{
 datesInRange(from,to).forEach(d=>{inc+=dailyTotal(entries,d,"income");exp+=dailyTotal(entries,d,"expense");});
+}
 const isCurrentMonth=calYear===today.getFullYear()&&m===today.getMonth();
 return(
 <div key={m} onClick={()=>setSelMonth(selMonth===m?null:m)} style={{background:selMonth===m?"rgba(110,231,183,.18)":isCurrentMonth?"rgba(110,231,183,.08)":C.bg,border:`1px solid ${selMonth===m?C.green:isCurrentMonth?C.green:C.border}`,borderRadius:10,padding:"8px 10px",cursor:"pointer"}}>
@@ -570,6 +626,47 @@ return(
 <span style={{fontSize:13,fontWeight:700,color:C.t1}}>{MON_SHORT[selMonth]} {calYear}</span>
 <button onClick={()=>setSelMonth(null)} style={{background:"none",border:"none",color:C.t4,fontSize:18,cursor:"pointer"}}>×</button>
 </Row>
+{actualsMode?(()=>{
+const mStr=`${calYear}-${pad(selMonth+1)}`;
+const mTxns=syncedTransactions.filter(t=>t.date.startsWith(mStr));
+const incTxns=mTxns.filter(t=>t.ledgerlyType==='income');
+const expTxns=mTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit);
+const savTxns=mTxns.filter(t=>t.isSavingsDeposit);
+const totalIn=incTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
+const totalOut=expTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
+return(<>
+{mTxns.length===0&&<div style={{textAlign:'center',padding:'12px 0',color:C.t5,fontSize:13}}>No transactions this month</div>}
+{incTxns.length>0&&<><Label color={C.green} mb={6}>Incoming</Label>
+{incTxns.map(t=>(
+<div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:'rgba(110,231,183,.06)',borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.green}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{t.merchant||t.description}</div><div style={{fontSize:10,color:C.t4}}>{t.ledgerlyCategory}</div></div>
+<Mono color={C.green} size={13}>+{fmt(Math.abs(t.amount))}</Mono>
+</div>
+))}</>}
+{expTxns.length>0&&<><Label color={C.red} mb={6}>Outgoings</Label>
+{expTxns.map(t=>(
+<div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:'rgba(251,113,133,.06)',borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.red}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{t.merchant||t.description}</div><div style={{fontSize:10,color:C.t4}}>{t.ledgerlyCategory}</div></div>
+<Mono color={C.red} size={13}>−{fmt(Math.abs(t.amount))}</Mono>
+</div>
+))}</>}
+{savTxns.length>0&&<><Label color={C.cyan} mb={6}>Savings</Label>
+{savTxns.map(t=>(
+<div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:'rgba(6,182,212,.06)',borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.cyan}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{t.merchant||t.description}</div><div style={{fontSize:10,color:C.t4}}>{t.ledgerlyCategory}</div></div>
+<Mono color={C.cyan} size={13}>+{fmt(Math.abs(t.amount))}</Mono>
+</div>
+))}</>}
+{(totalIn>0||totalOut>0)&&(
+<div style={{display:'flex',justifyContent:'space-between',borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
+{totalIn>0&&<Mono color={C.green} size={12}>+{fmt(totalIn)} in</Mono>}
+{totalOut>0&&<Mono color={C.red} size={12}>−{fmt(totalOut)} out</Mono>}
+{totalIn>0&&totalOut>0&&<Mono color={totalIn-totalOut>=0?C.green:C.red} size={12}>{totalIn-totalOut>=0?'+':'−'}{fmtS(Math.abs(totalIn-totalOut))} net</Mono>}
+</div>
+)}
+</>);
+})():(
+<>
 {mInc.length===0&&mExp.length===0&&<div style={{textAlign:"center",padding:"12px 0",color:C.t5,fontSize:13}}>No entries this month</div>}
 {mInc.length>0&&<>
 <Label color={C.green} mb={6}>Income</Label>
@@ -595,6 +692,8 @@ return(
 {mTotalOut>0&&<Mono color={C.red} size={12}>−{fmt(mTotalOut)} out</Mono>}
 {mTotalIn>0&&mTotalOut>0&&<Mono color={mTotalIn-mTotalOut>=0?C.green:C.red} size={12}>{mTotalIn-mTotalOut>=0?"+":"−"}{fmt(Math.abs(mTotalIn-mTotalOut))} net</Mono>}
 </div>
+)}
+</>
 )}
 </div>
 )}
@@ -627,8 +726,10 @@ return(
 {cells.map((day,i)=>{
 if(!day)return <div key={`e${i}`}/>;
 const date=new Date(calYear,calMonth,day);
-const inc=dailyTotal(entries,date,"income");
-const exp=dailyTotal(entries,date,"expense");
+const dStr=dateKey(date);
+const dayTxns=actualsMode?syncedTransactions.filter(t=>t.date===dStr):null;
+const inc=actualsMode?dayTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,"income");
+const exp=actualsMode?dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,"expense");
 const isToday=dateKey(date)===todayStr;
 const isSel=sel&&dateKey(date)===dateKey(sel);
 const hasAct=inc>0||exp>0;
@@ -654,6 +755,47 @@ style={{background:isSel?"rgba(110,231,183,.18)":isToday?"rgba(110,231,183,.08)"
 </div>
 <button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.t4,fontSize:18,cursor:"pointer"}}>×</button>
 </Row>
+{actualsMode?(()=>{
+const dStr=dateKey(sel);
+const dayTxns=syncedTransactions.filter(t=>t.date===dStr);
+const incTxns=dayTxns.filter(t=>t.ledgerlyType==='income');
+const expTxns=dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit);
+const savTxns=dayTxns.filter(t=>t.isSavingsDeposit);
+const totalIn=incTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
+const totalOut=expTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
+return(<>
+{dayTxns.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:C.t5,fontSize:13}}>No transactions on this day</div>}
+{incTxns.length>0&&<><Label color={C.green} mb={6}>Incoming</Label>
+{incTxns.map(t=>(
+<div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:'rgba(110,231,183,.06)',borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.green}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{t.merchant||t.description}</div><div style={{fontSize:10,color:C.t4}}>{t.ledgerlyCategory}</div></div>
+<Mono color={C.green} size={13}>+{fmt(Math.abs(t.amount))}</Mono>
+</div>
+))}</>}
+{expTxns.length>0&&<><Label color={C.red} mb={6}>Outgoings</Label>
+{expTxns.map(t=>(
+<div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:'rgba(251,113,133,.06)',borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.red}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{t.merchant||t.description}</div><div style={{fontSize:10,color:C.t4}}>{t.ledgerlyCategory}</div></div>
+<Mono color={C.red} size={13}>−{fmt(Math.abs(t.amount))}</Mono>
+</div>
+))}</>}
+{savTxns.length>0&&<><Label color={C.cyan} mb={6}>Savings</Label>
+{savTxns.map(t=>(
+<div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:'rgba(6,182,212,.06)',borderRadius:8,marginBottom:4,borderLeft:`2px solid ${C.cyan}`}}>
+<div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{t.merchant||t.description}</div><div style={{fontSize:10,color:C.t4}}>{t.ledgerlyCategory}</div></div>
+<Mono color={C.cyan} size={13}>+{fmt(Math.abs(t.amount))}</Mono>
+</div>
+))}</>}
+{(totalIn>0||totalOut>0)&&(
+<div style={{display:'flex',justifyContent:'space-between',borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
+{totalIn>0&&<Mono color={C.green} size={12}>+{fmt(totalIn)} in</Mono>}
+{totalOut>0&&<Mono color={C.red} size={12}>−{fmt(totalOut)} out</Mono>}
+{totalIn>0&&totalOut>0&&<Mono color={totalIn-totalOut>=0?C.green:C.red} size={12}>{totalIn-totalOut>=0?'+':'−'}{fmtS(Math.abs(totalIn-totalOut))} net</Mono>}
+</div>
+)}
+</>);
+})():(
+<>
 {selEntries.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.t5,fontSize:13}}>No payments on this day</div>}
 {selInc.length>0&&<>
 <Label color={C.green} mb={6}>Incoming</Label>
@@ -679,6 +821,8 @@ style={{background:isSel?"rgba(110,231,183,.18)":isToday?"rgba(110,231,183,.08)"
 {selTotalOut>0&&<Mono color={C.red} size={12}>−{fmt(selTotalOut)} out</Mono>}
 {selTotalIn>0&&selTotalOut>0&&<Mono color={selTotalIn-selTotalOut>=0?C.green:C.red} size={12}>{selTotalIn-selTotalOut>=0?"+":"−"}{fmt(Math.abs(selTotalIn-selTotalOut))} net</Mono>}
 </div>
+)}
+</>
 )}
 </div>
 )}
@@ -1294,9 +1438,12 @@ const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Grocer
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
 async function handleSync(){
 setSyncing(true);
+const syncStart=Date.now();
 try{
 const mostRecent=syncedTransactions.length?syncedTransactions.reduce((latest,t)=>t.date>latest?t.date:latest,'2000-01-01'):null;
-const startParam=mostRecent?`?start=${mostRecent}`:'';
+const startDate=mostRecent?new Date(mostRecent):null;
+if(startDate)startDate.setDate(startDate.getDate()-1);
+const startParam=startDate?`?start=${dateKey(startDate)}`:'';
 const[txRes,balRes]=await Promise.all([
 fetch(`/.netlify/functions/akahu-transactions${startParam}`),
 fetch('/.netlify/functions/akahu-balances'),
@@ -1371,6 +1518,8 @@ localStorage.setItem('ft_init','true');
 }catch(err){
 console.error('Sync failed:',err);
 }finally{
+const elapsed=Date.now()-syncStart;
+if(elapsed<600)await new Promise(res=>setTimeout(res,600-elapsed));
 setSyncing(false);
 }
 }
@@ -1603,7 +1752,7 @@ return(
 <button onClick={()=>setAllTime(v=>!v)} style={{border:`1px solid ${allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:allTime?"rgba(110,231,183,.1)":"none",color:allTime?C.green:C.t3,whiteSpace:"nowrap"}}>All time</button>
 </div>
 <Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
-<CalendarWidget entries={entries} displayPeriod={allTime?"allyears":displayPeriod}/>
+<CalendarWidget entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
 </>}
 
 {view==="entries"&&<>
