@@ -12,9 +12,9 @@ const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const s=(extra={})=>({...extra});
 
 const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Government Benefits","Other Income"];
-const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Dining Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Investments","Other"];
+const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Investments","Travel","Car & Maintenance","Fines","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
-const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Dining Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -295,7 +295,7 @@ else relevantEntries.filter(e=>e.category===catFilter&&occursOn(e,d)).forEach(e=
 return val;
 },[showProj,entries,displayPeriod,catFilter,isYearly]);
 
-const maxVal=Math.max(...bars.map(b=>b.val),projection||0,1);
+const maxVal=Math.max(...bars.map(b=>b.val),showAvg&&!isAllYears?rollingAvg:0,projection||0,1);
 const mostVal=Math.max(...bars.map(b=>b.val));
 const mostBar=bars.find(b=>b.val===mostVal&&b.val>0);
 const leastBar=bars.filter(b=>b.val>0).sort((a,b)=>a.val-b.val)[0];
@@ -727,9 +727,10 @@ return(
 if(!day)return <div key={`e${i}`}/>;
 const date=new Date(calYear,calMonth,day);
 const dStr=dateKey(date);
-const dayTxns=actualsMode?syncedTransactions.filter(t=>t.date===dStr):null;
-const inc=actualsMode?dayTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,"income");
-const exp=actualsMode?dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,"expense");
+const isFutureDate=date>today;
+const dayTxns=actualsMode&&!isFutureDate?syncedTransactions.filter(t=>t.date===dStr):null;
+const inc=actualsMode&&!isFutureDate?dayTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,'income');
+const exp=actualsMode&&!isFutureDate?dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,'expense');
 const isToday=dateKey(date)===todayStr;
 const isSel=sel&&dateKey(date)===dateKey(sel);
 const hasAct=inc>0||exp>0;
@@ -755,7 +756,7 @@ style={{background:isSel?"rgba(110,231,183,.18)":isToday?"rgba(110,231,183,.08)"
 </div>
 <button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.t4,fontSize:18,cursor:"pointer"}}>×</button>
 </Row>
-{actualsMode?(()=>{
+{actualsMode&&sel<=today?(()=>{
 const dStr=dateKey(sel);
 const dayTxns=syncedTransactions.filter(t=>t.date===dStr);
 const incTxns=dayTxns.filter(t=>t.ledgerlyType==='income');
@@ -1432,9 +1433,10 @@ useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRu
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'||t.ledgerlyCategory==='Food & Drink'?{...t,ledgerlyCategory:'Groceries'}:t));},[]);
 useEffect(()=>{setEntries(prev=>prev.map(e=>e.category==='Food'?{...e,category:'Groceries'}:e));},[]);
+useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Dining Out'?{...t,ledgerlyCategory:'Eating & Drinking Out'}:t));setEntries(prev=>prev.map(e=>e.category==='Dining Out'?{...e,category:'Eating & Drinking Out'}:e));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>{const ids=new Set();prev.forEach((a,ai)=>{if(ids.has(a.id))return;prev.forEach((b,bi)=>{if(ai===bi||ids.has(b.id))return;const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));const withinTimeWindow=timeDiff<=5*60*1000;if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){ids.add(a.id);ids.add(b.id);}});});return prev.filter(t=>!ids.has(t.id));});},[]);
 
-const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Dining Out','Fast food':'Dining Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions'};
+const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
 async function handleSync(){
 setSyncing(true);
@@ -1599,11 +1601,11 @@ return(
 {view==="dashboard"&&<>
 <div style={{marginBottom:16}}>
 <button onClick={()=>{setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-<span>🔍 Actuals Mode{actualsMode?" — ON":""}</span>
+<span>🔍 Actuals Mode</span>
 <span style={{fontSize:11,color:C.t3}}>Show real bank transaction data</span>
 </button>
 <button onClick={()=>{setScenarioMode(v=>!v);setActualsMode(false);}} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<span>🔮 Scenario Mode{scenarioMode?" — ON":""}</span>
+<span>🔮 Scenario Mode</span>
 {scenarioMode&&<span style={{fontSize:11,color:C.t3}}>What if my income/expenses changed?</span>}
 </button>
 {scenarioMode&&(
