@@ -22,13 +22,14 @@ const MON_SHORT=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","No
 const RECURDAYS={Weekly:7,Fortnightly:14,Monthly:30.44,Yearly:365};
 const PWORD={weekly:"week",fortnightly:"fortnight",monthly:"month",yearly:"year"};
 const AKAHU_ACCOUNTS={
-'acc_cmp10amt5000002jy6g9lbdzw':{name:'YouMoney',treat:'transactions'},
-'acc_cmp10amtq000102jyg87s1g5v':{name:'Travel',treat:'savings'},
-'acc_cmp10amut000202jy57yv6lxu':{name:'Sony 200-600mm',treat:'savings'},
-'acc_cmp10amvb000302jyeonj9pi4':{name:'Expenses',treat:'transactions'},
-'acc_cmp10amvd000402jyhyhsb873':{name:'Rainy Day',treat:'savings'},
+'acc_cmp6ij34i002i02jp6ym1f040':{name:'YouMoney',treat:'transactions'},
+'acc_cmp6ij356002o02jpfo8jee7t':{name:'Travel',treat:'savings'},
+'acc_cmp6ij34p002k02jp28m57k9k':{name:'Sony 200-600mm',treat:'savings'},
+'acc_cmp6ij35b002q02jp3a0qgbs3':{name:'Expenses',treat:'transactions'},
+'acc_cmp6ij34y002m02jpa4g4expy':{name:'Rainy Day',treat:'savings'},
 'acc_cmp10iudy000002l42skl21mf':{name:'Student Loan',treat:'balance_only'},
 'acc_cmp10lt9u000002l49rfchell':{name:'Sharesies',treat:'balance_only'},
+'acc_cmp6ij35h002s02jpehhug74g':{name:'Holding Account',treat:'transactions'},
 };
 
 // ── HELPERS ────────────────────────────────────────────────────
@@ -1434,6 +1435,7 @@ useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTERES
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'||t.ledgerlyCategory==='Food & Drink'?{...t,ledgerlyCategory:'Groceries'}:t));},[]);
 useEffect(()=>{setEntries(prev=>prev.map(e=>e.category==='Food'?{...e,category:'Groceries'}:e));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Dining Out'?{...t,ledgerlyCategory:'Eating & Drinking Out'}:t));setEntries(prev=>prev.map(e=>e.category==='Dining Out'?{...e,category:'Eating & Drinking Out'}:e));},[]);
+useEffect(()=>{const ID_MAP={'acc_cmp10amt5000002jy6g9lbdzw':'acc_cmp6ij34i002i02jp6ym1f040','acc_cmp10amtq000102jyg87s1g5v':'acc_cmp6ij356002o02jpfo8jee7t','acc_cmp10amut000202jy57yv6lxu':'acc_cmp6ij34p002k02jp28m57k9k','acc_cmp10amvb000302jyeonj9pi4':'acc_cmp6ij35b002q02jp3a0qgbs3','acc_cmp10amvd000402jyhyhsb873':'acc_cmp6ij34y002m02jpa4g4expy'};setSyncedTransactions(prev=>prev.map(t=>ID_MAP[t.account]?{...t,account:ID_MAP[t.account]}:t));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>{const ids=new Set();prev.forEach((a,ai)=>{if(ids.has(a.id))return;prev.forEach((b,bi)=>{if(ai===bi||ids.has(b.id))return;const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));const withinTimeWindow=timeDiff<=5*60*1000;if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){ids.add(a.id);ids.add(b.id);}});});return prev.filter(t=>!ids.has(t.id));});},[]);
 
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
@@ -1473,7 +1475,7 @@ continue;
 }
 if(t.type==='TRANSFER'||t.type==='PAYMENT')continue;
 const desc=t.description||'';
-if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04'].some(s=>desc.includes(s)))continue;
+if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04','0462579-05'].some(s=>desc.includes(s)))continue;
 const ledgerlyType=t.amount>=0?'income':'expense';
 const descUpper=(t.description||'').toUpperCase();
 if(['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'].some(p=>descUpper.includes(p))){
