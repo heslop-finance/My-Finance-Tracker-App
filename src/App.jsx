@@ -1062,7 +1062,7 @@ return <g key={i}><rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={i
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots}){
+function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[]}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const liveBal=useMemo(()=>{
@@ -1106,10 +1106,18 @@ return(
 <div style={{background:"rgba(110,231,183,.06)",border:`1px solid rgba(110,231,183,.15)`,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
 <div style={{fontSize:12,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Assets <Mono color={C.green} size={14}>{fmt(totalAssets)}</Mono></div>
 {assets.map(a=>(
-<div key={a.id} style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}>
+<div key={a.id} style={{marginTop:6}}>
+<div style={{display:"flex",alignItems:"center",gap:6}}>
 <input className="ci" value={a.label} placeholder="Asset name" onChange={e=>updateAsset(a.id,"label",e.target.value)} style={{flex:1,minWidth:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.t1,fontSize:16,boxSizing:"border-box"}}/>
 <input className="ci" type="text" inputMode="decimal" value={a.value===0?"":a.value} placeholder="0" onFocus={e=>e.target.select()} onChange={e=>updateAsset(a.id,"value",e.target.value)} style={{width:88,flexShrink:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.green,fontSize:16,fontFamily:F.mono,textAlign:"right",boxSizing:"border-box"}}/>
 <button onClick={()=>setAssets(as=>as.filter(x=>x.id!==a.id))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
+</div>
+<select value={a.akahuAccountId||''} onChange={e=>updateAsset(a.id,'akahuAccountId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
+<option value=''>— no account link —</option>
+{akahuBalances.filter(b=>b.type!=='LOAN').map(b=>(
+<option key={b.id} value={b.id}>{b.name} · ${b.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
+))}
+</select>
 </div>
 ))}
 <button onClick={()=>setAssets(as=>[...as,{id:Date.now(),label:"New Asset",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Asset</button>
@@ -1117,10 +1125,18 @@ return(
 <div style={{background:"rgba(251,113,133,.06)",border:`1px solid rgba(251,113,133,.15)`,borderRadius:12,padding:"12px 14px"}}>
 <div style={{fontSize:12,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Liabilities <Mono color={C.red} size={14}>{fmt(totalLiabs)}</Mono></div>
 {liabilities.map(l=>(
-<div key={l.id} style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}>
+<div key={l.id} style={{marginTop:6}}>
+<div style={{display:"flex",alignItems:"center",gap:6}}>
 <input className="ci" value={l.label} placeholder="Liability name" onChange={e=>updateLiab(l.id,"label",e.target.value)} style={{flex:1,minWidth:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.t1,fontSize:16,boxSizing:"border-box"}}/>
 <input className="ci" type="text" inputMode="decimal" value={l.linkMortgage?Math.round(liveBal):(l.value===0?"":l.value)} placeholder="0" onFocus={e=>e.target.select()} disabled={l.linkMortgage} onChange={e=>updateLiab(l.id,"value",e.target.value)} style={{width:88,flexShrink:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.red,fontSize:16,fontFamily:F.mono,textAlign:"right",opacity:l.linkMortgage?.7:1,boxSizing:"border-box"}}/>
 <button onClick={()=>setLiabilities(ls=>ls.filter(x=>x.id!==l.id))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
+</div>
+<select value={l.akahuAccountId||''} onChange={e=>updateLiab(l.id,'akahuAccountId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
+<option value=''>— no account link —</option>
+{akahuBalances.map(b=>(
+<option key={b.id} value={b.id}>{b.name} · ${Math.abs(b.balance||0).toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
+))}
+</select>
 </div>
 ))}
 <button onClick={()=>setLiabilities(ls=>[...ls,{id:Date.now(),label:"New Liability",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Liability</button>
@@ -1135,7 +1151,7 @@ return(
 {assets.map(a=>(
 <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{a.label}</span>
-<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.green}}>{fmtS(a.value)}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.green}}>{fmtS(a.value)}{a.akahuAccountId&&<span style={{fontSize:9,color:C.cyan,marginLeft:4}}>🔗</span>}</span>
 </div>
 ))}
 </div>
@@ -1147,7 +1163,7 @@ return(
 {liabilities.map(l=>(
 <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{l.label}</span>
-<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.linkMortgage?liveBal:l.value)}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.linkMortgage?liveBal:l.value)}{l.akahuAccountId&&<span style={{fontSize:9,color:C.cyan,marginLeft:4}}>🔗</span>}</span>
 </div>
 ))}
 </div>
@@ -1212,11 +1228,11 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 }
 
 // ── GOALS ─────────────────────────────────────────────────────
-function GoalsWidget({entries,displayPeriod,goals,setGoals}){
+function GoalsWidget({entries,displayPeriod,goals,setGoals,akahuBalances=[]}){
 const[showAdd,setShowAdd]=useState(false);
 const[editingId,setEditingId]=useState(null);
 const[editDraft,setEditDraft]=useState(null);
-const[draft,setDraft]=useState({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:""});
+const[draft,setDraft]=useState({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:"",akahuAccountId:""});
 const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
 const pWord=PWORD[displayPeriod];
 const fundEntries=useMemo(()=>entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&(e.category==="Savings Goal"||e.category==="Investments"||e.category==="House Maintenance")),[entries]);
@@ -1233,6 +1249,15 @@ const GoalForm=({value,onChange,onSubmit,onCancel,submitLabel})=>(
 <div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Emoji</label><input className="fi" value={value.emoji} onChange={e=>onChange(d=>({...d,emoji:e.target.value}))} style={{padding:"6px 12px"}}/></div>
 </div>
 <div style={{marginBottom:12}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Link to entry</label><select className="fi" value={value.linkedEntryId||""} onChange={e=>onChange(d=>({...d,linkedEntryId:e.target.value}))} style={{padding:"8px 12px"}}><option value="">— not linked —</option>{fundEntries.map(e=><option key={e.id} value={e.id}>{e.label} ({e.category})</option>)}</select></div>
+<div style={{marginBottom:12}}>
+<label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Link to Akahu account (auto-updates saved amount)</label>
+<select className="fi" value={value.akahuAccountId||''} onChange={e=>onChange(d=>({...d,akahuAccountId:e.target.value}))} style={{padding:'8px 12px'}}>
+<option value=''>— not linked —</option>
+{akahuBalances.filter(a=>a.type!=='LOAN').map(a=>(
+<option key={a.id} value={a.id}>{a.name} ({a.connection}) — ${a.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
+))}
+</select>
+</div>
 <div style={{display:"flex",gap:8}}><GradBtn onClick={onSubmit} style={{flex:1,width:"auto"}}>{submitLabel}</GradBtn><Btn onClick={onCancel} style={{padding:"9px 16px"}}>Cancel</Btn></div>
 </div>
 );
@@ -1240,7 +1265,7 @@ return(
 <div className="card">
 <Row mb={4}><div style={{fontSize:14,fontWeight:700,color:C.t1}}>Savings Goals</div><button onClick={()=>setShowAdd(s=>!s)} className={`rb ${showAdd?"on":""}`}>+ New Goal</button></Row>
 <div style={{fontSize:12,color:C.t4,marginBottom:16}}>Contributing <span style={{color:C.green,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(savingsContrib)}</span> to savings & <span style={{color:C.cyan,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(investContrib)}</span> to investments per {pWord}</div>
-{showAdd&&<GoalForm value={draft} onChange={setDraft} onSubmit={()=>{if(!draft.name)return;setGoals(g=>[...g,{...draft,id:Date.now(),target:Number(draft.target)||0,saved:Number(draft.saved)||0}]);setShowAdd(false);setDraft({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:""});}} onCancel={()=>setShowAdd(false)} submitLabel="Add Goal"/>}
+{showAdd&&<GoalForm value={draft} onChange={setDraft} onSubmit={()=>{if(!draft.name)return;setGoals(g=>[...g,{...draft,id:Date.now(),target:Number(draft.target)||0,saved:Number(draft.saved)||0}]);setShowAdd(false);setDraft({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:"",akahuAccountId:""});}} onCancel={()=>setShowAdd(false)} submitLabel="Add Goal"/>}
 <div style={{display:"flex",flexDirection:"column",gap:14}}>
 {goals.map(g=>{
 const pct=Math.min(100,(g.saved/g.target)*100);
@@ -1248,12 +1273,13 @@ const remaining=Math.max(0,g.target-g.saved);
 const contrib=getContrib(g);
 const t=ttr(g);
 const linked=g.linkedEntryId?entries.find(e=>e.id===Number(g.linkedEntryId)||e.id===g.linkedEntryId):null;
+const linkedBalance=g.akahuAccountId?akahuBalances.find(a=>a.id===g.akahuAccountId):null;
 if(editingId===g.id)return <GoalForm key={g.id} value={editDraft} onChange={setEditDraft} onSubmit={()=>{setGoals(gs=>gs.map(x=>x.id===g.id?{...editDraft,id:g.id,target:Number(editDraft.target)||0,saved:Number(editDraft.saved)||0}:x));setEditingId(null);}} onCancel={()=>setEditingId(null)} submitLabel="Save Changes"/>;
 return(
 <div key={g.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
 <Row mb={10}>
 <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{g.emoji}</span><div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{g.name}</div>{t&&<div style={{fontSize:11,color:C.t4,marginTop:1}}>{t}</div>}{!linked&&<div style={{fontSize:10,color:C.t5,marginTop:1}}>No entry linked</div>}</div></div>
-<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(g.target)}</div></div>
+<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(g.target)}</div>{linkedBalance&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>🔗 Live · {linkedBalance.name}</div>}</div>
 </Row>
 <div style={{height:8,background:C.border,borderRadius:4,overflow:"hidden",marginBottom:8}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${g.color||C.green},${g.color||C.green}88)`,borderRadius:4,transition:"width .6s ease"}}/></div>
 {linked&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,padding:"6px 10px",background:"rgba(110,231,183,.05)",borderRadius:8,border:`1px solid rgba(110,231,183,.1)`}}><span style={{fontSize:10,color:C.t4}}>Contributing</span><Mono color={C.green} size={11}>{fmt(contrib)}</Mono><span style={{fontSize:10,color:C.t4}}>per {pWord} via</span><span style={{fontSize:10,color:C.t2,fontWeight:600}}>{linked.label}</span></div>}
@@ -1467,6 +1493,9 @@ setSyncError(null);
 const txData=await txRes.json();
 const balData=await balRes.json();
 setAkahuBalances(balData.items||[]);
+setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.items||[]).find(a=>a.id===g.akahuAccountId);if(!bal||bal.balance==null)return g;return{...g,saved:Math.max(0,bal.balance)};}));
+setAssets(prev=>prev.map(a=>{if(!a.akahuAccountId)return a;const bal=(balData.items||[]).find(b=>b.id===a.akahuAccountId);if(!bal||bal.balance==null)return a;return{...a,value:Math.max(0,bal.balance)};}));
+setLiabilities(prev=>prev.map(l=>{if(!l.akahuAccountId)return l;const bal=(balData.items||[]).find(b=>b.id===l.akahuAccountId);if(!bal||bal.balance==null)return l;return{...l,value:Math.abs(bal.balance)};}));
 const incoming=txData.items||[];
 const processed=[];
 for(const t of incoming){
@@ -1912,8 +1941,8 @@ return(
 </>}
 
 {view==="mortgage"&&<MortgageWidget cfg={mortgageCfg} setCfg={setMortgageCfg} rateChanges={mortgageRateChanges} setRateChanges={setMortgageRateChanges} lumpSums={mortgageLumpSums} setLumpSums={setMortgageLumpSums} displayPeriod={displayPeriod}/>}
-{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots}/>}
-{view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals}/>}
+{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances}/>}
+{view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
 
