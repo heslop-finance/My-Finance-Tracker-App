@@ -1464,6 +1464,7 @@ useEffect(()=>{localStorage.setItem('ft_transactions',JSON.stringify(syncedTrans
 useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));},[lastSynced]);
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
+useEffect(()=>{window.scrollTo(0,0);},[view]);
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'||t.ledgerlyCategory==='Food & Drink'?{...t,ledgerlyCategory:'Groceries'}:t));},[]);
 useEffect(()=>{setEntries(prev=>prev.map(e=>e.category==='Food'?{...e,category:'Groceries'}:e));},[]);
@@ -1646,11 +1647,11 @@ return(
 {view==="dashboard"&&<>
 <div style={{marginBottom:16}}>
 <button onClick={()=>{setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-<span>🔍 Actuals Mode</span>
+<span style={{whiteSpace:'nowrap',flexShrink:0}}>🔍 Actuals Mode</span>
 <span style={{fontSize:11,color:C.t3}}>Show real bank transaction data</span>
 </button>
 <button onClick={()=>{setScenarioMode(v=>!v);setActualsMode(false);}} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<span>🔮 Scenario Mode</span>
+<span style={{whiteSpace:'nowrap',flexShrink:0}}>🔮 Scenario Mode</span>
 {scenarioMode&&<span style={{fontSize:11,color:C.t3}}>What if my income/expenses changed?</span>}
 </button>
 {scenarioMode&&(
