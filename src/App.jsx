@@ -1112,12 +1112,12 @@ return(
 <input className="ci" type="text" inputMode="decimal" value={a.value===0?"":a.value} placeholder="0" onFocus={e=>e.target.select()} onChange={e=>updateAsset(a.id,"value",e.target.value)} style={{width:88,flexShrink:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.green,fontSize:16,fontFamily:F.mono,textAlign:"right",boxSizing:"border-box"}}/>
 <button onClick={()=>setAssets(as=>as.filter(x=>x.id!==a.id))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
 </div>
-<select value={a.akahuAccountId||''} onChange={e=>updateAsset(a.id,'akahuAccountId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
+{AKAHU_ENABLED&&<select value={a.akahuAccountId||''} onChange={e=>updateAsset(a.id,'akahuAccountId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
 <option value=''>— no account link —</option>
 {akahuBalances.filter(b=>b.type!=='LOAN').map(b=>(
 <option key={b.id} value={b.id}>{b.name} · ${b.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
 ))}
-</select>
+</select>}
 </div>
 ))}
 <button onClick={()=>setAssets(as=>[...as,{id:Date.now(),label:"New Asset",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Asset</button>
@@ -1131,12 +1131,12 @@ return(
 <input className="ci" type="text" inputMode="decimal" value={l.linkMortgage?Math.round(liveBal):(l.value===0?"":l.value)} placeholder="0" onFocus={e=>e.target.select()} disabled={l.linkMortgage} onChange={e=>updateLiab(l.id,"value",e.target.value)} style={{width:88,flexShrink:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.red,fontSize:16,fontFamily:F.mono,textAlign:"right",opacity:l.linkMortgage?.7:1,boxSizing:"border-box"}}/>
 <button onClick={()=>setLiabilities(ls=>ls.filter(x=>x.id!==l.id))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
 </div>
-<select value={l.akahuAccountId||''} onChange={e=>updateLiab(l.id,'akahuAccountId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
+{AKAHU_ENABLED&&<select value={l.akahuAccountId||''} onChange={e=>updateLiab(l.id,'akahuAccountId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
 <option value=''>— no account link —</option>
 {akahuBalances.map(b=>(
 <option key={b.id} value={b.id}>{b.name} · ${Math.abs(b.balance||0).toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
 ))}
-</select>
+</select>}
 </div>
 ))}
 <button onClick={()=>setLiabilities(ls=>[...ls,{id:Date.now(),label:"New Liability",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Liability</button>
@@ -1238,7 +1238,7 @@ return(
 <div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Emoji</label><input className="fi" value={value.emoji} onChange={e=>onChange(d=>({...d,emoji:e.target.value}))} style={{padding:"6px 12px"}}/></div>
 </div>
 <div style={{marginBottom:12}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Link to entry</label><select className="fi" value={value.linkedEntryId||""} onChange={e=>onChange(d=>({...d,linkedEntryId:e.target.value}))} style={{padding:"8px 12px"}}><option value="">— not linked —</option>{fundEntries.map(e=><option key={e.id} value={e.id}>{e.label} ({e.category})</option>)}</select></div>
-<div style={{marginBottom:12}}>
+{AKAHU_ENABLED&&<div style={{marginBottom:12}}>
 <label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Link to Akahu account (auto-updates saved amount)</label>
 <select className="fi" value={value.akahuAccountId||''} onChange={e=>onChange(d=>({...d,akahuAccountId:e.target.value}))} style={{padding:'8px 12px'}}>
 <option value=''>— not linked —</option>
@@ -1246,7 +1246,7 @@ return(
 <option key={a.id} value={a.id}>{a.name} ({a.connection}) — ${a.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
 ))}
 </select>
-</div>
+</div>}
 <div style={{display:"flex",gap:8}}><GradBtn onClick={onSubmit} style={{flex:1,width:"auto"}}>{submitLabel}</GradBtn><Btn onClick={onCancel} style={{padding:"9px 16px"}}>Cancel</Btn></div>
 </div>
 );
@@ -1281,7 +1281,7 @@ return(
 <div key={g.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
 <Row mb={10}>
 <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{g.emoji}</span><div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{g.name}</div>{t&&<div style={{fontSize:11,color:C.t4,marginTop:1}}>{t}</div>}{!linked&&<div style={{fontSize:10,color:C.t5,marginTop:1}}>No entry linked</div>}</div></div>
-<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(g.target)}</div>{linkedBalance&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>Live · {linkedBalance.name}</div>}</div>
+<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(g.target)}</div>{AKAHU_ENABLED&&linkedBalance&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>Live · {linkedBalance.name}</div>}</div>
 </Row>
 <div style={{height:8,background:C.border,borderRadius:4,overflow:"hidden",marginBottom:8}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${g.color||C.green},${g.color||C.green}88)`,borderRadius:4,transition:"width .6s ease"}}/></div>
 {linked&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,padding:"6px 10px",background:"rgba(110,231,183,.05)",borderRadius:8,border:`1px solid rgba(110,231,183,.1)`}}><span style={{fontSize:10,color:C.t4}}>Contributing</span><Mono color={C.green} size={11}>{fmt(contrib)}</Mono><span style={{fontSize:10,color:C.t4}}>per {pWord} via</span><span style={{fontSize:10,color:C.t2,fontWeight:600}}>{linked.label}</span></div>}
@@ -1409,6 +1409,7 @@ const SEED=[
 
 // ── LOCAL STORAGE ─────────────────────────────────────────────
 const loadLS=(key,fallback)=>{try{const s=localStorage.getItem(key);return s?JSON.parse(s):fallback;}catch{return fallback;}};
+const AKAHU_ENABLED=import.meta.env.VITE_AKAHU_ENABLED==='true';
 
 // ── APP ────────────────────────────────────────────────────────
 export default function App(){
@@ -1418,9 +1419,9 @@ const[allTime,setAllTime]=useState(false);
 const[view,setView]=useState("dashboard");
 const[tab,setTab]=useState(()=>loadLS('ft_tab',"income"));
 const[showPastOneOffs,setShowPastOneOffs]=useState(false);
-const[syncedTransactions,setSyncedTransactions]=useState(()=>loadLS('ft_transactions',[]));
+const[syncedTransactions,setSyncedTransactions]=useState(()=>AKAHU_ENABLED?loadLS('ft_transactions',[]):[]);
 const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
-const[akahuBalances,setAkahuBalances]=useState(()=>loadLS('ft_akahuBalances',[]));
+const[akahuBalances,setAkahuBalances]=useState(()=>AKAHU_ENABLED?loadLS('ft_akahuBalances',[]):[]);
 const[syncing,setSyncing]=useState(false);
 const[syncError,setSyncError]=useState(null);
 const[categoryRules,setCategoryRules]=useState(()=>loadLS('ft_categoryRules',[]));
@@ -1465,7 +1466,7 @@ useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{window.scrollTo(0,0);},[view]);
-useEffect(()=>{if(!lastSynced){handleSync();return;}const hoursSinceSync=(Date.now()-new Date(lastSynced).getTime())/(1000*60*60);if(hoursSinceSync>=6){handleSync();}},[]);
+useEffect(()=>{if(!AKAHU_ENABLED)return;if(!lastSynced){handleSync();return;}const hoursSinceSync=(Date.now()-new Date(lastSynced).getTime())/(1000*60*60);if(hoursSinceSync>=6){handleSync();}},[]);
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'||t.ledgerlyCategory==='Food & Drink'?{...t,ledgerlyCategory:'Groceries'}:t));},[]);
 useEffect(()=>{setEntries(prev=>prev.map(e=>e.category==='Food'?{...e,category:'Groceries'}:e));},[]);
@@ -1476,6 +1477,7 @@ useEffect(()=>{setSyncedTransactions(prev=>{const ids=new Set();prev.forEach((a,
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
 async function handleSync(){
+if(!AKAHU_ENABLED)return;
 setSyncing(true);
 const syncStart=Date.now();
 try{
@@ -1647,10 +1649,10 @@ return(
 
 {view==="dashboard"&&<>
 <div style={{marginBottom:16}}>
-<button onClick={()=>{setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+{AKAHU_ENABLED&&<button onClick={()=>{setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
 <span style={{whiteSpace:'nowrap',flexShrink:0}}>🔍 Actuals Mode</span>
 <span style={{fontSize:11,color:C.t3}}>Show real bank transaction data</span>
-</button>
+</button>}
 <button onClick={()=>{setScenarioMode(v=>!v);setActualsMode(false);}} style={{width:"100%",background:scenarioMode?"rgba(167,139,250,.15)":C.card,border:`1px solid ${scenarioMode?C.purple:C.border}`,borderRadius:10,padding:"9px 16px",color:scenarioMode?C.purple:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
 <span style={{whiteSpace:'nowrap',flexShrink:0}}>🔮 Scenario Mode</span>
 {scenarioMode&&<span style={{fontSize:11,color:C.t3}}>What if my income/expenses changed?</span>}
@@ -1832,6 +1834,7 @@ return <>
 {pastOneOffs.length>0&&<div style={{marginTop:8}}><div onClick={()=>setShowPastOneOffs(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"8px 12px",background:C.card,borderRadius:10,marginBottom:showPastOneOffs?10:0}}><div style={{fontSize:11,color:C.t4,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Past one-offs <span style={{background:C.border,color:C.t3,borderRadius:10,padding:"1px 8px",marginLeft:6,fontSize:10}}>{pastOneOffs.length}</span></div><span style={{color:C.t4,fontSize:13,display:"inline-block",transform:showPastOneOffs?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▾</span></div>{showPastOneOffs&&pastOneOffs.map(e=><EntryRow key={`${e.id}-${displayPeriod}`} entry={e} onDelete={handleDelete} onEdit={handleEdit} displayPeriod={displayPeriod} swipeable={true}/>)}</div>}
 </>;
 })()}
+{AKAHU_ENABLED&&<>
 <div style={{borderTop:`1px solid ${C.border}`,marginTop:24,paddingTop:20,marginBottom:16}}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
 <div>
@@ -1942,6 +1945,7 @@ return(
 </div>
 );
 })()}
+</>}
 </>}
 
 {view==="mortgage"&&<MortgageWidget cfg={mortgageCfg} setCfg={setMortgageCfg} rateChanges={mortgageRateChanges} setRateChanges={setMortgageRateChanges} lumpSums={mortgageLumpSums} setLumpSums={setMortgageLumpSums} displayPeriod={displayPeriod}/>}
