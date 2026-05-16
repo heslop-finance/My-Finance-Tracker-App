@@ -908,7 +908,7 @@ return(
 {schedule.length>0?(()=>{const cur=schedule.find(m=>new Date(m.date)>=new Date(todayStr));const bal=cur?cur.balance:schedule[schedule.length-1].balance;return <><Mono color={C.t1} size={22}>{fmt(bal)}</Mono><div style={{fontSize:11,color:C.t3,marginTop:2}}>Original loan: <span style={{color:C.t2,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(cfg.principal)}</span></div></>;})():<Mono color={C.t1} size={22}>{fmt(cfg.principal)}</Mono>}
 <div style={{fontSize:12,color:C.t3,marginTop:2}}>{cfg.annualRate}% p.a. · {cfg.termYears} yr · from {cfg.startDate}</div>
 </div>
-<Btn onClick={()=>{setCfgD(cfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}>⚙ Setup</Btn>
+<Btn onClick={()=>{setCfgD(cfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}><span style={{display:'flex',alignItems:'center',gap:5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup</span></Btn>
 </Row>
 <div className="hscroll" style={{gap:10}}>
 {[{label:pmtLabel,val:fmt(periodPmt),color:C.t1},{label:"Total Interest",val:fmt(totalInterest),color:C.red},{label:"Total Cost",val:fmt(totalCost),color:C.amber},{label:"Paid Off",val:paidOff?`${MON_SHORT[paidOff.getMonth()]} ${paidOff.getFullYear()}`:"—",color:C.green},{label:"Years Left",val:`${fmtN(schedule.length/12)} yrs`,color:C.cyan}].map(s=>(
@@ -1093,7 +1093,7 @@ return(
 <Label color={C.t3} mb={2}>Net Worth</Label>
 <Mono color={netWorth>=0?C.green:C.red} size={26}>{netWorth<0?"−":""}{fmt(netWorth)}</Mono>
 </div>
-<Btn onClick={()=>setEditMode(e=>!e)} bg={editMode?"rgba(110,231,183,.15)":C.border} border={editMode?C.green:C.t5} color={editMode?C.green:C.t2}>{editMode?"✓ Done":"✏ Edit"}</Btn>
+<Btn onClick={()=>setEditMode(e=>!e)} bg={editMode?"rgba(110,231,183,.15)":C.border} border={editMode?C.green:C.t5} color={editMode?C.green:C.t2}>{editMode?"✓ Done":(<span style={{display:'flex',alignItems:'center',gap:5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</span>)}</Btn>
 </Row>
 <div style={{marginBottom:18}}>
 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.t3,marginBottom:6}}><span>Equity {fmtN(equityPct)}%</span><span>Liabilities {fmtN(100-equityPct)}%</span></div>
@@ -1151,7 +1151,7 @@ return(
 {assets.map(a=>(
 <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{a.label}</span>
-<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.green}}>{fmtS(a.value)}{a.akahuAccountId&&<span style={{fontSize:9,color:C.cyan,marginLeft:4}}>🔗</span>}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.green}}>{fmtS(a.value)}</span>
 </div>
 ))}
 </div>
@@ -1163,7 +1163,7 @@ return(
 {liabilities.map(l=>(
 <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{l.label}</span>
-<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.linkMortgage?liveBal:l.value)}{l.akahuAccountId&&<span style={{fontSize:9,color:C.cyan,marginLeft:4}}>🔗</span>}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.linkMortgage?liveBal:l.value)}</span>
 </div>
 ))}
 </div>
@@ -1228,19 +1228,8 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 }
 
 // ── GOALS ─────────────────────────────────────────────────────
-function GoalsWidget({entries,displayPeriod,goals,setGoals,akahuBalances=[]}){
-const[showAdd,setShowAdd]=useState(false);
-const[editingId,setEditingId]=useState(null);
-const[editDraft,setEditDraft]=useState(null);
-const[draft,setDraft]=useState({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:"",akahuAccountId:""});
-const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
-const pWord=PWORD[displayPeriod];
-const fundEntries=useMemo(()=>entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&(e.category==="Savings Goal"||e.category==="Investments"||e.category==="House Maintenance")),[entries]);
-const savingsContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Savings Goal").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
-const investContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Investments").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
-const getContrib=g=>{if(!g.linkedEntryId)return null;const e=entries.find(x=>x.id===Number(g.linkedEntryId)||x.id===g.linkedEntryId);return e?periodAmt(e,pDays):null;};
-const ttr=g=>{const c=getContrib(g);if(!c||c<=0)return null;const r=Math.max(0,g.target-g.saved);if(r<=0)return"Reached! 🎉";const p=r/c;return displayPeriod==="weekly"?`~${Math.ceil(p)} weeks`:displayPeriod==="fortnightly"?`~${Math.ceil(p)} fortnights`:displayPeriod==="monthly"?`~${Math.ceil(p)} months`:`~${fmtN(p)} years`;};
-const GoalForm=({value,onChange,onSubmit,onCancel,submitLabel})=>(
+function GoalForm({value,onChange,onSubmit,onCancel,submitLabel,fundEntries,pWord,akahuBalances}){
+return(
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
 <div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Goal name</label><input className="fi" placeholder="e.g. Holiday Fund" value={value.name} onChange={e=>onChange(d=>({...d,name:e.target.value}))} style={{padding:"8px 12px"}}/></div>
@@ -1253,7 +1242,7 @@ const GoalForm=({value,onChange,onSubmit,onCancel,submitLabel})=>(
 <label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Link to Akahu account (auto-updates saved amount)</label>
 <select className="fi" value={value.akahuAccountId||''} onChange={e=>onChange(d=>({...d,akahuAccountId:e.target.value}))} style={{padding:'8px 12px'}}>
 <option value=''>— not linked —</option>
-{akahuBalances.filter(a=>a.type!=='LOAN').map(a=>(
+{(akahuBalances||[]).filter(a=>a.type!=='LOAN').map(a=>(
 <option key={a.id} value={a.id}>{a.name} ({a.connection}) — ${a.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
 ))}
 </select>
@@ -1261,11 +1250,24 @@ const GoalForm=({value,onChange,onSubmit,onCancel,submitLabel})=>(
 <div style={{display:"flex",gap:8}}><GradBtn onClick={onSubmit} style={{flex:1,width:"auto"}}>{submitLabel}</GradBtn><Btn onClick={onCancel} style={{padding:"9px 16px"}}>Cancel</Btn></div>
 </div>
 );
+}
+function GoalsWidget({entries,displayPeriod,goals,setGoals,akahuBalances=[]}){
+const[showAdd,setShowAdd]=useState(false);
+const[editingId,setEditingId]=useState(null);
+const[editDraft,setEditDraft]=useState(null);
+const[draft,setDraft]=useState({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:"",akahuAccountId:""});
+const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
+const pWord=PWORD[displayPeriod];
+const fundEntries=useMemo(()=>entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&(e.category==="Savings Goal"||e.category==="Investments"||e.category==="House Maintenance")),[entries]);
+const savingsContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Savings Goal").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
+const investContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Investments").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
+const getContrib=g=>{if(!g.linkedEntryId)return null;const e=entries.find(x=>x.id===Number(g.linkedEntryId)||x.id===g.linkedEntryId);return e?periodAmt(e,pDays):null;};
+const ttr=g=>{const c=getContrib(g);if(!c||c<=0)return null;const r=Math.max(0,g.target-g.saved);if(r<=0)return"Reached! 🎉";const p=r/c;return displayPeriod==="weekly"?`~${Math.ceil(p)} weeks`:displayPeriod==="fortnightly"?`~${Math.ceil(p)} fortnights`:displayPeriod==="monthly"?`~${Math.ceil(p)} months`:`~${fmtN(p)} years`;};
 return(
 <div className="card">
 <Row mb={4}><div style={{fontSize:14,fontWeight:700,color:C.t1}}>Savings Goals</div><button onClick={()=>setShowAdd(s=>!s)} className={`rb ${showAdd?"on":""}`}>+ New Goal</button></Row>
 <div style={{fontSize:12,color:C.t4,marginBottom:16}}>Contributing <span style={{color:C.green,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(savingsContrib)}</span> to savings & <span style={{color:C.cyan,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(investContrib)}</span> to investments per {pWord}</div>
-{showAdd&&<GoalForm value={draft} onChange={setDraft} onSubmit={()=>{if(!draft.name)return;setGoals(g=>[...g,{...draft,id:Date.now(),target:Number(draft.target)||0,saved:Number(draft.saved)||0}]);setShowAdd(false);setDraft({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:"",akahuAccountId:""});}} onCancel={()=>setShowAdd(false)} submitLabel="Add Goal"/>}
+{showAdd&&<GoalForm value={draft} onChange={setDraft} onSubmit={()=>{if(!draft.name)return;setGoals(g=>[...g,{...draft,id:Date.now(),target:Number(draft.target)||0,saved:Number(draft.saved)||0}]);setShowAdd(false);setDraft({name:"",target:1000,saved:0,color:C.purple,emoji:"🎯",linkedEntryId:"",akahuAccountId:""});}} onCancel={()=>setShowAdd(false)} submitLabel="Add Goal" fundEntries={fundEntries} pWord={pWord} akahuBalances={akahuBalances}/>}
 <div style={{display:"flex",flexDirection:"column",gap:14}}>
 {goals.map(g=>{
 const pct=Math.min(100,(g.saved/g.target)*100);
@@ -1274,12 +1276,12 @@ const contrib=getContrib(g);
 const t=ttr(g);
 const linked=g.linkedEntryId?entries.find(e=>e.id===Number(g.linkedEntryId)||e.id===g.linkedEntryId):null;
 const linkedBalance=g.akahuAccountId?akahuBalances.find(a=>a.id===g.akahuAccountId):null;
-if(editingId===g.id)return <GoalForm key={g.id} value={editDraft} onChange={setEditDraft} onSubmit={()=>{setGoals(gs=>gs.map(x=>x.id===g.id?{...editDraft,id:g.id,target:Number(editDraft.target)||0,saved:Number(editDraft.saved)||0}:x));setEditingId(null);}} onCancel={()=>setEditingId(null)} submitLabel="Save Changes"/>;
+if(editingId===g.id)return <GoalForm key={g.id} value={editDraft} onChange={setEditDraft} onSubmit={()=>{setGoals(gs=>gs.map(x=>x.id===g.id?{...editDraft,id:g.id,target:Number(editDraft.target)||0,saved:Number(editDraft.saved)||0}:x));setEditingId(null);}} onCancel={()=>setEditingId(null)} submitLabel="Save Changes" fundEntries={fundEntries} pWord={pWord} akahuBalances={akahuBalances}/>;
 return(
 <div key={g.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
 <Row mb={10}>
 <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{g.emoji}</span><div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{g.name}</div>{t&&<div style={{fontSize:11,color:C.t4,marginTop:1}}>{t}</div>}{!linked&&<div style={{fontSize:10,color:C.t5,marginTop:1}}>No entry linked</div>}</div></div>
-<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(g.target)}</div>{linkedBalance&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>🔗 Live · {linkedBalance.name}</div>}</div>
+<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(g.target)}</div>{linkedBalance&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>Live · {linkedBalance.name}</div>}</div>
 </Row>
 <div style={{height:8,background:C.border,borderRadius:4,overflow:"hidden",marginBottom:8}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${g.color||C.green},${g.color||C.green}88)`,borderRadius:4,transition:"width .6s ease"}}/></div>
 {linked&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,padding:"6px 10px",background:"rgba(110,231,183,.05)",borderRadius:8,border:`1px solid rgba(110,231,183,.1)`}}><span style={{fontSize:10,color:C.t4}}>Contributing</span><Mono color={C.green} size={11}>{fmt(contrib)}</Mono><span style={{fontSize:10,color:C.t4}}>per {pWord} via</span><span style={{fontSize:10,color:C.t2,fontWeight:600}}>{linked.label}</span></div>}
