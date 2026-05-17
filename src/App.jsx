@@ -1414,6 +1414,8 @@ const AKAHU_ENABLED=localStorage.getItem('ft_akahu_enabled')==='true';
 // ── APP ────────────────────────────────────────────────────────
 export default function App(){
 const[entries,setEntries]=useState(()=>loadLS('ft_entries',SEED));
+const[headerTapCount,setHeaderTapCount]=useState(0);
+const headerTapTimer=useRef(null);
 const[displayPeriod,setDisplayPeriod]=useState(()=>loadLS('ft_displayPeriod',"monthly"));
 const[allTime,setAllTime]=useState(false);
 const[view,setView]=useState("dashboard");
@@ -1639,7 +1641,7 @@ return(
 <style>{CSS}</style>
 <div style={{background:"linear-gradient(180deg,#0f172a 0%,#0a0f1e 100%)",borderBottom:`1px solid ${C.border}`,padding:"14px 24px 12px",paddingTop:'env(safe-area-inset-top)',position:"sticky",top:0,zIndex:50}}>
 <div style={{maxWidth:720,margin:"0 auto"}}>
-<div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}}>Ledgerly</div>
+<div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}} onClick={()=>{setHeaderTapCount(prev=>{const next=prev+1;clearTimeout(headerTapTimer.current);if(next>=5){const enabled=localStorage.getItem('ft_akahu_enabled')==='true';if(enabled){localStorage.removeItem('ft_akahu_enabled');alert('Akahu sync disabled. Reloading...');}else{localStorage.setItem('ft_akahu_enabled','true');alert('Akahu sync enabled. Reloading...');}window.location.reload();return 0;}headerTapTimer.current=setTimeout(()=>setHeaderTapCount(0),1500);return next;});}}>Ledgerly</div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
 {[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>{setDisplayPeriod(p.key);setAllTime(false);}} style={{border:`1px solid ${displayPeriod===p.key&&!allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key&&!allTime?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key&&!allTime?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
 </div>
