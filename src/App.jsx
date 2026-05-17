@@ -288,7 +288,29 @@ return total*(pDays/365);
 
 const cumulativeData=useMemo(()=>{let sum=0;return bars.map(b=>{sum+=b.val;return sum;});},[bars]);
 const projection=useMemo(()=>{
-if(!showProj||isYearly||isAllYears)return null;
+if(!showProj||isAllYears)return null;
+if(isYearly&&!actualsMode)return null;
+
+if(isYearly&&actualsMode&&syncedTransactions.length>0){
+const monthsElapsed=Math.max(1,today.getMonth()+1);
+const totalMonths=12;
+const monthlySpends=Array.from({length:monthsElapsed},(_,m)=>{
+const mStr=`${today.getFullYear()}-${pad(m+1)}`;
+return syncedTransactions
+.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date.startsWith(mStr)&&(catFilter==='All Expenses'||t.ledgerlyCategory===catFilter))
+.reduce((s,t)=>s+Math.abs(t.amount),0);
+});
+const sorted=[...monthlySpends].sort((a,b)=>a-b);
+const mid=Math.floor(sorted.length/2);
+const median=sorted.length%2!==0?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
+const threshold=median*3;
+const normalMonths=monthlySpends.filter(m=>m<=threshold);
+const outlierTotal=monthlySpends.filter(m=>m>threshold).reduce((s,m)=>s+m,0);
+const normalTotal=normalMonths.reduce((s,m)=>s+m,0);
+const normalMonthCount=Math.max(normalMonths.length,1);
+const monthlyRate=normalTotal/normalMonthCount;
+return monthlyRate*totalMonths+outlierTotal;
+}
 
 if(actualsMode&&syncedTransactions.length>0){
 const start=getPeriodStart(displayPeriod);
@@ -404,6 +426,7 @@ return(
 {mostBar&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>↑ </span><Mono color={C.red} size={11}>{fmtS(mostBar.val)}</Mono><span style={{color:C.t4,marginLeft:4}}>{mostBar.label}</span></div>}
 {leastBar&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>↓ </span><Mono color={C.green} size={11}>{fmtS(leastBar.val)}</Mono><span style={{color:C.t4,marginLeft:4}}>{leastBar.label}</span></div>}
 {showAvg&&rollingAvg>0&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>1-yr avg </span><Mono color={C.green} size={11}>{fmtS(rollingAvg)}</Mono></div>}
+{showProj&&projection!=null&&!isYearly&&!isAllYears&&<div style={{background:C.border,borderRadius:8,padding:'4px 9px',fontSize:11}}><span style={{color:C.t3}}>Proj. </span><Mono color={C.amber} size={11}>{fmtS(projection)}</Mono></div>}
 </div>
 )}
 <div style={{overflowX:"auto",paddingBottom:6}}>
@@ -411,9 +434,14 @@ return(
 {showAvg&&rollingAvg>0&&<>
 <rect x={PAD} y={avgY-(H-PAD*2)*.1} width={W-PAD*2} height={(H-PAD*2)*.2} fill={`${C.green}12`}/>
 <line x1={PAD} y1={avgY} x2={W-PAD} y2={avgY} stroke={C.green} strokeWidth={1} strokeDasharray="4 2"/>
+<rect x={PAD+3} y={avgY-8} width={28} height={16} rx={3} fill={C.card}/>
 <text x={PAD+6} y={avgY} fill={C.green} fontSize={8} fontWeight="700" dominantBaseline="middle" textAnchor="start">avg</text>
 </>}
-{showProj&&projection!=null&&<line x1={PAD} y1={yOf(projection)} x2={W-PAD} y2={yOf(projection)} stroke={C.amber} strokeWidth={1} strokeDasharray="4 2"/>}
+{showProj&&projection!=null&&<>
+<line x1={PAD} y1={yOf(projection)} x2={W-PAD} y2={yOf(projection)} stroke={C.amber} strokeWidth={1} strokeDasharray="4 2"/>
+<rect x={W-PAD-32} y={yOf(projection)-8} width={30} height={16} rx={3} fill={C.card}/>
+<text x={W-PAD-4} y={yOf(projection)} fill={C.amber} fontSize={8} fontWeight="700" textAnchor="end" dominantBaseline="middle">proj</text>
+</>}
 {showCumul&&!isAllYears&&cumulativePts.length>1&&<polyline points={cumulativePts.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={C.cyan} strokeWidth={1.5} opacity={.7}/>}
 {bars.map((b,i)=>{
 const x=xOf(i);
@@ -439,7 +467,6 @@ return(
 );
 }
 })}
-{showProj&&projection!=null&&<text x={W-PAD-4} y={yOf(projection)} fill={C.amber} fontSize={8} fontWeight="700" textAnchor="end" dominantBaseline="middle">proj</text>}
 {isAllYears&&showAllTimeAvg&&allYearsAvg>0&&(
 <>
 <line x1={xOf(0)+barW/2} y1={yOf(allYearsAvg)} x2={xOf(bars.length-1)+barW/2} y2={yOf(allYearsAvg)} stroke={C.green} strokeWidth={1} strokeDasharray="4 3" opacity={.55}/>
