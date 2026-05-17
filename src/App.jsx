@@ -177,7 +177,7 @@ const isYearly=displayPeriod==="yearly";
 const isAllYears=displayPeriod==="allyears";
 const[catFilter,setCatFilter]=useState("All Expenses");
 const[showStacked,setShowStacked]=useState(false);
-const[showAvg,setShowAvg]=useState(true);
+const[showAvg,setShowAvg]=useState(false);
 const[showCumul,setShowCumul]=useState(false);
 const[showProj,setShowProj]=useState(false);
 const[showAllTimeAvg,setShowAllTimeAvg]=useState(false);
@@ -383,7 +383,7 @@ return(
 <text x={PAD+6} y={avgY} fill={C.green} fontSize={8} fontWeight="700" dominantBaseline="middle" textAnchor="start">avg</text>
 </>}
 {showProj&&projection!=null&&<line x1={PAD} y1={yOf(projection)} x2={W-PAD} y2={yOf(projection)} stroke={C.amber} strokeWidth={1} strokeDasharray="4 2"/>}
-{showCumul&&cumulativePts.length>1&&<polyline points={cumulativePts.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={C.cyan} strokeWidth={1.5} opacity={.7}/>}
+{showCumul&&!isAllYears&&cumulativePts.length>1&&<polyline points={cumulativePts.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={C.cyan} strokeWidth={1.5} opacity={.7}/>}
 {bars.map((b,i)=>{
 const x=xOf(i);
 if(showStacked&&catFilter==="All Expenses"){
