@@ -295,9 +295,10 @@ if(actualsMode&&syncedTransactions.length>0){
 const start=getPeriodStart(displayPeriod);
 const todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
 const daysElapsed=Math.max(1,Math.round((todayMidnight-start)/86400000)+1);
+const monthsElapsed=isYearly?Math.max(1,today.getMonth()+1):daysElapsed;
 const startStr=dateKey(start);
 const totalDays=isYearly?12:bars.length;
-const remainingDays=Math.max(0,totalDays-daysElapsed);
+const remainingDays=Math.max(0,totalDays-(isYearly?monthsElapsed:daysElapsed));
 const periodTxns=syncedTransactions.filter(t=>
 t.ledgerlyType==='expense'&&
 !t.isSavingsDeposit&&
@@ -316,6 +317,9 @@ e.recur!=='Variable'&&
 const recurringCats=new Set(recurringEntries.map(e=>e.category));
 let remainingRecurring=0;
 if(isYearly){
+const daysLeftInMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate()-today.getDate();
+const remainingCurrentMonthDays=Array.from({length:daysLeftInMonth},(_,i)=>new Date(today.getFullYear(),today.getMonth(),today.getDate()+i+1));
+recurringEntries.forEach(e=>{remainingCurrentMonthDays.forEach(d=>{if(occursOn(e,d))remainingRecurring+=e.amount;});});
 const currentMonth=today.getMonth();
 Array.from({length:remainingDays},(_,i)=>{
 const monthIndex=currentMonth+i+1;
@@ -328,7 +332,7 @@ const remainingDaysArray=Array.from({length:remainingDays},(_,i)=>{const d=new D
 recurringEntries.forEach(e=>{remainingDaysArray.forEach(d=>{if(occursOn(e,d))remainingRecurring+=e.amount;});});
 }
 const discretionaryTxns=periodTxns.filter(t=>!recurringCats.has(t.ledgerlyCategory));
-const dailyDiscretionary=Array.from({length:daysElapsed},(_,i)=>{
+const dailyDiscretionary=Array.from({length:isYearly?monthsElapsed:daysElapsed},(_,i)=>{
 if(isYearly){
 const mStr=`${today.getFullYear()}-${pad(i+1)}`;
 return discretionaryTxns.filter(t=>t.date.startsWith(mStr)).reduce((s,t)=>s+Math.abs(t.amount),0);
@@ -371,7 +375,7 @@ const W=320,H=120,PAD=20,barW=Math.max(1,(W-PAD*2)/bars.length-1);
 const xOf=i=>PAD+i*(W-PAD*2)/bars.length;
 const yOf=v=>H-PAD-(v/maxVal)*(H-PAD*2);
 const avgY=yOf(rollingAvg);
-const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData,showCumul]);
+const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData,showCumul,showProj,projection]);
 
 const allYearsAvg=useMemo(()=>{
 if(!isAllYears)return 0;
