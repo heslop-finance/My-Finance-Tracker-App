@@ -1409,7 +1409,7 @@ const SEED=[
 
 // ── LOCAL STORAGE ─────────────────────────────────────────────
 const loadLS=(key,fallback)=>{try{const s=localStorage.getItem(key);return s?JSON.parse(s):fallback;}catch{return fallback;}};
-const AKAHU_ENABLED=import.meta.env.VITE_AKAHU_ENABLED==='true';
+const AKAHU_ENABLED=localStorage.getItem('ft_akahu_enabled')==='true';
 
 // ── APP ────────────────────────────────────────────────────────
 export default function App(){
@@ -1466,6 +1466,7 @@ useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{window.scrollTo(0,0);},[view]);
+useEffect(()=>{const params=new URLSearchParams(window.location.search);if(params.get('akahu')==='enable'){localStorage.setItem('ft_akahu_enabled','true');window.location.href=window.location.pathname;}if(params.get('akahu')==='disable'){localStorage.removeItem('ft_akahu_enabled');window.location.href=window.location.pathname;}},[]);
 useEffect(()=>{if(!AKAHU_ENABLED)return;if(!lastSynced){handleSync();return;}const hoursSinceSync=(Date.now()-new Date(lastSynced).getTime())/(1000*60*60);if(hoursSinceSync>=6){handleSync();}},[]);
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Food'||t.ledgerlyCategory==='Food & Drink'?{...t,ledgerlyCategory:'Groceries'}:t));},[]);
