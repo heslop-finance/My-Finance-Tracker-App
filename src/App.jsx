@@ -488,8 +488,8 @@ return(
 })()}
 </svg>
 </div>
-<div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:10,color:C.t3}}>
-{showStacked&&stackCats.map(c=><div key={c} style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,background:CAT_COLORS[c]||C.t2,borderRadius:2,display:"inline-block"}}/>{c}</div>)}
+<div style={{display:'flex',gap:8,flexWrap:'wrap',fontSize:10,color:C.t3}}>
+{showStacked&&stackCats.filter(c=>bars.some(b=>(b.bycat[c]||0)>0)).map(c=><div key={c} style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,background:CAT_COLORS[c]||C.t2,borderRadius:2,display:'inline-block'}}/>{c}</div>)}
 </div>
 </div>
 );
