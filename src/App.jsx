@@ -301,7 +301,8 @@ else relevantEntries.filter(e=>e.category===catFilter&&occursOn(e,d)).forEach(e=
 return val;
 },[showProj,entries,displayPeriod,catFilter,isYearly]);
 
-const maxVal=Math.max(...bars.map(b=>b.val),showAvg&&!isAllYears?rollingAvg:0,projection||0,1);
+const maxCumul=showCumul&&!isAllYears?Math.max(...cumulativeData,0):0;
+const maxVal=Math.max(...bars.map(b=>b.val),showAvg&&!isAllYears?rollingAvg:0,projection||0,maxCumul,1);
 const mostVal=Math.max(...bars.map(b=>b.val));
 const mostBar=bars.find(b=>b.val===mostVal&&b.val>0);
 const leastBar=bars.filter(b=>b.val>0).sort((a,b)=>a.val-b.val)[0];
@@ -309,7 +310,7 @@ const W=320,H=120,PAD=20,barW=Math.max(1,(W-PAD*2)/bars.length-1);
 const xOf=i=>PAD+i*(W-PAD*2)/bars.length;
 const yOf=v=>H-PAD-(v/maxVal)*(H-PAD*2);
 const avgY=yOf(rollingAvg);
-const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData]);
+const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData,showCumul]);
 
 const allYearsAvg=useMemo(()=>{
 if(!isAllYears)return 0;
