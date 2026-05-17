@@ -288,18 +288,48 @@ return total*(pDays/365);
 
 const cumulativeData=useMemo(()=>{let sum=0;return bars.map(b=>{sum+=b.val;return sum;});},[bars]);
 const projection=useMemo(()=>{
-if(isAllYears||!showProj||isYearly)return null;
-const pDays=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
-const relevantEntries=entries.filter(e=>e.type==="expense");
+if(!showProj||isYearly||isAllYears)return null;
+
+if(actualsMode&&syncedTransactions.length>0){
+const start=getPeriodStart(displayPeriod);
+const todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+const daysElapsed=Math.max(1,Math.round((todayMidnight-start)/86400000)+1);
+const totalDays=bars.length;
+
+const dailySpends=Array.from({length:daysElapsed},(_,i)=>{
+const d=new Date(start);d.setDate(d.getDate()+i);
+const dStr=dateKey(d);
+return syncedTransactions
+.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date===dStr&&(catFilter==='All Expenses'||t.ledgerlyCategory===catFilter))
+.reduce((s,t)=>s+Math.abs(t.amount),0);
+});
+
+const sorted=[...dailySpends].sort((a,b)=>a-b);
+const mid=Math.floor(sorted.length/2);
+const median=sorted.length%2!==0?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
+
+const threshold=median*3;
+const normalDays=dailySpends.filter(d=>d<=threshold);
+const outlierTotal=dailySpends.filter(d=>d>threshold).reduce((s,d)=>s+d,0);
+
+const normalTotal=normalDays.reduce((s,d)=>s+d,0);
+const normalDayCount=Math.max(normalDays.length,1);
+const dailyRate=normalTotal/normalDayCount;
+
+return dailyRate*totalDays+outlierTotal;
+}
+
+const pDays=(PERIODS.find(p=>p.key===displayPeriod)?.days||30.44);
+const relevantEntries=entries.filter(e=>e.type==='expense');
 let val=0;
 const periodStart=new Date();periodStart.setDate(periodStart.getDate()-Math.round(pDays)+1);
 const periodEnd=new Date(periodStart);periodEnd.setDate(periodEnd.getDate()+Math.round(pDays)-1);
 datesInRange(periodStart,periodEnd).forEach(d=>{
-if(catFilter==="All Expenses")relevantEntries.filter(e=>occursOn(e,d)).forEach(e=>{val+=e.amount;});
+if(catFilter==='All Expenses')relevantEntries.filter(e=>occursOn(e,d)).forEach(e=>{val+=e.amount;});
 else relevantEntries.filter(e=>e.category===catFilter&&occursOn(e,d)).forEach(e=>{val+=e.amount;});
 });
 return val;
-},[showProj,entries,displayPeriod,catFilter,isYearly]);
+},[showProj,entries,displayPeriod,catFilter,isYearly,isAllYears,actualsMode,syncedTransactions,bars]);
 
 const maxCumul=showCumul&&!isAllYears?Math.max(...cumulativeData,0):0;
 const maxVal=Math.max(...bars.map(b=>b.val),showAvg&&!isAllYears?rollingAvg:0,projection||0,maxCumul,1);
