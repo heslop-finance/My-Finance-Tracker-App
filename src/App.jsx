@@ -309,20 +309,24 @@ const actualSpendSoFar=periodTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
 const recurringEntries=entries.filter(e=>
 e.type==='expense'&&
 e.recur!=='One-off'&&
+e.recur!=='Variable'&&
 !SAVINGS_CATS.has(e.category)&&
 (catFilter==='All Expenses'||e.category===catFilter)
 );
 const recurringCats=new Set(recurringEntries.map(e=>e.category));
 let remainingRecurring=0;
-recurringCats.forEach(cat=>{
-const expectedThisPeriod=recurringEntries
-.filter(e=>e.category===cat)
-.reduce((s,e)=>s+periodAmt(e,isYearly?30.44:(PERIODS.find(p=>p.key===displayPeriod)?.days||30.44)),0);
-const actualThisCat=periodTxns
-.filter(t=>t.ledgerlyCategory===cat)
-.reduce((s,t)=>s+Math.abs(t.amount),0);
-remainingRecurring+=Math.max(0,expectedThisPeriod-actualThisCat);
+if(isYearly){
+const currentMonth=today.getMonth();
+Array.from({length:remainingDays},(_,i)=>{
+const monthIndex=currentMonth+i+1;
+const daysInMonth=new Date(today.getFullYear(),monthIndex+1,0).getDate();
+const monthDays=Array.from({length:daysInMonth},(_,d)=>new Date(today.getFullYear(),monthIndex,d+1));
+recurringEntries.forEach(e=>{monthDays.forEach(d=>{if(occursOn(e,d))remainingRecurring+=e.amount;});});
 });
+}else{
+const remainingDaysArray=Array.from({length:remainingDays},(_,i)=>{const d=new Date(todayMidnight);d.setDate(d.getDate()+i+1);return d;});
+recurringEntries.forEach(e=>{remainingDaysArray.forEach(d=>{if(occursOn(e,d))remainingRecurring+=e.amount;});});
+}
 const discretionaryTxns=periodTxns.filter(t=>!recurringCats.has(t.ledgerlyCategory));
 const dailyDiscretionary=Array.from({length:daysElapsed},(_,i)=>{
 if(isYearly){
