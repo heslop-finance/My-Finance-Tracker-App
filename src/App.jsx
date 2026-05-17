@@ -288,57 +288,62 @@ return total*(pDays/365);
 
 const cumulativeData=useMemo(()=>{let sum=0;return bars.map(b=>{sum+=b.val;return sum;});},[bars]);
 const projection=useMemo(()=>{
-if(!showProj||isAllYears)return null;
+if(!showProj||isAllYears||displayPeriod==='weekly')return null;
 if(isYearly&&!actualsMode)return null;
-
-if(isYearly&&actualsMode&&syncedTransactions.length>0){
-const monthsElapsed=Math.max(1,today.getMonth()+1);
-const totalMonths=12;
-const monthlySpends=Array.from({length:monthsElapsed},(_,m)=>{
-const mStr=`${today.getFullYear()}-${pad(m+1)}`;
-return syncedTransactions
-.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date.startsWith(mStr)&&(catFilter==='All Expenses'||t.ledgerlyCategory===catFilter))
-.reduce((s,t)=>s+Math.abs(t.amount),0);
-});
-const sorted=[...monthlySpends].sort((a,b)=>a-b);
-const mid=Math.floor(sorted.length/2);
-const median=sorted.length%2!==0?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
-const threshold=median*3;
-const normalMonths=monthlySpends.filter(m=>m<=threshold);
-const outlierTotal=monthlySpends.filter(m=>m>threshold).reduce((s,m)=>s+m,0);
-const normalTotal=normalMonths.reduce((s,m)=>s+m,0);
-const normalMonthCount=Math.max(normalMonths.length,1);
-const monthlyRate=normalTotal/normalMonthCount;
-return monthlyRate*totalMonths+outlierTotal;
-}
 
 if(actualsMode&&syncedTransactions.length>0){
 const start=getPeriodStart(displayPeriod);
 const todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
 const daysElapsed=Math.max(1,Math.round((todayMidnight-start)/86400000)+1);
-const totalDays=bars.length;
-
-const dailySpends=Array.from({length:daysElapsed},(_,i)=>{
+const startStr=dateKey(start);
+const totalDays=isYearly?12:bars.length;
+const remainingDays=Math.max(0,totalDays-daysElapsed);
+const periodTxns=syncedTransactions.filter(t=>
+t.ledgerlyType==='expense'&&
+!t.isSavingsDeposit&&
+t.date>=startStr&&
+t.date<=todayStr&&
+(catFilter==='All Expenses'||t.ledgerlyCategory===catFilter)
+);
+const actualSpendSoFar=periodTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
+const recurringEntries=entries.filter(e=>
+e.type==='expense'&&
+e.recur!=='One-off'&&
+!SAVINGS_CATS.has(e.category)&&
+(catFilter==='All Expenses'||e.category===catFilter)
+);
+const recurringCats=new Set(recurringEntries.map(e=>e.category));
+let remainingRecurring=0;
+recurringCats.forEach(cat=>{
+const expectedThisPeriod=recurringEntries
+.filter(e=>e.category===cat)
+.reduce((s,e)=>s+periodAmt(e,isYearly?30.44:(PERIODS.find(p=>p.key===displayPeriod)?.days||30.44)),0);
+const actualThisCat=periodTxns
+.filter(t=>t.ledgerlyCategory===cat)
+.reduce((s,t)=>s+Math.abs(t.amount),0);
+remainingRecurring+=Math.max(0,expectedThisPeriod-actualThisCat);
+});
+const discretionaryTxns=periodTxns.filter(t=>!recurringCats.has(t.ledgerlyCategory));
+const dailyDiscretionary=Array.from({length:daysElapsed},(_,i)=>{
+if(isYearly){
+const mStr=`${today.getFullYear()}-${pad(i+1)}`;
+return discretionaryTxns.filter(t=>t.date.startsWith(mStr)).reduce((s,t)=>s+Math.abs(t.amount),0);
+}
 const d=new Date(start);d.setDate(d.getDate()+i);
 const dStr=dateKey(d);
-return syncedTransactions
-.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date===dStr&&(catFilter==='All Expenses'||t.ledgerlyCategory===catFilter))
-.reduce((s,t)=>s+Math.abs(t.amount),0);
+return discretionaryTxns.filter(t=>t.date===dStr).reduce((s,t)=>s+Math.abs(t.amount),0);
 });
-
-const sorted=[...dailySpends].sort((a,b)=>a-b);
+const sorted=[...dailyDiscretionary].sort((a,b)=>a-b);
 const mid=Math.floor(sorted.length/2);
 const median=sorted.length%2!==0?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
-
 const threshold=median*3;
-const normalDays=dailySpends.filter(d=>d<=threshold);
-const outlierTotal=dailySpends.filter(d=>d>threshold).reduce((s,d)=>s+d,0);
-
-const normalTotal=normalDays.reduce((s,d)=>s+d,0);
-const normalDayCount=Math.max(normalDays.length,1);
-const dailyRate=normalTotal/normalDayCount;
-
-return dailyRate*totalDays+outlierTotal;
+const normalBuckets=dailyDiscretionary.filter(d=>d<=threshold);
+const outlierTotal=dailyDiscretionary.filter(d=>d>threshold).reduce((s,d)=>s+d,0);
+const normalTotal=normalBuckets.reduce((s,d)=>s+d,0);
+const normalCount=Math.max(normalBuckets.length,1);
+const discretionaryRate=normalTotal/normalCount;
+const discretionaryProjection=discretionaryRate*remainingDays+outlierTotal;
+return actualSpendSoFar+remainingRecurring+discretionaryProjection;
 }
 
 const pDays=(PERIODS.find(p=>p.key===displayPeriod)?.days||30.44);
@@ -390,6 +395,10 @@ const toggles=isAllYears?[
 {label:"Stack",active:showStacked,set:setShowStacked},
 {label:"Avg",active:showAllTimeAvg,set:setShowAllTimeAvg},
 {label:"Trend",active:showAllTimeTrend,set:setShowAllTimeTrend},
+]:displayPeriod==='weekly'?[
+{label:"Stack",active:showStacked,set:setShowStacked},
+{label:"Avg",active:showAvg,set:setShowAvg},
+{label:"Cumul.",active:showCumul,set:setShowCumul},
 ]:[
 {label:"Stack",active:showStacked,set:setShowStacked},
 {label:"Avg",active:showAvg,set:setShowAvg},
@@ -426,7 +435,7 @@ return(
 {mostBar&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>↑ </span><Mono color={C.red} size={11}>{fmtS(mostBar.val)}</Mono><span style={{color:C.t4,marginLeft:4}}>{mostBar.label}</span></div>}
 {leastBar&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>↓ </span><Mono color={C.green} size={11}>{fmtS(leastBar.val)}</Mono><span style={{color:C.t4,marginLeft:4}}>{leastBar.label}</span></div>}
 {showAvg&&rollingAvg>0&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>1-yr avg </span><Mono color={C.green} size={11}>{fmtS(rollingAvg)}</Mono></div>}
-{showProj&&projection!=null&&!isYearly&&!isAllYears&&<div style={{background:C.border,borderRadius:8,padding:'4px 9px',fontSize:11}}><span style={{color:C.t3}}>Proj. </span><Mono color={C.amber} size={11}>{fmtS(projection)}</Mono></div>}
+{showProj&&projection!=null&&!isAllYears&&<div style={{background:C.border,borderRadius:8,padding:'4px 9px',fontSize:11}}><span style={{color:C.t3}}>Proj. </span><Mono color={C.amber} size={11}>{fmtS(projection)}</Mono></div>}
 </div>
 )}
 <div style={{overflowX:"auto",paddingBottom:6}}>
