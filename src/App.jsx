@@ -1137,9 +1137,14 @@ return <g key={i}><rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={i
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[]}){
+function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[]}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
+const[showRetirement,setShowRetirement]=useState(false);
+const[useCustomTarget,setUseCustomTarget]=useState(false);
+const[customTarget,setCustomTarget]=useState('');
+const[withdrawalRate]=useState(0.04);
+const[showFILine,setShowFILine]=useState(false);
 const liveBal=useMemo(()=>{
 if(!mortgageSchedule||!mortgageSchedule.length) return mortgagePrincipal;
 const today=new Date();
@@ -1150,12 +1155,42 @@ const totalAssets=assets.reduce((s,a)=>s+Number(a.value),0);
 const totalLiabs=liabilities.reduce((s,l)=>s+(l.linkMortgage?liveBal:Number(l.value)),0);
 const netWorth=totalAssets-totalLiabs;
 const equityPct=totalAssets>0?(totalAssets-totalLiabs)/totalAssets*100:0;
+const suggestedAnnualExpenses=useMemo(()=>{
+if(syncedTransactions.length>0){
+const oneYearAgo=new Date();oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
+const oneYearAgoStr=dateKey(oneYearAgo);
+const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date>oneYearAgoStr&&t.date<=todayStr).reduce((s,t)=>s+Math.abs(t.amount),0);
+if(total>0)return total;
+}
+return 0;
+},[syncedTransactions]);
+const fiTarget=useMemo(()=>{
+if(useCustomTarget&&Number(customTarget)>0)return Number(customTarget);
+if(suggestedAnnualExpenses>0)return Math.round(suggestedAnnualExpenses/withdrawalRate);
+return 0;
+},[useCustomTarget,customTarget,suggestedAnnualExpenses,withdrawalRate]);
+const fiPct=fiTarget>0?Math.min(100,(netWorth/fiTarget)*100):0;
+const fiGap=Math.max(0,fiTarget-netWorth);
+const trajectory=useMemo(()=>{
+if(snapshots.length<12)return null;
+const sorted=[...snapshots].sort((a,b)=>a.date.localeCompare(b.date));
+const recent=sorted.slice(-12);
+const monthlyGrowths=[];
+for(let i=1;i<recent.length;i++)monthlyGrowths.push(recent[i].netWorth-recent[i-1].netWorth);
+const avgMonthlyGrowth=monthlyGrowths.reduce((s,v)=>s+v,0)/monthlyGrowths.length;
+if(avgMonthlyGrowth<=0)return null;
+const monthsToFI=fiGap/avgMonthlyGrowth;
+const yearsToFI=monthsToFI/12;
+const targetYear=new Date().getFullYear()+Math.ceil(yearsToFI);
+return{avgMonthlyGrowth,yearsToFI,targetYear};
+},[snapshots,fiGap]);
 const updateAsset=(id,field,val)=>setAssets(as=>as.map(a=>a.id===id?{...a,[field]:val}:a));
 const updateLiab=(id,field,val)=>setLiabilities(ls=>ls.map(l=>l.id===id?{...l,[field]:val}:l));
 const chartSnaps=snapshots.length>=2?snapshots:[...snapshots];
 const W=360,H=120,PAD=28,RPAD=10;
 const allVals=chartSnaps.map(s=>s.netWorth);
-const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);
+const minV=Math.min(...allVals,0);
+const maxV=Math.max(...allVals,showFILine&&fiTarget>0?fiTarget:0,1);
 const range=maxV-minV||1;
 const xS=i=>PAD+i*(W-PAD-RPAD)/(Math.max(chartSnaps.length-1,1));
 const yS=v=>H-PAD-((v-minV)/range)*(H-PAD*2);
@@ -1263,6 +1298,7 @@ return(
 {minV<0&&<line x1={PAD} y1={yS(0)} x2={W-RPAD} y2={yS(0)} stroke={C.t5} strokeWidth={1} strokeDasharray="3 2"/>}
 <path d={`${chartSnaps.map((s,i)=>`${i===0?"M":"L"}${xS(i)},${yS(s.netWorth)}`).join(" ")} L${xS(chartSnaps.length-1)},${H-PAD} L${xS(0)},${H-PAD} Z`} fill="url(#nwg)"/>
 <polyline points={linePts} fill="none" stroke={C.green} strokeWidth={2}/>
+{showFILine&&fiTarget>0&&(()=>{const fiY=yS(fiTarget);return(<><line x1={PAD} y1={fiY} x2={W-RPAD} y2={fiY} stroke={C.amber} strokeWidth={1} strokeDasharray="4 3" opacity={.7}/><rect x={W-RPAD-42} y={fiY-8} width={40} height={16} rx={3} fill={C.card}/><text x={W-RPAD-4} y={fiY} fill={C.amber} fontSize={7} fontWeight="700" textAnchor="end" dominantBaseline="middle" opacity={.9}>FI target</text></>);})()}
 {chartSnaps.map((s,i)=>(
 <text key={i} x={xS(i)} y={H-2} fill={C.t5} fontSize={7} textAnchor={i===0?"start":i===chartSnaps.length-1?"end":"middle"}>{s.date.slice(0,7)}</text>
 ))}
@@ -1276,6 +1312,7 @@ return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} strok
 })()}
 </svg>
 </div>
+{fiTarget>0&&<div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,marginBottom:4}}><button onClick={()=>setShowFILine(v=>!v)} className={`rb ${showFILine?'on':''}`} style={{fontSize:10}}>FI target</button>{showFILine&&<div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:C.amber}}><span style={{width:16,height:2,background:C.amber,display:'inline-block',borderRadius:1,opacity:.7}}/>FI: {fmtS(fiTarget)}</div>}</div>}
 {(()=>{
 const first=snapshots[0],last=snapshots[snapshots.length-1];
 const change=last.netWorth-first.netWorth,pct=first.netWorth!==0?(change/Math.abs(first.netWorth))*100:0;
@@ -1298,6 +1335,75 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 </div>
 </>}
 </div>
+{fiTarget>0&&(
+<div className="card" style={{marginTop:-12}}>
+<div onClick={()=>setShowRetirement(v=>!v)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
+<div>
+<div style={{fontSize:13,fontWeight:700,color:C.t1}}>Retirement Planning</div>
+<div style={{fontSize:11,color:C.t4,marginTop:2}}>Financial independence tracker</div>
+</div>
+<span style={{color:C.t4,fontSize:16,display:'inline-block',transform:showRetirement?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
+</div>
+{showRetirement&&<>
+<div style={{borderTop:`1px solid ${C.border}`,marginTop:14,paddingTop:14}}>
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+<div>
+<div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>FI Target <span style={{color:C.t5,textTransform:'none',letterSpacing:'normal'}}>(4% rule)</span></div>
+<Mono color={C.amber} size={22}>{fmtS(fiTarget)}</Mono>
+{!useCustomTarget&&suggestedAnnualExpenses>0&&<div style={{fontSize:10,color:C.t4,marginTop:3}}>Based on {fmtS(suggestedAnnualExpenses)}/yr expenses ÷ 4%</div>}
+</div>
+<button onClick={()=>{setUseCustomTarget(v=>!v);if(useCustomTarget)setCustomTarget('');}} style={{background:useCustomTarget?'rgba(110,231,183,.1)':'none',border:`1px solid ${useCustomTarget?C.green:C.t5}`,borderRadius:6,padding:'4px 8px',color:useCustomTarget?C.green:C.t4,fontSize:10,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{useCustomTarget?'Using custom':'Override'}</button>
+</div>
+{useCustomTarget&&(
+<div style={{marginTop:8}}>
+<label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Custom FI target ($)</label>
+<input className="fi" type="text" inputMode="decimal" placeholder={suggestedAnnualExpenses>0?String(Math.round(suggestedAnnualExpenses/withdrawalRate)):'e.g. 1500000'} value={customTarget} onFocus={e=>e.target.select()} onChange={e=>setCustomTarget(e.target.value)} style={{padding:'8px 12px'}}/>
+</div>
+)}
+<div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>The 4% rule suggests you can withdraw 4% of your portfolio annually without depleting it. This is a guide only and does not account for inflation or market returns.</div>
+</div>
+<div style={{marginBottom:14}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
+<div style={{fontSize:11,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em'}}>Financial Independence</div>
+<Mono color={fiPct>=100?C.green:C.amber} size={18}>{fmtN(fiPct)}%</Mono>
+</div>
+<div style={{height:12,background:C.border,borderRadius:6,overflow:'hidden',marginBottom:10}}>
+<div style={{height:'100%',width:`${fiPct}%`,background:fiPct>=100?C.green:`linear-gradient(90deg,${C.green},${C.amber})`,borderRadius:6,transition:'width .6s ease'}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+{[{label:'Current',val:fmtS(netWorth),color:netWorth>=0?C.green:C.red},{label:'Target',val:fmtS(fiTarget),color:C.amber},{label:'Gap',val:fmtS(fiGap),color:C.t2}].map(s=>(
+<div key={s.label} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
+<div style={{fontSize:9,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>{s.label}</div>
+<Mono color={s.color} size={12}>{s.val}</Mono>
+</div>
+))}
+</div>
+</div>
+{snapshots.length<12&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
+<div style={{fontSize:12,color:C.t4,marginBottom:4}}>Trajectory available after 12 monthly snapshots</div>
+<div style={{fontSize:11,color:C.t5}}>{snapshots.length} of 12 snapshots recorded</div>
+</div>
+)}
+{trajectory&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px'}}>
+<div style={{fontSize:11,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:10}}>Trajectory</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
+{[{label:'Monthly growth',val:`+${fmtS(trajectory.avgMonthlyGrowth)}`,color:trajectory.avgMonthlyGrowth>=0?C.green:C.red},{label:'Years to FI',val:`~${fmtN(trajectory.yearsToFI)} yrs`,color:C.t1},{label:'Target year',val:String(trajectory.targetYear),color:C.cyan}].map(s=>(
+<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
+<div style={{fontSize:9,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>{s.label}</div>
+<Mono color={s.color} size={12}>{s.val}</Mono>
+</div>
+))}
+</div>
+<div style={{fontSize:10,color:C.t5,fontStyle:'italic'}}>Based on your average monthly net worth growth over the last 12 snapshots. Accuracy improves over time.</div>
+</div>
+)}
+</div>
+</>}
+</div>
+)}
 </div>
 );
 }
@@ -2027,7 +2133,7 @@ return(
 </>}
 
 {view==="mortgage"&&<MortgageWidget cfg={mortgageCfg} setCfg={setMortgageCfg} rateChanges={mortgageRateChanges} setRateChanges={setMortgageRateChanges} lumpSums={mortgageLumpSums} setLumpSums={setMortgageLumpSums} displayPeriod={displayPeriod}/>}
-{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances}/>}
+{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
