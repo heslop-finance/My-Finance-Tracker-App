@@ -1137,7 +1137,7 @@ return <g key={i}><rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={i
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[]}){
+function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[]}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
@@ -1162,8 +1162,9 @@ const oneYearAgoStr=dateKey(oneYearAgo);
 const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date>oneYearAgoStr&&t.date<=todayStr).reduce((s,t)=>s+Math.abs(t.amount),0);
 if(total>0)return total;
 }
-return 0;
-},[syncedTransactions]);
+const annualFromEntries=entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&!SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,365),0);
+return annualFromEntries;
+},[syncedTransactions,entries]);
 const fiTarget=useMemo(()=>{
 if(useCustomTarget&&Number(customTarget)>0)return Number(customTarget);
 if(suggestedAnnualExpenses>0)return Math.round(suggestedAnnualExpenses/withdrawalRate);
@@ -1351,7 +1352,7 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <div>
 <div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>FI Target <span style={{color:C.t5,textTransform:'none',letterSpacing:'normal'}}>(4% rule)</span></div>
 <Mono color={C.amber} size={22}>{fmtS(fiTarget)}</Mono>
-{!useCustomTarget&&suggestedAnnualExpenses>0&&<div style={{fontSize:10,color:C.t4,marginTop:3}}>Based on {fmtS(suggestedAnnualExpenses)}/yr expenses ÷ 4%</div>}
+{!useCustomTarget&&suggestedAnnualExpenses>0&&<div style={{fontSize:10,color:C.t4,marginTop:3}}>{syncedTransactions.length>0?`Based on ${fmtS(suggestedAnnualExpenses)}/yr actual expenses ÷ 4%`:`Based on ${fmtS(suggestedAnnualExpenses)}/yr estimated expenses ÷ 4%`}</div>}
 </div>
 <button onClick={()=>{setUseCustomTarget(v=>!v);if(useCustomTarget)setCustomTarget('');}} style={{background:useCustomTarget?'rgba(110,231,183,.1)':'none',border:`1px solid ${useCustomTarget?C.green:C.t5}`,borderRadius:6,padding:'4px 8px',color:useCustomTarget?C.green:C.t4,fontSize:10,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{useCustomTarget?'Using custom':'Override'}</button>
 </div>
@@ -2133,7 +2134,7 @@ return(
 </>}
 
 {view==="mortgage"&&<MortgageWidget cfg={mortgageCfg} setCfg={setMortgageCfg} rateChanges={mortgageRateChanges} setRateChanges={setMortgageRateChanges} lumpSums={mortgageLumpSums} setLumpSums={setMortgageLumpSums} displayPeriod={displayPeriod}/>}
-{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions}/>}
+{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
