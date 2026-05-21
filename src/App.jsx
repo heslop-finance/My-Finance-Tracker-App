@@ -1145,6 +1145,9 @@ const[useCustomTarget,setUseCustomTarget]=useState(false);
 const[customTarget,setCustomTarget]=useState('');
 const[withdrawalRate]=useState(0.04);
 const[showFILine,setShowFILine]=useState(false);
+const[showAssumptions,setShowAssumptions]=useState(false);
+const[nominalReturn,setNominalReturn]=useState(7.0);
+const[inflationRate,setInflationRate]=useState(2.5);
 const liveBal=useMemo(()=>{
 if(!mortgageSchedule||!mortgageSchedule.length) return mortgagePrincipal;
 const today=new Date();
@@ -1172,6 +1175,10 @@ return 0;
 },[useCustomTarget,customTarget,suggestedAnnualExpenses,withdrawalRate]);
 const fiPct=fiTarget>0?Math.min(100,(netWorth/fiTarget)*100):0;
 const fiGap=Math.max(0,fiTarget-netWorth);
+const realMonthlyReturn=useMemo(()=>{
+const real=Math.max(0,(nominalReturn-inflationRate)/100);
+return Math.pow(1+real,1/12)-1;
+},[nominalReturn,inflationRate]);
 const trajectory=useMemo(()=>{
 if(snapshots.length<12)return null;
 const sorted=[...snapshots].sort((a,b)=>a.date.localeCompare(b.date));
@@ -1180,11 +1187,20 @@ const monthlyGrowths=[];
 for(let i=1;i<recent.length;i++)monthlyGrowths.push(recent[i].netWorth-recent[i-1].netWorth);
 const avgMonthlyGrowth=monthlyGrowths.reduce((s,v)=>s+v,0)/monthlyGrowths.length;
 if(avgMonthlyGrowth<=0)return null;
-const monthsToFI=fiGap/avgMonthlyGrowth;
+let monthsToFI;
+if(realMonthlyReturn>0&&netWorth>0){
+let balance=netWorth,months=0;
+const maxMonths=12*100;
+while(balance<fiTarget&&months<maxMonths){balance=balance*(1+realMonthlyReturn)+avgMonthlyGrowth;months++;}
+monthsToFI=months<maxMonths?months:null;
+}else{
+monthsToFI=fiGap/avgMonthlyGrowth;
+}
+if(!monthsToFI)return null;
 const yearsToFI=monthsToFI/12;
 const targetYear=new Date().getFullYear()+Math.ceil(yearsToFI);
-return{avgMonthlyGrowth,yearsToFI,targetYear};
-},[snapshots,fiGap]);
+return{avgMonthlyGrowth,yearsToFI,targetYear,realReturnPct:((Math.pow(1+realMonthlyReturn,12)-1)*100)};
+},[snapshots,fiGap,fiTarget,netWorth,realMonthlyReturn]);
 const updateAsset=(id,field,val)=>setAssets(as=>as.map(a=>a.id===id?{...a,[field]:val}:a));
 const updateLiab=(id,field,val)=>setLiabilities(ls=>ls.map(l=>l.id===id?{...l,[field]:val}:l));
 const chartSnaps=snapshots.length>=2?snapshots:[...snapshots];
@@ -1365,6 +1381,22 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>The 4% rule suggests you can withdraw 4% of your portfolio annually without depleting it. This is a guide only and does not account for inflation or market returns.</div>
 </div>
 <div style={{marginBottom:14}}>
+<div onClick={()=>setShowAssumptions(v=>!v)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',padding:'8px 12px',background:C.bg,border:`1px solid ${C.border}`,borderRadius:showAssumptions?'10px 10px 0 0':'10px'}}>
+<div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:11,color:C.t3,fontWeight:600}}>Assumptions</span><span style={{fontSize:10,color:C.t5}}>Return {nominalReturn}% · Inflation {inflationRate}% · Real {fmtN(Math.max(0,nominalReturn-inflationRate))}%</span></div>
+<span style={{color:C.t4,fontSize:13,display:'inline-block',transform:showAssumptions?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
+</div>
+{showAssumptions&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderTop:'none',borderRadius:'0 0 10px 10px',padding:'12px 14px'}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Nominal return (%)</label><input className="fi" type="text" inputMode="decimal" value={nominalReturn} onFocus={e=>e.target.select()} onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>=0&&v<=30)setNominalReturn(v);}} style={{padding:'6px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Inflation (%)</label><input className="fi" type="text" inputMode="decimal" value={inflationRate} onFocus={e=>e.target.select()} onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>=0&&v<=20)setInflationRate(v);}} style={{padding:'6px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Real return (%)</label><div style={{background:C.card,border:`1px solid ${C.t5}`,borderRadius:10,padding:'6px 10px'}}><Mono color={Math.max(0,nominalReturn-inflationRate)>0?C.green:C.red} size={13}>{fmtN(Math.max(0,nominalReturn-inflationRate))}%</Mono></div></div>
+</div>
+<div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>Real return = nominal return minus inflation. Used to project inflation-adjusted portfolio growth.</div>
+</div>
+)}
+</div>
+<div style={{marginBottom:14}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
 <div style={{fontSize:11,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em'}}>Financial Independence</div>
 <Mono color={fiPct>=100?C.green:C.amber} size={18}>{fmtN(fiPct)}%</Mono>
@@ -1398,7 +1430,7 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 </div>
 ))}
 </div>
-<div style={{fontSize:10,color:C.t5,fontStyle:'italic'}}>Based on your average monthly net worth growth over the last 12 snapshots. Accuracy improves over time.</div>
+<div style={{fontSize:10,color:C.t5,fontStyle:'italic'}}>Based on your average monthly net worth growth over the last 12 snapshots, compounded at {fmtN(trajectory.realReturnPct)}% real return p.a. Accuracy improves over time.</div>
 </div>
 )}
 </div>
