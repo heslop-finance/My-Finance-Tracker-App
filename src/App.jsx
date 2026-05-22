@@ -1146,8 +1146,8 @@ const[customTarget,setCustomTarget]=useState('');
 const[withdrawalRate]=useState(0.04);
 const[showFILine,setShowFILine]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
-const[nominalReturn,setNominalReturn]=useState(7.0);
-const[inflationRate,setInflationRate]=useState(2.5);
+const[nominalReturn,setNominalReturn]=useState('7.0');
+const[inflationRate,setInflationRate]=useState('2.5');
 const liveBal=useMemo(()=>{
 if(!mortgageSchedule||!mortgageSchedule.length) return mortgagePrincipal;
 const today=new Date();
@@ -1176,7 +1176,7 @@ return 0;
 const fiPct=fiTarget>0?Math.min(100,(netWorth/fiTarget)*100):0;
 const fiGap=Math.max(0,fiTarget-netWorth);
 const realMonthlyReturn=useMemo(()=>{
-const real=Math.max(0,(nominalReturn-inflationRate)/100);
+const real=Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0))/100;
 return Math.pow(1+real,1/12)-1;
 },[nominalReturn,inflationRate]);
 const trajectory=useMemo(()=>{
@@ -1382,15 +1382,15 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 </div>
 <div style={{marginBottom:14}}>
 <div onClick={()=>setShowAssumptions(v=>!v)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',padding:'8px 12px',background:C.bg,border:`1px solid ${C.border}`,borderRadius:showAssumptions?'10px 10px 0 0':'10px'}}>
-<div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:11,color:C.t3,fontWeight:600}}>Assumptions</span><span style={{fontSize:10,color:C.t5}}>Return {nominalReturn}% · Inflation {inflationRate}% · Real {fmtN(Math.max(0,nominalReturn-inflationRate))}%</span></div>
+<div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:11,color:C.t3,fontWeight:600}}>Assumptions</span><span style={{fontSize:10,color:C.t5}}>Return {nominalReturn}% · Inflation {inflationRate}% · Real {fmtN(Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0)))}%</span></div>
 <span style={{color:C.t4,fontSize:13,display:'inline-block',transform:showAssumptions?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
 </div>
 {showAssumptions&&(
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderTop:'none',borderRadius:'0 0 10px 10px',padding:'12px 14px'}}>
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
-<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Nominal return (%)</label><input className="fi" type="text" inputMode="decimal" value={nominalReturn} onFocus={e=>e.target.select()} onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>=0&&v<=30)setNominalReturn(v);}} style={{padding:'6px 10px',fontSize:13}}/></div>
-<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Inflation (%)</label><input className="fi" type="text" inputMode="decimal" value={inflationRate} onFocus={e=>e.target.select()} onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>=0&&v<=20)setInflationRate(v);}} style={{padding:'6px 10px',fontSize:13}}/></div>
-<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Real return (%)</label><div style={{background:C.card,border:`1px solid ${C.t5}`,borderRadius:10,padding:'6px 10px'}}><Mono color={Math.max(0,nominalReturn-inflationRate)>0?C.green:C.red} size={13}>{fmtN(Math.max(0,nominalReturn-inflationRate))}%</Mono></div></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Nominal return (%)</label><input className="fi" type="text" inputMode="decimal" value={nominalReturn} onFocus={e=>e.target.select()} onChange={e=>setNominalReturn(e.target.value)} style={{padding:'6px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Inflation (%)</label><input className="fi" type="text" inputMode="decimal" value={inflationRate} onFocus={e=>e.target.select()} onChange={e=>setInflationRate(e.target.value)} style={{padding:'6px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Real return (%)</label><div style={{background:C.card,border:`1px solid ${C.t5}`,borderRadius:10,padding:'6px 10px'}}><Mono color={Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0))>0?C.green:C.red} size={13}>{fmtN(Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0)))}%</Mono></div></div>
 </div>
 <div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>Real return = nominal return minus inflation. Used to project inflation-adjusted portfolio growth.</div>
 </div>
