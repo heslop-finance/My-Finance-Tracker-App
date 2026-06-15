@@ -936,6 +936,21 @@ let d=entry.startDate;
 while(d<todayStr)d=advanceDueDate(d,entry.recur);
 return d;
 }
+function PaymentForm({value,onChange,onSubmit,onCancel,submitLabel,akahuBalances=[]}){
+return(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:12}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Name</label><input className="fi" placeholder="e.g. Car insurance" value={value.name} onChange={e=>onChange(f=>({...f,name:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Total amount ($)</label><input className="fi" type="text" inputMode="decimal" value={value.amount} onFocus={e=>e.target.select()} onChange={e=>onChange(f=>({...f,amount:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Already saved ($)</label><input className="fi" type="text" inputMode="decimal" value={value.saved} onFocus={e=>e.target.select()} onChange={e=>onChange(f=>({...f,saved:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Due date</label><input className="fi" type="date" value={value.dueDate} onChange={e=>onChange(f=>({...f,dueDate:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Frequency</label><select className="fi" value={value.recur} onChange={e=>onChange(f=>({...f,recur:e.target.value}))} style={{padding:'8px 12px'}}>{['Weekly','Fortnightly','Monthly','Quarterly','Yearly','One-off'].map(r=><option key={r}>{r}</option>)}</select></div>
+{AKAHU_ENABLED&&akahuBalances.length>0&&<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Link to Akahu account (auto-updates saved amount)</label><select className="fi" value={value.akahuAccountId||''} onChange={e=>onChange(f=>({...f,akahuAccountId:e.target.value}))} style={{padding:'8px 12px'}}><option value=''>— not linked —</option>{akahuBalances.filter(a=>a.type!=='LOAN').map(a=><option key={a.id} value={a.id}>{a.name} — ${a.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>)}</select></div>}
+</div>
+<div style={{display:'flex',gap:8}}><GradBtn onClick={onSubmit}>{submitLabel}</GradBtn><button onClick={onCancel} className="rb" style={{flex:'none'}}>Cancel</button></div>
+</div>
+);
+}
 function UpcomingPayments({payments,setPayments,entries=[],displayPeriod='monthly',akahuBalances=[]}){
 const[showAdd,setShowAdd]=useState(false);
 const[showImport,setShowImport]=useState(false);
@@ -985,21 +1000,6 @@ function importEntry(e){
 const next=nextDueFromEntry(e);if(!next)return;
 setPayments(prev=>[...prev,{id:Date.now(),name:e.label,amount:Math.round(periodAmt(e,30)*100)/100,dueDate:next,recur:e.recur,entryId:e.id,saved:0,akahuAccountId:''}]);
 }
-function PaymentForm({value,onChange,onSubmit,onCancel,submitLabel}){
-return(
-<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:12}}>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Name</label><input className="fi" placeholder="e.g. Car insurance" value={value.name} onChange={e=>onChange(f=>({...f,name:e.target.value}))} style={{padding:'8px 12px'}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Total amount ($)</label><input className="fi" type="text" inputMode="decimal" value={value.amount} onFocus={e=>e.target.select()} onChange={e=>onChange(f=>({...f,amount:e.target.value}))} style={{padding:'8px 12px'}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Already saved ($)</label><input className="fi" type="text" inputMode="decimal" value={value.saved} onFocus={e=>e.target.select()} onChange={e=>onChange(f=>({...f,saved:e.target.value}))} style={{padding:'8px 12px'}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Due date</label><input className="fi" type="date" value={value.dueDate} onChange={e=>onChange(f=>({...f,dueDate:e.target.value}))} style={{padding:'8px 12px'}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Frequency</label><select className="fi" value={value.recur} onChange={e=>onChange(f=>({...f,recur:e.target.value}))} style={{padding:'8px 12px'}}>{['Weekly','Fortnightly','Monthly','Quarterly','Yearly','One-off'].map(r=><option key={r}>{r}</option>)}</select></div>
-{AKAHU_ENABLED&&akahuBalances.length>0&&<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Link to Akahu account (auto-updates saved amount)</label><select className="fi" value={value.akahuAccountId||''} onChange={e=>onChange(f=>({...f,akahuAccountId:e.target.value}))} style={{padding:'8px 12px'}}><option value=''>— not linked —</option>{akahuBalances.filter(a=>a.type!=='LOAN').map(a=><option key={a.id} value={a.id}>{a.name} — ${a.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>)}</select></div>}
-</div>
-<div style={{display:'flex',gap:8}}><GradBtn onClick={onSubmit}>{submitLabel}</GradBtn><button onClick={onCancel} className="rb" style={{flex:'none'}}>Cancel</button></div>
-</div>
-);
-}
 return(
 <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16}}>
 <Row mb={sorted.length>0||showAdd||showImport?12:0}>
@@ -1020,7 +1020,7 @@ return(
 ))}
 </div>
 )}
-{showAdd&&<PaymentForm value={form} onChange={setForm} onSubmit={handleAdd} onCancel={()=>setShowAdd(false)} submitLabel="Add Payment"/>}
+{showAdd&&<PaymentForm value={form} onChange={setForm} onSubmit={handleAdd} onCancel={()=>setShowAdd(false)} submitLabel="Add Payment" akahuBalances={akahuBalances}/>}
 {sorted.length===0&&!showAdd&&!showImport&&<div style={{fontSize:13,color:C.t5,fontStyle:'italic',textAlign:'center',padding:'12px 0'}}>No upcoming payments tracked. Add one to stay ahead of bills.</div>}
 {sorted.map(p=>{
 const daysUntil=Math.round((new Date(p._next)-new Date(todayStr))/(1000*60*60*24));
@@ -1028,7 +1028,7 @@ const saved=p.saved||0;
 const pct=p.amount>0?Math.min(100,(saved/p.amount)*100):0;
 const linkedBal=AKAHU_ENABLED&&p.akahuAccountId?akahuBalances.find(a=>a.id===p.akahuAccountId):null;
 if(editingId===p.id&&editDraft){
-return <PaymentForm key={p.id} value={editDraft} onChange={setEditDraft} onSubmit={handleSaveEdit} onCancel={()=>{setEditingId(null);setEditDraft(null);}} submitLabel="Save Changes"/>;
+return <PaymentForm key={p.id} value={editDraft} onChange={setEditDraft} onSubmit={handleSaveEdit} onCancel={()=>{setEditingId(null);setEditDraft(null);}} submitLabel="Save Changes" akahuBalances={akahuBalances}/>;
 }
 return(
 <div key={p.id} style={{background:C.bg,border:`1px solid ${urgencyColor(daysUntil)}`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
@@ -1065,6 +1065,15 @@ return(
 </div>
 );
 })}
+{(()=>{const totalPerPeriod=payments.filter(p=>(p.saved||0)<p.amount).reduce((s,p)=>s+perPeriod({...p,_next:effectiveNextDue(p)}),0);return payments.length>0&&totalPerPeriod>0&&(
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 14px',marginBottom:8}}>
+<div style={{fontSize:12,color:C.t3,fontWeight:600}}>Total to set aside</div>
+<div style={{display:'flex',alignItems:'center',gap:6}}>
+<Mono color={C.green} size={13}>{fmt(totalPerPeriod)}</Mono>
+<span style={{fontSize:11,color:C.t4}}>per {PWORD[displayPeriod]}</span>
+</div>
+</div>
+);})()}
 {sorted.length>0&&(
 <div style={{background:'rgba(99,102,241,.08)',border:`1px solid rgba(99,102,241,.2)`,borderRadius:10,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
 <span style={{fontSize:12,color:C.t3}}>Due in next 30 days</span>
