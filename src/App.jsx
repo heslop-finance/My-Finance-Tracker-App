@@ -14,6 +14,7 @@ const s=(extra={})=>({...extra});
 const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Government Benefits","Other Income"];
 const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Investments","Travel","Car & Maintenance","Fines","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
+const FIXED_CATS=new Set(["Mortgage","Rent","Rates","Insurance","Subscriptions"]);
 const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
@@ -312,6 +313,7 @@ e.type==='expense'&&
 e.recur!=='One-off'&&
 e.recur!=='Variable'&&
 !SAVINGS_CATS.has(e.category)&&
+FIXED_CATS.has(e.category)&&
 (catFilter==='All Expenses'||e.category===catFilter)
 );
 const recurringCats=new Set(recurringEntries.map(e=>e.category));
@@ -912,6 +914,115 @@ return(<>
 );
 }
 
+// ── UPCOMING PAYMENTS ─────────────────────────────────────────
+function advanceDueDate(dateStr,recur){
+const d=parseDt(dateStr);
+if(recur==='Weekly')d.setDate(d.getDate()+7);
+else if(recur==='Fortnightly')d.setDate(d.getDate()+14);
+else if(recur==='Monthly')d.setMonth(d.getMonth()+1);
+else if(recur==='Quarterly')d.setMonth(d.getMonth()+3);
+else if(recur==='Yearly')d.setFullYear(d.getFullYear()+1);
+return dateKey(d);
+}
+function effectiveNextDue(payment){
+if(payment.recur==='One-off')return payment.dueDate;
+let d=payment.dueDate;
+while(d<todayStr)d=advanceDueDate(d,payment.recur);
+return d;
+}
+function nextDueFromEntry(entry){
+if(!entry.startDate||entry.recur==='One-off'||entry.recur==='Variable')return null;
+let d=entry.startDate;
+while(d<todayStr)d=advanceDueDate(d,entry.recur);
+return d;
+}
+function UpcomingPayments({payments,setPayments,entries=[]}){
+const[showForm,setShowForm]=useState(false);
+const[form,setForm]=useState({name:'',amount:'',dueDate:todayStr,recur:'Monthly'});
+const[showImport,setShowImport]=useState(false);
+const sorted=useMemo(()=>payments.map(p=>({...p,_next:effectiveNextDue(p)})).sort((a,b)=>a._next.localeCompare(b._next)),[payments]);
+const in30=useMemo(()=>{const d=parseDt(todayStr);d.setDate(d.getDate()+30);return dateKey(d);},[]);
+const totalDue30=sorted.filter(p=>p._next<=in30).reduce((s,p)=>s+p.amount,0);
+const importable=useMemo(()=>entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&e.recur!=='Variable'&&!SAVINGS_CATS.has(e.category)&&nextDueFromEntry(e)&&!payments.some(p=>p.entryId===e.id)),[entries,payments]);
+function markPaid(id){
+setPayments(prev=>prev.map(p=>{if(p.id!==id)return p;if(p.recur==='One-off')return null;return{...p,dueDate:advanceDueDate(effectiveNextDue(p),p.recur)};}).filter(Boolean));
+}
+function handleAdd(){
+if(!form.name||!form.amount||!form.dueDate)return;
+setPayments(prev=>[...prev,{...form,amount:Number(form.amount)||0,id:Date.now()}]);
+setForm({name:'',amount:'',dueDate:todayStr,recur:'Monthly'});
+setShowForm(false);
+}
+function importEntry(e){
+const next=nextDueFromEntry(e);if(!next)return;
+setPayments(prev=>[...prev,{id:Date.now(),name:e.label,amount:Math.round(periodAmt(e,30)*100)/100,dueDate:next,recur:e.recur,entryId:e.id}]);
+}
+return(
+<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16}}>
+<Row mb={sorted.length>0||showForm||showImport?12:0}>
+<div style={{fontSize:13,fontWeight:700,color:C.t2}}>Upcoming Payments</div>
+<div style={{display:'flex',gap:6}}>
+{importable.length>0&&<button onClick={()=>setShowImport(v=>!v)} className={`rb ${showImport?'oo':''}`}>Import</button>}
+<button onClick={()=>setShowForm(v=>!v)} className={`rb ${showForm?'on':''}`}>+ Add</button>
+</div>
+</Row>
+{showImport&&importable.length>0&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:12}}>
+<div style={{fontSize:12,fontWeight:700,color:C.t2,marginBottom:10}}>Import from recurring entries</div>
+{importable.map(e=>(
+<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+<div><div style={{fontSize:13,color:C.t1}}>{e.label}</div><div style={{fontSize:11,color:C.t4}}>{e.recur} · {fmt(periodAmt(e,30))}/mo · next {nextDueFromEntry(e)}</div></div>
+<button onClick={()=>{importEntry(e);}} className="rb">Import</button>
+</div>
+))}
+</div>
+)}
+{showForm&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:12}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Name</label><input className="fi" placeholder="e.g. Car insurance" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Amount ($)</label><input className="fi" type="text" inputMode="decimal" value={form.amount} onFocus={e=>e.target.select()} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Due date</label><input className="fi" type="date" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:6}}>Frequency</label><div className="hscroll">{['Weekly','Fortnightly','Monthly','Quarterly','Yearly','One-off'].map(r=><button key={r} className={`rb ${form.recur===r?'on':''}`} onClick={()=>setForm(f=>({...f,recur:r}))}>{r}</button>)}</div></div>
+</div>
+<GradBtn onClick={handleAdd}>Add Payment</GradBtn>
+</div>
+)}
+{sorted.length===0&&!showForm&&!showImport&&<div style={{fontSize:13,color:C.t5,fontStyle:'italic',textAlign:'center',padding:'12px 0'}}>No upcoming payments tracked. Add one to stay ahead of bills.</div>}
+{sorted.map(p=>{
+const daysUntil=Math.round((new Date(p._next)-new Date(todayStr))/(1000*60*60*24));
+const overdue=daysUntil<0;
+const urgentColor=overdue||daysUntil<=3?C.red:daysUntil<=7?C.amber:daysUntil<=14?C.cyan:C.t3;
+return(
+<div key={p.id} style={{background:C.bg,border:`1px solid ${overdue?'rgba(251,113,133,.3)':C.border}`,borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+<div style={{flex:1,minWidth:0}}>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3,flexWrap:'wrap'}}>
+<span style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.name}</span>
+{p.recur!=='One-off'&&<span style={{fontSize:10,color:C.t4,background:C.border,borderRadius:4,padding:'1px 6px'}}>{p.recur}</span>}
+{overdue&&<span style={{fontSize:10,color:C.red,fontWeight:700}}>OVERDUE</span>}
+</div>
+<div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+<Mono color={C.t1} size={14}>{fmt(p.amount)}</Mono>
+<span style={{fontSize:11,color:urgentColor}}>{overdue?`${Math.abs(daysUntil)}d overdue`:daysUntil===0?'Due today':daysUntil===1?'Due tomorrow':`in ${daysUntil}d · ${p._next}`}</span>
+</div>
+</div>
+<div style={{display:'flex',gap:6,flexShrink:0}}>
+<button onClick={()=>markPaid(p.id)} style={{background:'rgba(110,231,183,.1)',border:`1px solid ${C.green}`,borderRadius:8,padding:'6px 12px',color:C.green,fontSize:12,fontWeight:700,cursor:'pointer'}}>{p.recur==='One-off'?'✓ Done':'✓ Paid'}</button>
+<button onClick={()=>setPayments(prev=>prev.filter(x=>x.id!==p.id))} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:8,padding:'6px 10px',color:C.t4,fontSize:14,cursor:'pointer',lineHeight:1}}>×</button>
+</div>
+</div>
+);
+})}
+{sorted.length>0&&(
+<div style={{background:'rgba(99,102,241,.08)',border:`1px solid rgba(99,102,241,.2)`,borderRadius:10,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
+<span style={{fontSize:12,color:C.t3}}>Due in next 30 days</span>
+<Mono color={C.t1} size={14}>{fmt(totalDue30)}</Mono>
+</div>
+)}
+</div>
+);
+}
+
 // ── MORTGAGE ──────────────────────────────────────────────────
 const DEFAULT_MORT={principal:500000,annualRate:6.5,termYears:30,startDate:"2025-01-01",fixedUntil:""};
 
@@ -944,13 +1055,35 @@ const minV=Math.min(...data.map(d=>d.balance),0),maxV=Math.max(...data.map(d=>d.
 const yScale=v=>H-LPAD-(v-minV)/(maxV-minV)*(H-LPAD-RPAD*4);
 const balPath=data.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(d.balance)}`).join(" ");
 const barW=Math.max(1,(W-LPAD-RPAD)/data.length-1);
-const scenarioYearly=useMemo(()=>{
-if(!scenario.active)return null;
-const sc=buildSchedule(cfg.principal+scenario.lumpAtStart>cfg.principal?cfg.principal-scenario.lumpAtStart:cfg.principal,cfg.annualRate,cfg.termYears,cfg.startDate,rateChanges,[...lumpSums,...(scenario.lumpAtStart>0?[{month:0,amount:scenario.lumpAtStart,id:"sc"}]:[])]);
-const monthly=sc.filter((_,i)=>i%12===0).map((m,yi)=>({year:m.date.getFullYear(),balance:m.balance-scenario.extraMonthly*12*yi}));
-return monthly;
+const scenarioSchedule=useMemo(()=>{
+if(!scenario.active)return[];
+const extra=Number(scenario.extraMonthly)||0;
+const lump0=Number(scenario.lumpAtStart)||0;
+if(!cfg.principal||!cfg.annualRate||!cfg.termYears)return[];
+const rateAt=mi=>{let r=cfg.annualRate;rateChanges.slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
+let bal=Math.max(0,cfg.principal-lump0);
+const sc=[];const start=parseDt(cfg.startDate);
+for(let mi=0;mi<cfg.termYears*12&&bal>0.01;mi++){
+const ar=rateAt(mi),mo=ar/100/12,n=cfg.termYears*12-mi;
+const payment=bal*mo*Math.pow(1+mo,n)/(Math.pow(1+mo,n)-1);
+const lump=(lumpSums.find(l=>l.month===mi)||{amount:0}).amount;
+const interest=bal*mo,principalPart=Math.min(payment-interest,bal);
+const extraPrin=Math.min(extra,Math.max(0,bal-principalPart-lump));
+bal=Math.max(0,bal-principalPart-lump-extraPrin);
+const date=new Date(start);date.setMonth(date.getMonth()+mi);
+sc.push({mi,date,payment:payment+lump+extraPrin,interest,principal:principalPart+lump+extraPrin,lump:lump+extraPrin,balance:bal,rate:ar});
+}
+return sc;
 },[scenario,cfg,rateChanges,lumpSums]);
-const scenPath=scenarioYearly?scenarioYearly.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(Math.max(0,d.balance))}`).join(" "):null;
+const scActive=scenario.active&&scenarioSchedule.length>0;
+const scMonthlyPmt=scenarioSchedule.length?scenarioSchedule[0].payment:0;
+const scPeriodPmt=scMonthlyPmt*(pDays/30.44);
+const scTotalInterest=scenarioSchedule.reduce((s,m)=>s+m.interest,0);
+const scTotalCost=cfg.principal+scTotalInterest;
+const scPaidOff=scenarioSchedule.length?scenarioSchedule[scenarioSchedule.length-1].date:null;
+const scYearsLeft=scenarioSchedule.length/12;
+const scData=useMemo(()=>scActive?scenarioSchedule.filter((_,i)=>i%12===0).map((m,yi)=>({year:m.date.getFullYear(),balance:m.balance,interest:scenarioSchedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.interest,0),principal:scenarioSchedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.principal,0),lump:scenarioSchedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.lump,0)})):null,[scenarioSchedule,scActive]);
+const scenPath=scActive&&scData?scData.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(Math.max(0,d.balance))}`).join(" "):null;
 const refiComparison=useMemo(()=>{
 if(!showRefi)return null;
 const nr=Number(refi.rate)||cfg.annualRate,nt=Number(refi.termYears)||cfg.termYears,nc=Number(refi.costs)||0;
@@ -986,10 +1119,23 @@ return(
 <Btn onClick={()=>{setCfgD(cfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}><span style={{display:'flex',alignItems:'center',gap:5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup</span></Btn>
 </Row>
 <div className="hscroll" style={{gap:10}}>
-{[{label:pmtLabel,val:fmt(periodPmt),color:C.t1},{label:"Total Interest",val:fmt(totalInterest),color:C.red},{label:"Total Cost",val:fmt(totalCost),color:C.amber},{label:"Paid Off",val:paidOff?`${MON_SHORT[paidOff.getMonth()]} ${paidOff.getFullYear()}`:"—",color:C.green},{label:"Years Left",val:`${fmtN(schedule.length/12)} yrs`,color:C.cyan}].map(s=>(
-<div key={s.label} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",minWidth:130,flexShrink:0}}>
+{(scActive?[
+{label:pmtLabel,val:fmt(scPeriodPmt),color:C.purple,diff:`+${fmt(scPeriodPmt-periodPmt)} extra/${displayPeriod}`},
+{label:"Total Interest",val:fmt(scTotalInterest),color:C.purple,diff:`save ${fmt(totalInterest-scTotalInterest)}`},
+{label:"Total Cost",val:fmt(scTotalCost),color:C.purple,diff:`save ${fmt(totalCost-scTotalCost)}`},
+{label:"Paid Off",val:scPaidOff?`${MON_SHORT[scPaidOff.getMonth()]} ${scPaidOff.getFullYear()}`:"—",color:C.purple,diff:`${fmtN((schedule.length-scenarioSchedule.length)/12)} yrs earlier`},
+{label:"Years Left",val:`${fmtN(scYearsLeft)} yrs`,color:C.purple,diff:`save ${fmtN(schedule.length/12-scYearsLeft)} yrs`},
+]:[
+{label:pmtLabel,val:fmt(periodPmt),color:C.t1},
+{label:"Total Interest",val:fmt(totalInterest),color:C.red},
+{label:"Total Cost",val:fmt(totalCost),color:C.amber},
+{label:"Paid Off",val:paidOff?`${MON_SHORT[paidOff.getMonth()]} ${paidOff.getFullYear()}`:"—",color:C.green},
+{label:"Years Left",val:`${fmtN(schedule.length/12)} yrs`,color:C.cyan},
+]).map(s=>(
+<div key={s.label} style={{background:scActive?"rgba(167,139,250,.07)":"rgba(255,255,255,.03)",border:`1px solid ${scActive?"rgba(167,139,250,.3)":C.border}`,borderRadius:10,padding:"10px 14px",minWidth:130,flexShrink:0}}>
 <div style={{fontSize:10,color:C.t4,marginBottom:4,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={14}>{s.val}</Mono>
+{s.diff&&<div style={{fontSize:10,color:C.purple,marginTop:3}}>{s.diff}</div>}
 </div>
 ))}
 </div>
@@ -1049,6 +1195,7 @@ return(
 </>}
 </div>
 )}
+{scActive&&chartView==="split"&&<div style={{fontSize:11,color:C.purple,marginBottom:8,display:"flex",alignItems:"center",gap:6}}><span style={{width:10,height:10,background:"rgba(167,139,250,.3)",border:`1px solid ${C.purple}`,borderRadius:2,display:"inline-block"}}/>Showing what-if scenario · faded bars = base, bright bars = scenario</div>}
 <div style={{margin:"0 -20px",marginBottom:6}} onMouseLeave={()=>setHoverIdx(null)}>
 <svg width="100%" height="260" viewBox={`0 0 ${W} ${H+36}`} style={{display:"block",cursor:"crosshair"}}
 onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.clientX-rect.left)*(W/rect.width);const idx=Math.round((mx-PAD)/(W-PAD*2)*(data.length-1));setHoverIdx(Math.max(0,Math.min(data.length-1,idx)));}}>
@@ -1063,8 +1210,18 @@ onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.
 {hoverIdx!==null&&data[hoverIdx]&&<circle cx={xScale(hoverIdx)} cy={yScale(data[hoverIdx].balance)} r={4} fill={C.green} stroke={C.bg} strokeWidth={2}/>}
 </>}
 {chartView==="split"&&data.map((d,i)=>{
+const halfW=scActive?Math.max(1,barW/2-0.5):barW;
 const x=LPAD+i*(barW+1),chartH=H-LPAD-RPAD*2,intH=(d.interest/maxStack)*chartH,prinH=(d.principal/maxStack)*chartH,lumpH=(d.lump/maxStack)*chartH;
-return <g key={i}><rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={intH} rx={1} fill={C.red} opacity={.8}/><rect x={x} y={H-LPAD-prinH-lumpH} width={barW} height={prinH} rx={1} fill={C.green} opacity={.8}/>{d.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={barW} height={lumpH} rx={1} fill={C.purple} opacity={.9}/>}</g>;
+const scD=scActive&&scData?scData.find(s=>s.year===d.year):null;
+const scIntH=scD?(scD.interest/maxStack)*chartH:0,scPrinH=scD?(scD.principal/maxStack)*chartH:0,scLumpH=scD?(scD.lump/maxStack)*chartH:0;
+return <g key={i}>
+<rect x={x} y={H-LPAD-intH-prinH-lumpH} width={scD?halfW:barW} height={intH} rx={1} fill={C.red} opacity={scD?.4:.8}/>
+<rect x={x} y={H-LPAD-prinH-lumpH} width={scD?halfW:barW} height={prinH} rx={1} fill={C.green} opacity={scD?.4:.8}/>
+{d.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={scD?halfW:barW} height={lumpH} rx={1} fill={C.purple} opacity={scD?.4:.9}/>}
+{scD&&<rect x={x+halfW+1} y={H-LPAD-scIntH-scPrinH-scLumpH} width={halfW} height={scIntH} rx={1} fill={C.red} opacity={.85}/>}
+{scD&&<rect x={x+halfW+1} y={H-LPAD-scPrinH-scLumpH} width={halfW} height={scPrinH} rx={1} fill={C.green} opacity={.85}/>}
+{scD&&scD.lump>0&&<rect x={x+halfW+1} y={H-LPAD-scLumpH} width={halfW} height={scLumpH} rx={1} fill={C.purple} opacity={.9}/>}
+</g>;
 })}
 {data.map((d,i)=>i%5===0?<text key={i} x={xScale(i)} y={H+18} textAnchor="middle" fill={C.t5} fontSize={9}>{d.year}</text>:null)}
 {hoverIdx!==null&&data[hoverIdx]&&<line x1={xScale(hoverIdx)} y1={RPAD*2} x2={xScale(hoverIdx)} y2={H-LPAD} stroke={C.t4} strokeWidth={1} strokeDasharray="2 2"/>}
@@ -1073,7 +1230,7 @@ return <g key={i}><rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={i
 {hoverIdx!==null&&data[hoverIdx]&&(
 <div style={{background:C.border,border:`1px solid ${C.t5}`,borderRadius:10,padding:"10px 14px",marginTop:8,display:"flex",gap:16,flexWrap:"wrap"}}>
 <div style={{fontSize:12,fontWeight:700,color:C.t1,minWidth:"100%"}}>{data[hoverIdx].year}</div>
-{[{l:"Balance",v:fmt(data[hoverIdx].balance),c:C.green},{l:"Interest",v:fmt(data[hoverIdx].interest),c:C.red},{l:"Principal",v:fmt(data[hoverIdx].principal),c:C.green},...(data[hoverIdx].lump>0?[{l:"Lump sum",v:fmt(data[hoverIdx].lump),c:C.purple}]:[]),...(scenarioYearly&&scenarioYearly[hoverIdx]?[{l:"Scenario balance",v:fmt(scenarioYearly[hoverIdx].balance),c:C.purple}]:[])].map(s=>(
+{(()=>{const scDH=scActive&&scData?scData.find(s=>s.year===data[hoverIdx].year):null;return[{l:"Balance",v:fmt(data[hoverIdx].balance),c:C.green},{l:"Interest",v:fmt(data[hoverIdx].interest),c:C.red},{l:"Principal",v:fmt(data[hoverIdx].principal),c:C.green},...(data[hoverIdx].lump>0?[{l:"Lump sum",v:fmt(data[hoverIdx].lump),c:C.purple}]:[]),...(scDH?[{l:"Sc. balance",v:fmt(scDH.balance),c:C.purple},{l:"Sc. interest",v:fmt(scDH.interest),c:C.purple}]:[])];})().map(s=>(
 <div key={s.l}><div style={{fontSize:10,color:C.t3}}>{s.l}</div><Mono color={s.c} size={12}>{s.v}</Mono></div>
 ))}
 </div>
@@ -1083,11 +1240,18 @@ return <g key={i}><rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={i
 {chartView==="split"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.red,display:"inline-block",borderRadius:2}}/>Interest</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.green,display:"inline-block",borderRadius:2}}/>Principal</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.purple,display:"inline-block",borderRadius:2}}/>Lump sum</div></>}
 </div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:16}}>
-{[{label:"Interest over life",val:fmt(totalInterest),color:C.red,pct:fmtN(totalInterest/totalCost*100),barColor:C.red},{label:"Principal",val:fmt(cfg.principal),color:C.green,pct:fmtN(cfg.principal/totalCost*100),barColor:C.green}].map(s=>(
-<div key={s.label} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
+{(scActive?[
+{label:"Interest over life",val:fmt(scTotalInterest),color:C.purple,pct:fmtN(scTotalInterest/scTotalCost*100),barColor:C.purple,diff:`save ${fmt(totalInterest-scTotalInterest)}`},
+{label:"Principal",val:fmt(cfg.principal),color:C.green,pct:fmtN(cfg.principal/scTotalCost*100),barColor:C.green},
+]:[
+{label:"Interest over life",val:fmt(totalInterest),color:C.red,pct:fmtN(totalInterest/totalCost*100),barColor:C.red},
+{label:"Principal",val:fmt(cfg.principal),color:C.green,pct:fmtN(cfg.principal/totalCost*100),barColor:C.green},
+]).map(s=>(
+<div key={s.label} style={{background:C.bg,border:`1px solid ${scActive&&s.diff?'rgba(167,139,250,.25)':C.border}`,borderRadius:12,padding:"12px 14px"}}>
 <div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={16}>{s.val}</Mono>
 <div style={{fontSize:11,color:C.t4,marginTop:3}}>{s.pct}% of total cost</div>
+{s.diff&&<div style={{fontSize:11,color:C.purple,marginTop:2,fontWeight:600}}>{s.diff}</div>}
 <div style={{height:4,background:C.border,borderRadius:2,marginTop:8,overflow:"hidden"}}><div style={{height:"100%",width:`${s.pct}%`,background:s.barColor,borderRadius:2}}/></div>
 </div>
 ))}
@@ -1664,6 +1828,7 @@ const[goals,setGoals]=useState(()=>loadLS('ft_goals',[
 {id:2,name:"Holiday",target:5000,saved:800,color:"#67e8f9",linkedCategory:"Savings Goal",emoji:"✈️"},
 {id:3,name:"New Car",target:20000,saved:0,color:C.amber,linkedCategory:"Savings Goal",emoji:"🚗"},
 ]));
+const[upcomingPayments,setUpcomingPayments]=useState(()=>loadLS('ft_upcomingPayments',[]));
 
 // Auto-save to localStorage
 useEffect(()=>{localStorage.setItem('ft_entries',JSON.stringify(entries));},[entries]);
@@ -1676,6 +1841,7 @@ useEffect(()=>{localStorage.setItem('ft_liabilities',JSON.stringify(liabilities)
 useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networthSnapshots));},[networthSnapshots]);
 useEffect(()=>{localStorage.setItem('ft_budgetLimits',JSON.stringify(budgetLimits));},[budgetLimits]);
 useEffect(()=>{localStorage.setItem('ft_goals',JSON.stringify(goals));},[goals]);
+useEffect(()=>{localStorage.setItem('ft_upcomingPayments',JSON.stringify(upcomingPayments));},[upcomingPayments]);
 useEffect(()=>{localStorage.setItem('ft_displayPeriod',JSON.stringify(displayPeriod));},[displayPeriod]);
 useEffect(()=>{localStorage.setItem('ft_transactions',JSON.stringify(syncedTransactions));},[syncedTransactions]);
 useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));},[lastSynced]);
@@ -1776,11 +1942,27 @@ if(fingerprintSeen.has(key))return false;
 fingerprintSeen.set(key,true);
 return true;
 });
+const newTxsForPmt=[];
 setSyncedTransactions(prev=>{
 const existingIds=new Set(prev.map(t=>t.id));
 const newTxs=fingerprintDeduped.filter(t=>!existingIds.has(t.id));
+newTxsForPmt.push(...newTxs);
 return [...prev,...newTxs];
 });
+if(newTxsForPmt.length>0){
+setUpcomingPayments(prev=>prev.map(p=>{
+const next=effectiveNextDue(p);
+const match=newTxsForPmt.find(t=>{
+if(t.ledgerlyType!=='expense')return false;
+const daysDiff=Math.abs(new Date(t.date)-new Date(next))/(1000*60*60*24);
+const amtDiff=p.amount>0?Math.abs(Math.abs(t.amount)-p.amount)/p.amount:1;
+return daysDiff<=5&&amtDiff<=0.1;
+});
+if(!match)return p;
+if(p.recur==='One-off')return null;
+return{...p,dueDate:advanceDueDate(next,p.recur)};
+}).filter(Boolean));
+}
 setLastSynced(new Date().toISOString());
 localStorage.setItem('ft_init','true');
 }catch(err){
@@ -2021,6 +2203,7 @@ return(
 </div>
 <Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
 <CalendarWidget entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
+<UpcomingPayments payments={upcomingPayments} setPayments={setUpcomingPayments} entries={entries}/>
 </>}
 
 {view==="entries"&&<>
@@ -2152,10 +2335,10 @@ return(
 void lastSynced;void syncedTransactions;
 const storageUsed=Object.keys(localStorage).filter(key=>key.startsWith('ft_')).reduce((total,key)=>{const item=localStorage.getItem(key);return total+(item?new Blob([item]).size:0);},0);
 const storageMB=(storageUsed/(1024*1024)).toFixed(1);
-const storagePct=Math.min((storageUsed/(5*1024*1024))*100,100);
+const storagePct=Math.min((storageUsed/(50*1024*1024))*100,100);
 return(
 <div style={{marginTop:32,paddingBottom:32,marginBottom:16}}>
-<div style={{fontSize:10,color:C.t4,marginBottom:4}}>Storage: {storageMB}MB / 5MB</div>
+<div style={{fontSize:10,color:C.t4,marginBottom:4}}>Storage: {storageMB}MB / 50MB</div>
 <div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
 <div style={{height:"100%",width:`${storagePct}%`,background:storagePct>80?C.red:storagePct>60?C.amber:C.green,borderRadius:2,transition:"width .5s ease"}}/>
 </div>
