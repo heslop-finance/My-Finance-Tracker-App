@@ -936,34 +936,77 @@ let d=entry.startDate;
 while(d<todayStr)d=advanceDueDate(d,entry.recur);
 return d;
 }
-function UpcomingPayments({payments,setPayments,entries=[]}){
-const[showForm,setShowForm]=useState(false);
-const[form,setForm]=useState({name:'',amount:'',dueDate:todayStr,recur:'Monthly'});
+function UpcomingPayments({payments,setPayments,entries=[],displayPeriod='monthly',akahuBalances=[]}){
+const[showAdd,setShowAdd]=useState(false);
 const[showImport,setShowImport]=useState(false);
+const[editingId,setEditingId]=useState(null);
+const BLANK={name:'',amount:'',dueDate:todayStr,recur:'Monthly',saved:0,akahuAccountId:''};
+const[form,setForm]=useState(BLANK);
+const[editDraft,setEditDraft]=useState(null);
 const sorted=useMemo(()=>payments.map(p=>({...p,_next:effectiveNextDue(p)})).sort((a,b)=>a._next.localeCompare(b._next)),[payments]);
 const in30=useMemo(()=>{const d=parseDt(todayStr);d.setDate(d.getDate()+30);return dateKey(d);},[]);
 const totalDue30=sorted.filter(p=>p._next<=in30).reduce((s,p)=>s+p.amount,0);
 const importable=useMemo(()=>entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&e.recur!=='Variable'&&!SAVINGS_CATS.has(e.category)&&nextDueFromEntry(e)&&!payments.some(p=>p.entryId===e.id)),[entries,payments]);
-function markPaid(id){
-setPayments(prev=>prev.map(p=>{if(p.id!==id)return p;if(p.recur==='One-off')return null;return{...p,dueDate:advanceDueDate(effectiveNextDue(p),p.recur)};}).filter(Boolean));
+function urgencyColor(daysUntil){
+if(daysUntil<0)return C.red;
+if(daysUntil<=3)return 'rgba(251,113,133,.4)';
+if(daysUntil<=7)return 'rgba(251,191,36,.4)';
+if(daysUntil<=14)return 'rgba(6,182,212,.3)';
+return C.border;
+}
+function urgencyBadge(daysUntil){
+if(daysUntil<0)return <span style={{marginLeft:6,fontSize:9,background:'rgba(251,113,133,.15)',color:C.red,borderRadius:4,padding:'1px 5px',fontWeight:700}}>Overdue</span>;
+if(daysUntil<=3)return <span style={{marginLeft:6,fontSize:9,background:'rgba(251,113,133,.15)',color:C.red,borderRadius:4,padding:'1px 5px',fontWeight:700}}>Due in {daysUntil}d</span>;
+if(daysUntil<=7)return <span style={{marginLeft:6,fontSize:9,background:'rgba(251,191,36,.15)',color:C.amber,borderRadius:4,padding:'1px 5px',fontWeight:700}}>Due in {daysUntil}d</span>;
+if(daysUntil<=14)return <span style={{marginLeft:6,fontSize:9,background:'rgba(6,182,212,.15)',color:C.cyan,borderRadius:4,padding:'1px 5px',fontWeight:700}}>Due in {daysUntil}d</span>;
+return null;
+}
+const perPeriod=p=>{
+const pDays=PERIODS.find(x=>x.key===displayPeriod).days;
+const daysUntilDue=Math.max(0,Math.round((parseDt(p._next||p.dueDate)-new Date(todayStr))/86400000));
+const periodsLeft=Math.max(1,daysUntilDue/pDays);
+const remaining=Math.max(0,p.amount-(p.saved||0));
+return remaining/periodsLeft;
+};
+function markPaid(p){
+setPayments(prev=>prev.map(x=>{if(x.id!==p.id)return x;if(x.recur==='One-off')return null;return{...x,dueDate:advanceDueDate(effectiveNextDue(x),x.recur),saved:0};}).filter(Boolean));
 }
 function handleAdd(){
 if(!form.name||!form.amount||!form.dueDate)return;
-setPayments(prev=>[...prev,{...form,amount:Number(form.amount)||0,id:Date.now()}]);
-setForm({name:'',amount:'',dueDate:todayStr,recur:'Monthly'});
-setShowForm(false);
+setPayments(prev=>[...prev,{...form,amount:Number(form.amount)||0,saved:Number(form.saved)||0,id:Date.now()}]);
+setForm(BLANK);setShowAdd(false);
+}
+function handleSaveEdit(){
+if(!editDraft)return;
+setPayments(prev=>prev.map(p=>p.id===editingId?{...editDraft,amount:Number(editDraft.amount)||0,saved:Number(editDraft.saved)||0}:p));
+setEditingId(null);setEditDraft(null);
 }
 function importEntry(e){
 const next=nextDueFromEntry(e);if(!next)return;
-setPayments(prev=>[...prev,{id:Date.now(),name:e.label,amount:Math.round(periodAmt(e,30)*100)/100,dueDate:next,recur:e.recur,entryId:e.id}]);
+setPayments(prev=>[...prev,{id:Date.now(),name:e.label,amount:Math.round(periodAmt(e,30)*100)/100,dueDate:next,recur:e.recur,entryId:e.id,saved:0,akahuAccountId:''}]);
+}
+function PaymentForm({value,onChange,onSubmit,onCancel,submitLabel}){
+return(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:12}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Name</label><input className="fi" placeholder="e.g. Car insurance" value={value.name} onChange={e=>onChange(f=>({...f,name:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Total amount ($)</label><input className="fi" type="text" inputMode="decimal" value={value.amount} onFocus={e=>e.target.select()} onChange={e=>onChange(f=>({...f,amount:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Already saved ($)</label><input className="fi" type="text" inputMode="decimal" value={value.saved} onFocus={e=>e.target.select()} onChange={e=>onChange(f=>({...f,saved:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Due date</label><input className="fi" type="date" value={value.dueDate} onChange={e=>onChange(f=>({...f,dueDate:e.target.value}))} style={{padding:'8px 12px'}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Frequency</label><select className="fi" value={value.recur} onChange={e=>onChange(f=>({...f,recur:e.target.value}))} style={{padding:'8px 12px'}}>{['Weekly','Fortnightly','Monthly','Quarterly','Yearly','One-off'].map(r=><option key={r}>{r}</option>)}</select></div>
+{AKAHU_ENABLED&&akahuBalances.length>0&&<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Link to Akahu account (auto-updates saved amount)</label><select className="fi" value={value.akahuAccountId||''} onChange={e=>onChange(f=>({...f,akahuAccountId:e.target.value}))} style={{padding:'8px 12px'}}><option value=''>— not linked —</option>{akahuBalances.filter(a=>a.type!=='LOAN').map(a=><option key={a.id} value={a.id}>{a.name} — ${a.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>)}</select></div>}
+</div>
+<div style={{display:'flex',gap:8}}><GradBtn onClick={onSubmit}>{submitLabel}</GradBtn><button onClick={onCancel} className="rb" style={{flex:'none'}}>Cancel</button></div>
+</div>
+);
 }
 return(
 <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16}}>
-<Row mb={sorted.length>0||showForm||showImport?12:0}>
+<Row mb={sorted.length>0||showAdd||showImport?12:0}>
 <div style={{fontSize:13,fontWeight:700,color:C.t2}}>Upcoming Payments</div>
 <div style={{display:'flex',gap:6}}>
-{importable.length>0&&<button onClick={()=>setShowImport(v=>!v)} className={`rb ${showImport?'oo':''}`}>Import</button>}
-<button onClick={()=>setShowForm(v=>!v)} className={`rb ${showForm?'on':''}`}>+ Add</button>
+{importable.length>0&&<button onClick={()=>{setShowImport(v=>!v);setShowAdd(false);setEditingId(null);}} className={`rb ${showImport?'oo':''}`}>Import</button>}
+<button onClick={()=>{setShowAdd(v=>!v);setShowImport(false);setEditingId(null);}} className={`rb ${showAdd?'on':''}`}>+ Add</button>
 </div>
 </Row>
 {showImport&&importable.length>0&&(
@@ -972,43 +1015,52 @@ return(
 {importable.map(e=>(
 <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
 <div><div style={{fontSize:13,color:C.t1}}>{e.label}</div><div style={{fontSize:11,color:C.t4}}>{e.recur} · {fmt(periodAmt(e,30))}/mo · next {nextDueFromEntry(e)}</div></div>
-<button onClick={()=>{importEntry(e);}} className="rb">Import</button>
+<button onClick={()=>importEntry(e)} className="rb">Import</button>
 </div>
 ))}
 </div>
 )}
-{showForm&&(
-<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:12}}>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Name</label><input className="fi" placeholder="e.g. Car insurance" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={{padding:'8px 12px'}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Amount ($)</label><input className="fi" type="text" inputMode="decimal" value={form.amount} onFocus={e=>e.target.select()} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} style={{padding:'8px 12px'}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Due date</label><input className="fi" type="date" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} style={{padding:'8px 12px'}}/></div>
-<div style={{gridColumn:'1/-1'}}><label style={{fontSize:11,color:C.t3,display:'block',marginBottom:6}}>Frequency</label><div className="hscroll">{['Weekly','Fortnightly','Monthly','Quarterly','Yearly','One-off'].map(r=><button key={r} className={`rb ${form.recur===r?'on':''}`} onClick={()=>setForm(f=>({...f,recur:r}))}>{r}</button>)}</div></div>
-</div>
-<GradBtn onClick={handleAdd}>Add Payment</GradBtn>
-</div>
-)}
-{sorted.length===0&&!showForm&&!showImport&&<div style={{fontSize:13,color:C.t5,fontStyle:'italic',textAlign:'center',padding:'12px 0'}}>No upcoming payments tracked. Add one to stay ahead of bills.</div>}
+{showAdd&&<PaymentForm value={form} onChange={setForm} onSubmit={handleAdd} onCancel={()=>setShowAdd(false)} submitLabel="Add Payment"/>}
+{sorted.length===0&&!showAdd&&!showImport&&<div style={{fontSize:13,color:C.t5,fontStyle:'italic',textAlign:'center',padding:'12px 0'}}>No upcoming payments tracked. Add one to stay ahead of bills.</div>}
 {sorted.map(p=>{
 const daysUntil=Math.round((new Date(p._next)-new Date(todayStr))/(1000*60*60*24));
-const overdue=daysUntil<0;
-const urgentColor=overdue||daysUntil<=3?C.red:daysUntil<=7?C.amber:daysUntil<=14?C.cyan:C.t3;
+const saved=p.saved||0;
+const pct=p.amount>0?Math.min(100,(saved/p.amount)*100):0;
+const linkedBal=AKAHU_ENABLED&&p.akahuAccountId?akahuBalances.find(a=>a.id===p.akahuAccountId):null;
+if(editingId===p.id&&editDraft){
+return <PaymentForm key={p.id} value={editDraft} onChange={setEditDraft} onSubmit={handleSaveEdit} onCancel={()=>{setEditingId(null);setEditDraft(null);}} submitLabel="Save Changes"/>;
+}
 return(
-<div key={p.id} style={{background:C.bg,border:`1px solid ${overdue?'rgba(251,113,133,.3)':C.border}`,borderRadius:12,padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
-<div style={{flex:1,minWidth:0}}>
-<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3,flexWrap:'wrap'}}>
-<span style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.name}</span>
-{p.recur!=='One-off'&&<span style={{fontSize:10,color:C.t4,background:C.border,borderRadius:4,padding:'1px 6px'}}>{p.recur}</span>}
-{overdue&&<span style={{fontSize:10,color:C.red,fontWeight:700}}>OVERDUE</span>}
+<div key={p.id} style={{background:C.bg,border:`1px solid ${urgencyColor(daysUntil)}`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+<div>
+<div style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.name}</div>
+<div style={{fontSize:11,color:C.t4,marginTop:2}}>Due {p._next}{urgencyBadge(daysUntil)}</div>
 </div>
-<div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-<Mono color={C.t1} size={14}>{fmt(p.amount)}</Mono>
-<span style={{fontSize:11,color:urgentColor}}>{overdue?`${Math.abs(daysUntil)}d overdue`:daysUntil===0?'Due today':daysUntil===1?'Due tomorrow':`in ${daysUntil}d · ${p._next}`}</span>
+<div style={{textAlign:'right'}}>
+<Mono color={C.green} size={13}>{fmtS(saved)}</Mono>
+<div style={{fontSize:10,color:C.t4}}>of {fmtS(p.amount)}</div>
+{linkedBal&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>Live · {linkedBal.name}</div>}
 </div>
 </div>
-<div style={{display:'flex',gap:6,flexShrink:0}}>
-<button onClick={()=>markPaid(p.id)} style={{background:'rgba(110,231,183,.1)',border:`1px solid ${C.green}`,borderRadius:8,padding:'6px 12px',color:C.green,fontSize:12,fontWeight:700,cursor:'pointer'}}>{p.recur==='One-off'?'✓ Done':'✓ Paid'}</button>
-<button onClick={()=>setPayments(prev=>prev.filter(x=>x.id!==p.id))} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:8,padding:'6px 10px',color:C.t4,fontSize:14,cursor:'pointer',lineHeight:1}}>×</button>
+<div style={{height:8,background:C.border,borderRadius:4,overflow:'hidden',marginBottom:8}}>
+<div style={{height:'100%',width:`${pct}%`,background:`linear-gradient(90deg,${C.green},${C.green}88)`,borderRadius:4,transition:'width .6s ease'}}/>
+</div>
+<div style={{fontSize:11,color:C.t4,marginBottom:8}}>
+{saved>=p.amount
+?<span style={{color:C.green,fontWeight:700}}>Fully funded ✓</span>
+:`Set aside ${fmt(perPeriod(p))} per ${PWORD[displayPeriod]} · ${pct.toFixed(0)}% · ${fmtS(Math.max(0,p.amount-saved))} to go`
+}
+</div>
+{p.entryId&&(()=>{const linked=entries.find(e=>e.id===p.entryId||String(e.id)===String(p.entryId));return linked?(<div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8,padding:'6px 10px',background:'rgba(110,231,183,.05)',borderRadius:8,border:'1px solid rgba(110,231,183,.1)'}}><span style={{fontSize:10,color:C.t4}}>Linked to</span><span style={{fontSize:10,color:C.t2,fontWeight:600}}>{linked.label}</span><span style={{fontSize:10,color:C.t4}}>· {linked.category} · {linked.recur}</span></div>):null;})()}
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+<Mono color={C.t4} size={11}>{pct.toFixed(0)}%</Mono>
+<div style={{display:'flex',gap:6}}>
+<button onClick={()=>{const amt=Number(prompt(`Add to "${p.name}" ($):`));if(amt>0)setPayments(prev=>prev.map(x=>x.id===p.id?{...x,saved:(x.saved||0)+amt}:x));}} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:5,padding:'2px 7px',color:C.t3,fontSize:10,cursor:'pointer'}}>+ Add</button>
+<button onClick={()=>{setEditDraft({...p,amount:String(p.amount),saved:String(p.saved||0)});setEditingId(p.id);setShowAdd(false);setShowImport(false);}} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:5,padding:'2px 7px',color:C.t3,fontSize:10,cursor:'pointer'}}>✎ Edit</button>
+<button onClick={()=>markPaid(p)} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:5,padding:'2px 7px',color:C.t3,fontSize:10,cursor:'pointer'}}>✓ Paid</button>
+<button onClick={()=>setPayments(prev=>prev.filter(x=>x.id!==p.id))} style={{background:'none',border:'none',color:C.t5,cursor:'pointer',fontSize:13}}>×</button>
+</div>
 </div>
 </div>
 );
@@ -1195,7 +1247,6 @@ return(
 </>}
 </div>
 )}
-{scActive&&chartView==="split"&&<div style={{fontSize:11,color:C.purple,marginBottom:8,display:"flex",alignItems:"center",gap:6}}><span style={{width:10,height:10,background:"rgba(167,139,250,.3)",border:`1px solid ${C.purple}`,borderRadius:2,display:"inline-block"}}/>Showing what-if scenario · faded bars = base, bright bars = scenario</div>}
 <div style={{margin:"0 -20px",marginBottom:6}} onMouseLeave={()=>setHoverIdx(null)}>
 <svg width="100%" height="260" viewBox={`0 0 ${W} ${H+36}`} style={{display:"block",cursor:"crosshair"}}
 onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.clientX-rect.left)*(W/rect.width);const idx=Math.round((mx-PAD)/(W-PAD*2)*(data.length-1));setHoverIdx(Math.max(0,Math.min(data.length-1,idx)));}}>
@@ -1209,19 +1260,30 @@ onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.
 {[0,.25,.5,.75,1].map(f=><text key={f} x={LPAD-4} y={yScale(cfg.principal*f)+4} fill={C.t5} fontSize={9} textAnchor="end">{fmtS(cfg.principal*f)}</text>)}
 {hoverIdx!==null&&data[hoverIdx]&&<circle cx={xScale(hoverIdx)} cy={yScale(data[hoverIdx].balance)} r={4} fill={C.green} stroke={C.bg} strokeWidth={2}/>}
 </>}
-{chartView==="split"&&data.map((d,i)=>{
-const halfW=scActive?Math.max(1,barW/2-0.5):barW;
-const x=LPAD+i*(barW+1),chartH=H-LPAD-RPAD*2,intH=(d.interest/maxStack)*chartH,prinH=(d.principal/maxStack)*chartH,lumpH=(d.lump/maxStack)*chartH;
-const scD=scActive&&scData?scData.find(s=>s.year===d.year):null;
-const scIntH=scD?(scD.interest/maxStack)*chartH:0,scPrinH=scD?(scD.principal/maxStack)*chartH:0,scLumpH=scD?(scD.lump/maxStack)*chartH:0;
-return <g key={i}>
-<rect x={x} y={H-LPAD-intH-prinH-lumpH} width={scD?halfW:barW} height={intH} rx={1} fill={C.red} opacity={scD?.4:.8}/>
-<rect x={x} y={H-LPAD-prinH-lumpH} width={scD?halfW:barW} height={prinH} rx={1} fill={C.green} opacity={scD?.4:.8}/>
-{d.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={scD?halfW:barW} height={lumpH} rx={1} fill={C.purple} opacity={scD?.4:.9}/>}
-{scD&&<rect x={x+halfW+1} y={H-LPAD-scIntH-scPrinH-scLumpH} width={halfW} height={scIntH} rx={1} fill={C.red} opacity={.85}/>}
-{scD&&<rect x={x+halfW+1} y={H-LPAD-scPrinH-scLumpH} width={halfW} height={scPrinH} rx={1} fill={C.green} opacity={.85}/>}
-{scD&&scD.lump>0&&<rect x={x+halfW+1} y={H-LPAD-scLumpH} width={halfW} height={scLumpH} rx={1} fill={C.purple} opacity={.9}/>}
-</g>;
+{chartView==='split'&&data.map((d,i)=>{
+const x=LPAD+i*(barW+1);
+const chartH=H-LPAD-RPAD*2;
+const intH=(d.interest/maxStack)*chartH;
+const prinH=(d.principal/maxStack)*chartH;
+const lumpH=(d.lump/maxStack)*chartH;
+const sd=scActive&&scData?scData.find(s=>s.year===d.year):null;
+const scIntH=sd?(sd.interest/maxStack)*chartH:0;
+const scPrinH=sd?(sd.principal/maxStack)*chartH:0;
+const scLumpH=sd?(sd.lump/maxStack)*chartH:0;
+const splitY=H-LPAD-prinH-lumpH;
+return(
+<g key={i}>
+<rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={intH} rx={1} fill={C.red} opacity={scActive?.2:.8}/>
+<rect x={x} y={H-LPAD-prinH-lumpH} width={barW} height={prinH} rx={1} fill={C.green} opacity={scActive?.2:.8}/>
+{d.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={barW} height={lumpH} rx={1} fill={C.purple} opacity={scActive?.2:.9}/>}
+{sd&&<>
+<rect x={x} y={H-LPAD-scIntH-scPrinH-scLumpH} width={barW} height={scIntH} rx={1} fill={C.red} opacity={.85}/>
+<rect x={x} y={H-LPAD-scPrinH-scLumpH} width={barW} height={scPrinH} rx={1} fill={C.green} opacity={.85}/>
+{sd.lump>0&&<rect x={x} y={H-LPAD-scLumpH} width={barW} height={scLumpH} rx={1} fill={C.purple} opacity={.9}/>}
+<line x1={x} y1={splitY} x2={x+barW} y2={splitY} stroke={C.amber} strokeWidth={1} opacity={.5}/>
+</>}
+</g>
+);
 })}
 {data.map((d,i)=>i%5===0?<text key={i} x={xScale(i)} y={H+18} textAnchor="middle" fill={C.t5} fontSize={9}>{d.year}</text>:null)}
 {hoverIdx!==null&&data[hoverIdx]&&<line x1={xScale(hoverIdx)} y1={RPAD*2} x2={xScale(hoverIdx)} y2={H-LPAD} stroke={C.t4} strokeWidth={1} strokeDasharray="2 2"/>}
@@ -1237,7 +1299,13 @@ return <g key={i}>
 )}
 <div style={{display:"flex",gap:12,marginTop:10,flexWrap:"wrap",fontSize:10,color:C.t3}}>
 {chartView==="balance"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.green,display:"inline-block",borderRadius:1}}/>Balance</div>{scenario.active&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.purple,display:"inline-block",borderRadius:1}}/>Scenario</div>}<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.amber,display:"inline-block",borderRadius:"50%"}}/>Rate change</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.purple,display:"inline-block",borderRadius:"50%"}}/>Lump sum</div></>}
-{chartView==="split"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.red,display:"inline-block",borderRadius:2}}/>Interest</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.green,display:"inline-block",borderRadius:2}}/>Principal</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.purple,display:"inline-block",borderRadius:2}}/>Lump sum</div></>}
+{chartView==="split"&&<>
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.red,display:"inline-block",borderRadius:2,opacity:.85}}/>Interest</div>
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.green,display:"inline-block",borderRadius:2,opacity:.85}}/>Principal</div>
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.purple,display:"inline-block",borderRadius:2,opacity:.9}}/>Lump sum</div>
+{scActive&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.amber,display:"inline-block",borderRadius:1,opacity:.7}}/>Base split</div>}
+{scActive&&<div style={{fontSize:10,color:C.purple,marginLeft:"auto"}}>Showing what-if scenario</div>}
+</>}
 </div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:16}}>
 {(scActive?[
@@ -1883,6 +1951,7 @@ const txData=await txRes.json();
 const balData=await balRes.json();
 setAkahuBalances(balData.items||[]);
 setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.items||[]).find(a=>a.id===g.akahuAccountId);if(!bal||bal.balance==null)return g;return{...g,saved:Math.max(0,bal.balance)};}));
+setUpcomingPayments(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,saved:Math.max(0,bal.balance)};}));
 setAssets(prev=>prev.map(a=>{if(!a.akahuAccountId)return a;const bal=(balData.items||[]).find(b=>b.id===a.akahuAccountId);if(!bal||bal.balance==null)return a;return{...a,value:Math.max(0,bal.balance)};}));
 setLiabilities(prev=>prev.map(l=>{if(!l.akahuAccountId)return l;const bal=(balData.items||[]).find(b=>b.id===l.akahuAccountId);if(!bal||bal.balance==null)return l;return{...l,value:Math.abs(bal.balance)};}));
 const incoming=txData.items||[];
@@ -2203,7 +2272,7 @@ return(
 </div>
 <Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
 <CalendarWidget entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
-<UpcomingPayments payments={upcomingPayments} setPayments={setUpcomingPayments} entries={entries}/>
+<UpcomingPayments payments={upcomingPayments} setPayments={setUpcomingPayments} entries={entries} displayPeriod={displayPeriod} akahuBalances={akahuBalances}/>
 </>}
 
 {view==="entries"&&<>
