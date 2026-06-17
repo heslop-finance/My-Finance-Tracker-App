@@ -1984,7 +1984,7 @@ processed.push({...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCat
 continue;
 }
 const merchant=t.merchant||null;
-const rule=categoryRules.find(r=>r.merchant&&merchant&&r.merchant.toLowerCase()===merchant.toLowerCase());
+const rule=categoryRules.find(r=>{const rMatchField=r.matchField||'merchant';const rMatchValue=(r.matchValue||r.merchant||'').toLowerCase();if(!rMatchValue)return false;if(rMatchField==='merchant'){return merchant&&merchant.toLowerCase()===rMatchValue;}return(t.description||'').toLowerCase()===rMatchValue;});
 if(rule){
 processed.push({...t,ledgerlyType:rule.ledgerlyType,ledgerlyCategory:rule.ledgerlyCategory,needsReview:false});
 continue;
@@ -2372,7 +2372,7 @@ return(
 <optgroup label="Expenses">{EXPENSE_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
 <optgroup label="Income">{INCOME_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
 </select>
-<button onClick={()=>{const cur=syncedTransactions.find(x=>x.id===t.id);const newCat=cur?.ledgerlyCategory||t.ledgerlyCategory;const newType=INCOME_CATS.includes(newCat)?'income':'expense';const merchant=t.merchant||t.description;setCategoryRules(prev=>{const exists=prev.find(r=>r.merchant?.toLowerCase()===merchant.toLowerCase());if(exists)return prev.map(r=>r.merchant?.toLowerCase()===merchant.toLowerCase()?{...r,ledgerlyCategory:newCat,ledgerlyType:newType}:r);return[...prev,{id:Date.now(),merchant,ledgerlyCategory:newCat,ledgerlyType:newType}];});const merchantLower=merchant.toLowerCase();setSyncedTransactions(prev=>prev.map(x=>{if((x.merchant||x.description||'').toLowerCase()===merchantLower){return{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false};}return x;}));setTxEditingId(null);}} style={{background:"rgba(110,231,183,.1)",border:`1px solid ${C.green}`,borderRadius:8,padding:"7px 12px",color:C.green,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Save as rule</button>
+<button onClick={()=>{const cur=syncedTransactions.find(x=>x.id===t.id);const newCat=cur?cur.ledgerlyCategory:t.ledgerlyCategory;const newType=INCOME_CATS.includes(newCat)?'income':'expense';const merchant=t.merchant||null;const matchField=merchant?'merchant':'description';const matchValue=(merchant||t.description||'').trim();setCategoryRules(prev=>{const exists=prev.find(r=>r.matchValue&&r.matchValue.toLowerCase()===matchValue.toLowerCase()||r.merchant&&r.merchant.toLowerCase()===matchValue.toLowerCase());if(exists)return prev.map(r=>{const key=r.matchValue&&r.matchValue.toLowerCase()===matchValue.toLowerCase()||r.merchant&&r.merchant.toLowerCase()===matchValue.toLowerCase();return key?{...r,matchField,matchValue,ledgerlyCategory:newCat,ledgerlyType:newType}:r;});return[...prev,{id:Date.now(),matchField,matchValue,ledgerlyCategory:newCat,ledgerlyType:newType}];});const matchValueLower=matchValue.toLowerCase();setSyncedTransactions(prev=>prev.map(x=>{const xVal=((matchField==='merchant'?x.merchant:x.description)||'').toLowerCase();if(xVal===matchValueLower)return{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false};return x;}));setTxEditingId(null);}} style={{background:"rgba(110,231,183,.1)",border:`1px solid ${C.green}`,borderRadius:8,padding:"7px 12px",color:C.green,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Save as rule</button>
 <button onClick={()=>setTxEditingId(null)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 12px",color:C.t4,fontSize:11,cursor:"pointer"}}>Cancel</button>
 </div>
 <div style={{fontSize:10,color:C.t4,marginTop:6}}>"Save as rule" will automatically categorise all future {t.merchant||t.description} transactions</div>
@@ -2399,8 +2399,11 @@ return(
 {showRules&&categoryRules.map(r=>(
 <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,marginBottom:4}}>
 <div>
-<div style={{fontSize:12,fontWeight:600,color:C.t1}}>{r.merchant}</div>
-<div style={{fontSize:10,color:CAT_COLORS[r.ledgerlyCategory]||C.t3,marginTop:1}}>→ {r.ledgerlyCategory}</div>
+<div style={{fontSize:12,fontWeight:600,color:C.t1}}>{r.matchValue||r.merchant}</div>
+<div style={{fontSize:10,color:CAT_COLORS[r.ledgerlyCategory]||C.t3,marginTop:1,display:'flex',alignItems:'center',gap:6}}>
+→ {r.ledgerlyCategory}
+{r.matchField==='description'&&<span style={{fontSize:9,background:C.border,color:C.t4,borderRadius:4,padding:'1px 5px'}}>desc</span>}
+</div>
 </div>
 <button onClick={()=>setCategoryRules(prev=>prev.filter(x=>x.id!==r.id))} style={{background:"none",border:"none",color:C.t5,cursor:"pointer",fontSize:16}}>×</button>
 </div>
