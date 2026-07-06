@@ -12,10 +12,10 @@ const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const s=(extra={})=>({...extra});
 
 const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Government Benefits","Other Income"];
-const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Investments","Travel","Car & Maintenance","Fines","Other"];
+const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Investments","Travel","Car & Maintenance","Fines","Debt Repayment","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
 const FIXED_CATS=new Set(["Mortgage","Rent","Rates","Insurance","Subscriptions"]);
-const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -1933,6 +1933,28 @@ useEffect(()=>{setEntries(prev=>prev.map(e=>e.category==='Food'?{...e,category:'
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Dining Out'?{...t,ledgerlyCategory:'Eating & Drinking Out'}:t));setEntries(prev=>prev.map(e=>e.category==='Dining Out'?{...e,category:'Eating & Drinking Out'}:e));},[]);
 useEffect(()=>{const ID_MAP={'acc_cmp10amt5000002jy6g9lbdzw':'acc_cmp6ij34i002i02jp6ym1f040','acc_cmp10amtq000102jyg87s1g5v':'acc_cmp6ij356002o02jpfo8jee7t','acc_cmp10amut000202jy57yv6lxu':'acc_cmp6ij34p002k02jp28m57k9k','acc_cmp10amvb000302jyeonj9pi4':'acc_cmp6ij35b002q02jp3a0qgbs3','acc_cmp10amvd000402jyhyhsb873':'acc_cmp6ij34y002m02jpa4g4expy'};setSyncedTransactions(prev=>prev.map(t=>ID_MAP[t.account]?{...t,account:ID_MAP[t.account]}:t));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>{const ids=new Set();prev.forEach((a,ai)=>{if(ids.has(a.id))return;prev.forEach((b,bi)=>{if(ai===bi||ids.has(b.id))return;const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));const withinTimeWindow=timeDiff<=5*60*1000;if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){ids.add(a.id);ids.add(b.id);}});});return prev.filter(t=>!ids.has(t.id));});},[]);
+useEffect(()=>{
+if(localStorage.getItem('ft_migration_debtrepay'))return;
+const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!AKAHU_ACCOUNTS[l.akahuAccountId]).map(l=>l.akahuAccountId));
+setSyncedTransactions(prev=>{
+const migrated=prev.map(t=>liabilityAccountIds.has(t.account)&&t.amount>0&&t.ledgerlyType==='income'?{...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false}:t);
+const removeIds=new Set();
+migrated.forEach(a=>{
+if(!a.isDebtRepayment)return;
+migrated.forEach(b=>{
+if(a.id===b.id||removeIds.has(b.id))return;
+const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);
+const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);
+const differentAccount=b.account!==a.account;
+const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
+const withinTimeWindow=timeDiff<=5*60*1000;
+if(absAmountMatch&&oppositeSign&&differentAccount&&withinTimeWindow)removeIds.add(b.id);
+});
+});
+return migrated.filter(t=>!removeIds.has(t.id));
+});
+localStorage.setItem('ft_migration_debtrepay','true');
+},[]);
 
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
@@ -1963,6 +1985,7 @@ setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.ite
 setUpcomingPayments(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,saved:Math.max(0,bal.balance)};}));
 setAssets(prev=>prev.map(a=>{if(!a.akahuAccountId)return a;const bal=(balData.items||[]).find(b=>b.id===a.akahuAccountId);if(!bal||bal.balance==null)return a;return{...a,value:Math.max(0,bal.balance)};}));
 setLiabilities(prev=>prev.map(l=>{if(!l.akahuAccountId)return l;const bal=(balData.items||[]).find(b=>b.id===l.akahuAccountId);if(!bal||bal.balance==null)return l;return{...l,value:Math.abs(bal.balance)};}));
+const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!AKAHU_ACCOUNTS[l.akahuAccountId]).map(l=>l.akahuAccountId));
 const incoming=txData.items||[];
 const processed=[];
 for(const t of incoming){
@@ -1971,6 +1994,12 @@ if(treat==='balance_only')continue;
 if(treat==='savings'){
 if(t.amount>0){
 processed.push({...t,ledgerlyCategory:'Savings Goal',ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false});
+}
+continue;
+}
+if(liabilityAccountIds.has(t.account)){
+if(t.amount>0){
+processed.push({...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false});
 }
 continue;
 }
@@ -1996,6 +2025,7 @@ const needsReview=!mapped;
 processed.push({...t,ledgerlyType,ledgerlyCategory,needsReview});
 }
 const transferIds=new Set();
+const isOwnAccount=acc=>Boolean(AKAHU_ACCOUNTS[acc])||liabilityAccountIds.has(acc);
 processed.forEach((a,ai)=>{
 if(transferIds.has(a.id))return;
 processed.forEach((b,bi)=>{
@@ -2003,12 +2033,18 @@ if(ai===bi)return;
 if(transferIds.has(b.id))return;
 const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);
 const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);
-const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];
+const bothOwnAccounts=isOwnAccount(a.account)&&isOwnAccount(b.account);
 const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
 const withinTimeWindow=timeDiff<=5*60*1000;
 if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){
+if(a.isDebtRepayment&&!b.isDebtRepayment){
+transferIds.add(b.id);
+}else if(b.isDebtRepayment&&!a.isDebtRepayment){
+transferIds.add(a.id);
+}else{
 transferIds.add(a.id);
 transferIds.add(b.id);
+}
 }
 });
 });
