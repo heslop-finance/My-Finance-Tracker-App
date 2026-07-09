@@ -1398,7 +1398,9 @@ const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
 const[useCustomTarget,setUseCustomTarget]=useState(false);
 const[customTarget,setCustomTarget]=useState('');
-const[withdrawalRate]=useState(0.04);
+const[withdrawalRate,setWithdrawalRate]=useState(0.04);
+const[includeNzSuper,setIncludeNzSuper]=useState(false);
+const[nzSuperAmount,setNzSuperAmount]=useState('');
 const[showFILine,setShowFILine]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
 const[nominalReturn,setNominalReturn]=useState('7.0');
@@ -1439,9 +1441,11 @@ return annualFromEntries;
 },[syncedTransactions,entries]);
 const fiTarget=useMemo(()=>{
 if(useCustomTarget&&Number(customTarget)>0)return Number(customTarget);
-if(suggestedAnnualExpenses>0)return Math.round(suggestedAnnualExpenses/withdrawalRate);
+const superDeduction=includeNzSuper&&Number(nzSuperAmount)>0?Number(nzSuperAmount):0;
+const adjustedExpenses=Math.max(0,suggestedAnnualExpenses-superDeduction);
+if(adjustedExpenses>0)return Math.round(adjustedExpenses/withdrawalRate);
 return 0;
-},[useCustomTarget,customTarget,suggestedAnnualExpenses,withdrawalRate]);
+},[useCustomTarget,customTarget,suggestedAnnualExpenses,withdrawalRate,includeNzSuper,nzSuperAmount]);
 const fiPct=fiTarget>0?Math.min(100,(netWorth/fiTarget)*100):0;
 const fiGap=Math.max(0,fiTarget-netWorth);
 const realMonthlyReturn=useMemo(()=>{
@@ -1672,9 +1676,21 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
 <div>
-<div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>FI Target <span style={{color:C.t5,textTransform:'none',letterSpacing:'normal'}}>(4% rule)</span></div>
+<div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4}}>FI Target <span style={{color:C.t5,textTransform:'none',letterSpacing:'normal'}}>({fmtN(withdrawalRate*100)}% rule)</span></div>
 <Mono color={C.amber} size={22}>{fmtS(fiTarget)}</Mono>
-{!useCustomTarget&&suggestedAnnualExpenses>0&&<div style={{fontSize:10,color:C.t4,marginTop:3}}>{syncedTransactions.length>0?`Based on ${fmtS(suggestedAnnualExpenses)}/yr actual expenses ÷ 4%`:`Based on ${fmtS(suggestedAnnualExpenses)}/yr estimated expenses ÷ 4%`}</div>}
+{!useCustomTarget&&suggestedAnnualExpenses>0&&(()=>{
+const superDeduction=includeNzSuper&&Number(nzSuperAmount)>0?Number(nzSuperAmount):0;
+const adjustedExpenses=Math.max(0,suggestedAnnualExpenses-superDeduction);
+const basis=syncedTransactions.length>0?'actual':'estimated';
+return(
+<div style={{fontSize:10,color:C.t4,marginTop:3}}>
+{superDeduction>0
+?`Based on ${fmtS(suggestedAnnualExpenses)}/yr ${basis} expenses − ${fmtS(superDeduction)} NZ Super = ${fmtS(adjustedExpenses)} ÷ ${fmtN(withdrawalRate*100)}%`
+:`Based on ${fmtS(suggestedAnnualExpenses)}/yr ${basis} expenses ÷ ${fmtN(withdrawalRate*100)}%`
+}
+</div>
+);
+})()}
 </div>
 <button onClick={()=>{setUseCustomTarget(v=>!v);if(useCustomTarget)setCustomTarget('');}} style={{background:useCustomTarget?'rgba(110,231,183,.1)':'none',border:`1px solid ${useCustomTarget?C.green:C.t5}`,borderRadius:6,padding:'4px 8px',color:useCustomTarget?C.green:C.t4,fontSize:10,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{useCustomTarget?'Using custom':'Override'}</button>
 </div>
@@ -1684,7 +1700,23 @@ return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <input className="fi" type="text" inputMode="decimal" placeholder={suggestedAnnualExpenses>0?String(Math.round(suggestedAnnualExpenses/withdrawalRate)):'e.g. 1500000'} value={customTarget} onFocus={e=>e.target.select()} onChange={e=>setCustomTarget(e.target.value)} style={{padding:'8px 12px'}}/>
 </div>
 )}
-<div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>The 4% rule suggests you can withdraw 4% of your portfolio annually without depleting it. This is a guide only and does not account for inflation or market returns.</div>
+<div style={{display:'flex',gap:6,marginTop:10}}>
+{[0.04,0.045,0.05,0.055].map(r=>(
+<button key={r} onClick={()=>setWithdrawalRate(r)} className={`rb ${withdrawalRate===r?'on':''}`}>{fmtN(r*100)}%</button>
+))}
+</div>
+<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
+<div style={{fontSize:11,color:C.t3}}>Include NZ Super</div>
+<button onClick={()=>setIncludeNzSuper(v=>!v)} style={{background:includeNzSuper?'rgba(110,231,183,.1)':'none',border:`1px solid ${includeNzSuper?C.green:C.t5}`,borderRadius:6,padding:'4px 8px',color:includeNzSuper?C.green:C.t4,fontSize:10,fontWeight:600,cursor:'pointer'}}>{includeNzSuper?'On':'Off'}</button>
+</div>
+{includeNzSuper&&(
+<div style={{marginTop:8}}>
+<label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Expected NZ Super ($/yr)</label>
+<input className="fi" type="text" inputMode="decimal" placeholder="e.g. 27000" value={nzSuperAmount} onFocus={e=>e.target.select()} onChange={e=>setNzSuperAmount(e.target.value)} style={{padding:'8px 12px'}}/>
+<div style={{fontSize:10,color:C.t5,marginTop:4,fontStyle:'italic'}}>Subtracted from annual expenses before applying the {fmtN(withdrawalRate*100)}% rule — reflects that NZ Super may cover part of your living costs in retirement.</div>
+</div>
+)}
+<div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>The {fmtN(withdrawalRate*100)}% rule suggests you can withdraw {fmtN(withdrawalRate*100)}% of your portfolio annually without depleting it. This is a guide only and does not account for inflation or market returns.</div>
 </div>
 <div style={{marginBottom:14}}>
 <div onClick={()=>setShowAssumptions(v=>!v)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',padding:'8px 12px',background:C.bg,border:`1px solid ${C.border}`,borderRadius:showAssumptions?'10px 10px 0 0':'10px'}}>
