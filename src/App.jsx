@@ -17,10 +17,10 @@ const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
 const FIXED_CATS=new Set(["Mortgage","Rent","Rates","Insurance","Subscriptions"]);
 const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const SPLIT_CATS=[
-{key:'freedom_fund',label:'🕊 Freedom Fund'},
-{key:'valuable_liability',label:'🏠 Valuable Liability'},
-{key:'cash',label:'💵 Cash & Planned Spending'},
-{key:'debt',label:'💳 Debt'},
+{key:'freedom_fund',label:'🕊 Freedom Fund',color:C.green},
+{key:'valuable_liability',label:'🏠 Valuable Liability',color:C.cyan},
+{key:'cash',label:'💵 Cash & Planned Spending',color:C.amber},
+{key:'debt',label:'💳 Debt',color:C.red},
 ];
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
@@ -1413,6 +1413,20 @@ const totalAssets=assets.reduce((s,a)=>s+Number(a.value),0);
 const totalLiabs=liabilities.reduce((s,l)=>s+(l.linkMortgage?liveBal:Number(l.value)),0);
 const netWorth=totalAssets-totalLiabs;
 const equityPct=totalAssets>0?(totalAssets-totalLiabs)/totalAssets*100:0;
+const splitBuckets=useMemo(()=>{
+const buckets={freedom_fund:0,valuable_liability:0,cash:0,debt:0,uncategorised:0};
+assets.forEach(a=>{
+const key=a.splitCategory&&buckets.hasOwnProperty(a.splitCategory)?a.splitCategory:'uncategorised';
+buckets[key]+=Number(a.value)||0;
+});
+liabilities.forEach(l=>{
+const val=l.linkMortgage?liveBal:(Number(l.value)||0);
+const key=l.splitCategory&&buckets.hasOwnProperty(l.splitCategory)?l.splitCategory:'uncategorised';
+buckets[key]+=val;
+});
+return buckets;
+},[assets,liabilities,liveBal]);
+const splitTotal=Object.values(splitBuckets).reduce((s,v)=>s+v,0);
 const suggestedAnnualExpenses=useMemo(()=>{
 if(syncedTransactions.length>0){
 const oneYearAgo=new Date();oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
@@ -1483,6 +1497,33 @@ return(
 <div style={{height:"100%",width:`${equityPct}%`,background:`linear-gradient(90deg,${C.green},#3b82f6)`,borderRadius:5,transition:"width .6s ease"}}/>
 </div>
 </div>
+{splitTotal>0&&(
+<div style={{marginBottom:18}}>
+<div style={{fontSize:11,color:C.t3,marginBottom:6,textTransform:'uppercase',letterSpacing:'.06em',fontWeight:700}}>Composition</div>
+<div style={{height:10,background:C.border,borderRadius:5,overflow:'hidden',display:'flex'}}>
+{SPLIT_CATS.map(s=>splitBuckets[s.key]>0&&(
+<div key={s.key} style={{height:'100%',width:`${(splitBuckets[s.key]/splitTotal)*100}%`,background:s.color,transition:'width .6s ease'}}/>
+))}
+{splitBuckets.uncategorised>0&&(
+<div style={{height:'100%',width:`${(splitBuckets.uncategorised/splitTotal)*100}%`,background:C.t5,transition:'width .6s ease'}}/>
+)}
+</div>
+<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:8,fontSize:10,color:C.t3}}>
+{SPLIT_CATS.map(s=>splitBuckets[s.key]>0&&(
+<div key={s.key} style={{display:'flex',alignItems:'center',gap:4}}>
+<span style={{width:8,height:8,background:s.color,borderRadius:2,display:'inline-block'}}/>
+{s.label} <Mono color={C.t2} size={10}>{fmtS(splitBuckets[s.key])}</Mono> ({fmtN((splitBuckets[s.key]/splitTotal)*100)}%)
+</div>
+))}
+{splitBuckets.uncategorised>0&&(
+<div style={{display:'flex',alignItems:'center',gap:4}}>
+<span style={{width:8,height:8,background:C.t5,borderRadius:2,display:'inline-block'}}/>
+Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</Mono> ({fmtN((splitBuckets.uncategorised/splitTotal)*100)}%)
+</div>
+)}
+</div>
+</div>
+)}
 {editMode?(
 <div style={{marginBottom:16}}>
 <div style={{background:"rgba(110,231,183,.06)",border:`1px solid rgba(110,231,183,.15)`,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
