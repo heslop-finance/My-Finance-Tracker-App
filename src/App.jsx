@@ -16,6 +16,12 @@ const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insur
 const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
 const FIXED_CATS=new Set(["Mortgage","Rent","Rates","Insurance","Subscriptions"]);
 const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
+const SPLIT_CATS=[
+{key:'freedom_fund',label:'🕊 Freedom Fund'},
+{key:'valuable_liability',label:'🏠 Valuable Liability'},
+{key:'cash',label:'💵 Cash & Planned Spending'},
+{key:'debt',label:'💳 Debt'},
+];
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -102,6 +108,14 @@ return s+e.amount;
 },0);
 }
 
+function inferSplitCategory(label,isLiability){
+if(isLiability)return 'debt';
+const l=(label||'').toLowerCase();
+if(l.includes('home value')||l.includes('house value'))return 'valuable_liability';
+if(l.includes('kiwisaver')||l.includes('etf')||l.includes('sharesies'))return 'freedom_fund';
+if(l.includes('emergency fund'))return 'cash';
+return '';
+}
 function buildSchedule(principal,annualRate,termYears,startDateStr,rateChanges,lumpSums){
 if(!principal||!annualRate||!termYears)return[];
 const rateAt=mi=>{let r=annualRate;rateChanges.slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
@@ -1486,6 +1500,10 @@ return(
 <option key={b.id} value={b.id}>{b.name} · ${b.balance?.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
 ))}
 </select>}
+<select value={a.splitCategory||inferSplitCategory(a.label,false)} onChange={e=>updateAsset(a.id,'splitCategory',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
+<option value=''>— uncategorised —</option>
+{SPLIT_CATS.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+</select>
 </div>
 ))}
 <button onClick={()=>setAssets(as=>[...as,{id:Date.now(),label:"New Asset",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Asset</button>
@@ -1505,6 +1523,12 @@ return(
 <option key={b.id} value={b.id}>{b.name} · ${Math.abs(b.balance||0).toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
 ))}
 </select>}
+<div style={{display:'flex',gap:6,marginTop:4}}>
+<input type="text" inputMode="decimal" placeholder="Interest rate % (optional)" value={l.interestRate==null?'':l.interestRate} onFocus={e=>e.target.select()} onChange={e=>updateLiab(l.id,'interestRate',e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}/>
+<select value={l.splitCategory||inferSplitCategory(l.label,true)} onChange={e=>updateLiab(l.id,'splitCategory',e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
+{SPLIT_CATS.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+</select>
+</div>
 </div>
 ))}
 <button onClick={()=>setLiabilities(ls=>[...ls,{id:Date.now(),label:"New Liability",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Liability</button>
