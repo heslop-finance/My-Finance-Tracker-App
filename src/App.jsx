@@ -1880,6 +1880,8 @@ const[syncedTransactions,setSyncedTransactions]=useState(()=>AKAHU_ENABLED?loadL
 const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
 const[akahuBalances,setAkahuBalances]=useState(()=>AKAHU_ENABLED?loadLS('ft_akahuBalances',[]):[]);
 const[syncing,setSyncing]=useState(false);
+const[showResync,setShowResync]=useState(false);
+const[resyncDate,setResyncDate]=useState('');
 const[syncError,setSyncError]=useState(null);
 const[categoryRules,setCategoryRules]=useState(()=>loadLS('ft_categoryRules',[]));
 const[txSearch,setTxSearch]=useState('');
@@ -1958,14 +1960,14 @@ localStorage.setItem('ft_migration_debtrepay','true');
 
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
-async function handleSync(){
+async function handleSync(forceStartDate){
 if(!AKAHU_ENABLED)return;
 setSyncing(true);
 const syncStart=Date.now();
 try{
 const mostRecent=syncedTransactions.length?syncedTransactions.reduce((latest,t)=>t.date>latest?t.date:latest,'2000-01-01'):null;
-const startDate=mostRecent?new Date(mostRecent):null;
-if(startDate)startDate.setDate(startDate.getDate()-1);
+const startDate=forceStartDate?new Date(forceStartDate):(mostRecent?new Date(mostRecent):null);
+if(startDate&&!forceStartDate)startDate.setDate(startDate.getDate()-1);
 const startParam=startDate?`?start=${dateKey(startDate)}`:'';
 const[txRes,balRes]=await Promise.all([
 fetch(`/.netlify/functions/akahu-transactions${startParam}`),
@@ -2003,7 +2005,6 @@ processed.push({...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',is
 }
 continue;
 }
-if(t.type==='TRANSFER'||t.type==='PAYMENT')continue;
 const desc=t.description||'';
 if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04','0462579-05'].some(s=>desc.includes(s)))continue;
 const ledgerlyType=t.amount>=0?'income':'expense';
@@ -2357,10 +2358,19 @@ return <>
 {lastSynced?`Last synced: ${new Date(lastSynced).toLocaleString('en-NZ')}`:'Not yet synced'}
 </div>
 </div>
-<button onClick={handleSync} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
+<div style={{display:"flex",alignItems:"center"}}>
+<button onClick={()=>handleSync()} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
 {syncing?"↻ Syncing...":"↻ Sync"}
 </button>
+<button onClick={()=>setShowResync(v=>!v)} className={`rb ${showResync?'oo':''}`} style={{marginLeft:6}}>↻ Resync from date</button>
 </div>
+</div>
+{showResync&&(
+<div style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
+<input className="fi" type="date" value={resyncDate} onChange={e=>setResyncDate(e.target.value)} style={{padding:'8px 12px',flex:1}}/>
+<button onClick={()=>{if(resyncDate){handleSync(resyncDate);setShowResync(false);}}} className="rb on" disabled={!resyncDate}>Resync</button>
+</div>
+)}
 </div>
 {syncError&&(
 <div style={{background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.3)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:C.amber}}>
