@@ -2090,10 +2090,8 @@ const processed=[];
 for(const t of incoming){
 const treat=(AKAHU_ACCOUNTS[t.account]||{treat:'transactions'}).treat;
 if(treat==='balance_only')continue;
-if(treat==='savings'){
-if(t.amount>0){
+if(treat==='savings'&&t.amount>0){
 processed.push({...t,ledgerlyCategory:'Savings Goal',ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false});
-}
 continue;
 }
 if(liabilityAccountIds.has(t.account)){
