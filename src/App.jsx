@@ -12,10 +12,10 @@ const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const s=(extra={})=>({...extra});
 
 const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Government Benefits","Other Income"];
-const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Investments","Travel","Car & Maintenance","Fines","Debt Repayment","Other"];
-const SAVINGS_CATS=new Set(["Savings Goal","Investments"]);
+const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Sinking Fund","Investments","Travel","Car & Maintenance","Fines","Debt Repayment","Other"];
+const SAVINGS_CATS=new Set(["Savings Goal","Investments","Sinking Fund"]);
 const FIXED_CATS=new Set(["Mortgage","Rent","Rates","Insurance","Subscriptions"]);
-const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Sinking Fund":"#38bdf8","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const SPLIT_CATS=[
 {key:'freedom_fund',label:'🕊 Freedom Fund',color:C.green},
 {key:'valuable_liability',label:'🏠 Valuable Liability',color:C.cyan},
@@ -28,6 +28,7 @@ const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MON_SHORT=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const RECURDAYS={Weekly:7,Fortnightly:14,Monthly:30.44,Yearly:365};
 const PWORD={weekly:"week",fortnightly:"fortnight",monthly:"month",yearly:"year"};
+// LEGACY — id-keyed seed data only, used once to bootstrap akahuAccountMap. Do not add new accounts here; add them to AKAHU_ACCOUNT_RULES by name instead.
 const AKAHU_ACCOUNTS={
 'acc_cmp6ij34i002i02jp6ym1f040':{name:'YouMoney',treat:'transactions'},
 'acc_cmp6ij356002o02jpfo8jee7t':{name:'Travel',treat:'savings'},
@@ -42,6 +43,17 @@ const AKAHU_ACCOUNTS={
 'acc_cmp10amut000202jy57yv6lxu':{name:'Sony 200-600mm',treat:'savings'},
 'acc_cmp10amvb000302jyeonj9pi4':{name:'Expenses',treat:'transactions'},
 'acc_cmp10amvd000402jyhyhsb873':{name:'Rainy Day',treat:'savings'},
+};
+const AKAHU_ACCOUNT_RULES={
+'Main':{treat:'transactions'},
+'Travel':{treat:'savings'},
+'Sony 200-600mm':{treat:'savings'},
+'Utilities':{treat:'savings',depositCategory:'Sinking Fund'},
+'Rainy Day':{treat:'savings'},
+'Holding Account':{treat:'transactions'},
+'Student Loan':{treat:'balance_only'},
+'Sharesies':{treat:'balance_only'},
+'Rates':{treat:'savings',depositCategory:'Sinking Fund'},
 };
 
 // ── HELPERS ────────────────────────────────────────────────────
@@ -1976,6 +1988,7 @@ const[showPastOneOffs,setShowPastOneOffs]=useState(false);
 const[syncedTransactions,setSyncedTransactions]=useState(()=>AKAHU_ENABLED?loadLS('ft_transactions',[]):[]);
 const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
 const[akahuBalances,setAkahuBalances]=useState(()=>AKAHU_ENABLED?loadLS('ft_akahuBalances',[]):[]);
+const[akahuAccountMap,setAkahuAccountMap]=useState(()=>loadLS('ft_akahuAccountMap',{}));
 const[syncing,setSyncing]=useState(false);
 const[showResync,setShowResync]=useState(false);
 const[resyncDate,setResyncDate]=useState('');
@@ -2022,6 +2035,7 @@ useEffect(()=>{localStorage.setItem('ft_displayPeriod',JSON.stringify(displayPer
 useEffect(()=>{localStorage.setItem('ft_transactions',JSON.stringify(syncedTransactions));},[syncedTransactions]);
 useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));},[lastSynced]);
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
+useEffect(()=>{localStorage.setItem('ft_akahuAccountMap',JSON.stringify(akahuAccountMap));},[akahuAccountMap]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{window.scrollTo(0,0);},[view]);
 useEffect(()=>{const params=new URLSearchParams(window.location.search);if(params.get('akahu')==='enable'){localStorage.setItem('ft_akahu_enabled','true');window.location.href=window.location.pathname;}if(params.get('akahu')==='disable'){localStorage.removeItem('ft_akahu_enabled');window.location.href=window.location.pathname;}},[]);
@@ -2054,6 +2068,15 @@ return migrated.filter(t=>!removeIds.has(t.id));
 });
 localStorage.setItem('ft_migration_debtrepay','true');
 },[]);
+useEffect(()=>{
+if(localStorage.getItem('ft_migration_accountmap'))return;
+localStorage.setItem('ft_migration_accountmap','1');
+setAkahuAccountMap(prev=>{
+const seeded={...prev};
+Object.entries(AKAHU_ACCOUNTS).forEach(([id,cfg])=>{if(!seeded[id])seeded[id]=cfg;});
+return seeded;
+});
+},[]);
 
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
@@ -2080,18 +2103,26 @@ setSyncError(null);
 const txData=await txRes.json();
 const balData=await balRes.json();
 setAkahuBalances(balData.items||[]);
+const updatedAccountMap={...akahuAccountMap};
+(balData.items||[]).forEach(item=>{
+const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCase().trim()===(item.name||'').toLowerCase().trim());
+const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
+updatedAccountMap[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined};
+});
+setAkahuAccountMap(updatedAccountMap);
 setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.items||[]).find(a=>a.id===g.akahuAccountId);if(!bal||bal.balance==null)return g;return{...g,saved:Math.max(0,bal.balance)};}));
 setUpcomingPayments(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,saved:Math.max(0,bal.balance)};}));
 setAssets(prev=>prev.map(a=>{if(!a.akahuAccountId)return a;const bal=(balData.items||[]).find(b=>b.id===a.akahuAccountId);if(!bal||bal.balance==null)return a;return{...a,value:Math.max(0,bal.balance)};}));
 setLiabilities(prev=>prev.map(l=>{if(!l.akahuAccountId)return l;const bal=(balData.items||[]).find(b=>b.id===l.akahuAccountId);if(!bal||bal.balance==null)return l;return{...l,value:Math.abs(bal.balance)};}));
-const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!AKAHU_ACCOUNTS[l.akahuAccountId]).map(l=>l.akahuAccountId));
+const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]).map(l=>l.akahuAccountId));
 const incoming=txData.items||[];
 const processed=[];
 for(const t of incoming){
-const treat=(AKAHU_ACCOUNTS[t.account]||{treat:'transactions'}).treat;
+const treat=(updatedAccountMap[t.account]||{treat:'transactions'}).treat;
 if(treat==='balance_only')continue;
 if(treat==='savings'&&t.amount>0){
-processed.push({...t,ledgerlyCategory:'Savings Goal',ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false});
+const depositCat=(updatedAccountMap[t.account]||{}).depositCategory||'Savings Goal';
+processed.push({...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false});
 continue;
 }
 if(liabilityAccountIds.has(t.account)){
@@ -2121,7 +2152,7 @@ const needsReview=!mapped;
 processed.push({...t,ledgerlyType,ledgerlyCategory,needsReview});
 }
 const transferIds=new Set();
-const isOwnAccount=acc=>Boolean(AKAHU_ACCOUNTS[acc])||liabilityAccountIds.has(acc);
+const isOwnAccount=acc=>Boolean(updatedAccountMap[acc])||liabilityAccountIds.has(acc);
 processed.forEach((a,ai)=>{
 if(transferIds.has(a.id))return;
 processed.forEach((b,bi)=>{
@@ -2486,7 +2517,7 @@ return <>
 <div style={{maxHeight:480,overflowY:"auto"}}>
 {displayedTransactions.map(t=>{
 const isEditing=txEditingId===t.id;
-const accountName=AKAHU_ACCOUNTS[t.account]?.name||'Unknown';
+const accountName=akahuAccountMap[t.account]?.name||'Unknown';
 const catColor=CAT_COLORS[t.ledgerlyCategory]||C.t3;
 return(
 <div key={t.id} style={{background:t.needsReview?"rgba(251,191,36,.06)":C.bg,border:`1px solid ${t.needsReview?"rgba(251,191,36,.3)":C.border}`,borderLeft:`3px solid ${t.needsReview?C.amber:catColor}`,borderRadius:10,padding:"10px 12px",marginBottom:6,cursor:"pointer"}} onClick={()=>setTxEditingId(isEditing?null:t.id)}>
