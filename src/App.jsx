@@ -143,6 +143,19 @@ schedule.push({mi,date,label:`${MON_SHORT[date.getMonth()]} ${date.getFullYear()
 }
 return schedule;
 }
+function aggregateSchedules(psList){
+const maxLen=Math.max(0,...psList.map(ps=>ps.schedule.length));
+const monthlyPmt=psList.reduce((s,ps)=>s+(ps.schedule.length?ps.schedule[0].payment:0),0);
+const totalInterest=psList.reduce((s,ps)=>s+ps.schedule.reduce((ss,m)=>ss+m.interest,0),0);
+const longestSchedule=psList.find(ps=>ps.schedule.length===maxLen)?.schedule||[];
+const paidOffDate=longestSchedule.length?longestSchedule[longestSchedule.length-1].date:null;
+const balanceToday=psList.reduce((s,ps)=>{
+if(!ps.schedule.length)return s;
+const cur=ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
+return s+(cur?cur.balance:ps.schedule[ps.schedule.length-1].balance);
+},0);
+return{maxLen,monthlyPmt,totalInterest,paidOffDate,balanceToday};
+}
 
 // ── CSS ────────────────────────────────────────────────────────
 const CSS=`
@@ -1194,21 +1207,78 @@ const portionSchedules=useMemo(()=>portions.map(p=>({
 id:p.id,
 schedule:buildSchedule(p.principal,p.annualRate,loanCfg.termYears,loanCfg.startDate,p.rateChanges||[],p.lumpSums||[])
 })),[portions,loanCfg]);
-const maxScheduleLen=Math.max(0,...portionSchedules.map(ps=>ps.schedule.length));
 const totalPrincipal=portions.reduce((s,p)=>s+(Number(p.principal)||0),0);
-const combinedMonthlyPmt=portionSchedules.reduce((s,ps)=>s+(ps.schedule.length?ps.schedule[0].payment:0),0);
-const combinedTotalInterest=portionSchedules.reduce((s,ps)=>s+ps.schedule.reduce((ss,m)=>ss+m.interest,0),0);
+const{monthlyPmt:combinedMonthlyPmt,totalInterest:combinedTotalInterest,paidOffDate:paidOff,maxLen:maxScheduleLen,balanceToday:combinedBalanceToday}=useMemo(()=>aggregateSchedules(portionSchedules),[portionSchedules]);
 const combinedTotalCost=totalPrincipal+combinedTotalInterest;
-const longestSchedule=portionSchedules.find(ps=>ps.schedule.length===maxScheduleLen)?.schedule||[];
-const paidOff=longestSchedule.length?longestSchedule[longestSchedule.length-1].date:null;
-const combinedBalanceToday=portionSchedules.reduce((s,ps)=>{
-if(!ps.schedule.length)return s;
-const cur=ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
-return s+(cur?cur.balance:ps.schedule[ps.schedule.length-1].balance);
-},0);
 const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
 const periodPmt=combinedMonthlyPmt*(pDays/30.44);
 const pmtLabel=({weekly:"Weekly",fortnightly:"Fortnightly",monthly:"Monthly",yearly:"Yearly"})[displayPeriod]+" Payment";
+const[whatIf,setWhatIf]=useState({active:false,portionId:null,extraMonthly:0,lumpAtStart:0});
+const whatIfPortionSchedule=useMemo(()=>{
+if(!whatIf.active||!whatIf.portionId)return[];
+const p=portions.find(x=>x.id===whatIf.portionId);
+if(!p||!p.principal||!p.annualRate||!loanCfg.termYears)return[];
+const extra=Number(whatIf.extraMonthly)||0;
+const lump0=Number(whatIf.lumpAtStart)||0;
+const rateAt=mi=>{let r=p.annualRate;(p.rateChanges||[]).slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
+let bal=Math.max(0,p.principal-lump0);
+const sc=[];const start=parseDt(loanCfg.startDate);
+for(let mi=0;mi<loanCfg.termYears*12&&bal>0.01;mi++){
+const ar=rateAt(mi),mo=ar/100/12,n=loanCfg.termYears*12-mi;
+const payment=bal*mo*Math.pow(1+mo,n)/(Math.pow(1+mo,n)-1);
+const lump=((p.lumpSums||[]).find(l=>l.month===mi)||{amount:0}).amount;
+const interest=bal*mo,principalPart=Math.min(payment-interest,bal);
+const extraPrin=Math.min(extra,Math.max(0,bal-principalPart-lump));
+bal=Math.max(0,bal-principalPart-lump-extraPrin);
+const date=new Date(start);date.setMonth(date.getMonth()+mi);
+sc.push({mi,date,payment:payment+lump+extraPrin,interest,principal:principalPart+lump+extraPrin,lump:lump+extraPrin,balance:bal,rate:ar});
+}
+return sc;
+},[whatIf,portions,loanCfg]);
+const scActive=whatIf.active&&whatIf.portionId&&whatIfPortionSchedule.length>0;
+const scPortionSchedules=useMemo(()=>portions.map(p=>({
+id:p.id,
+schedule:scActive&&p.id===whatIf.portionId?whatIfPortionSchedule:(portionSchedules.find(ps=>ps.id===p.id)?.schedule||[])
+})),[portions,scActive,whatIf.portionId,whatIfPortionSchedule,portionSchedules]);
+const{monthlyPmt:scCombinedMonthlyPmt,totalInterest:scCombinedTotalInterest,paidOffDate:scPaidOff,maxLen:scMaxScheduleLen}=useMemo(()=>scActive?aggregateSchedules(scPortionSchedules):{monthlyPmt:0,totalInterest:0,paidOffDate:null,maxLen:0,balanceToday:0},[scActive,scPortionSchedules]);
+const scPeriodPmt=scCombinedMonthlyPmt*(pDays/30.44);
+const scCombinedTotalCost=totalPrincipal+scCombinedTotalInterest;
+const scYearsLeft=scMaxScheduleLen/12;
+const[showRefi,setShowRefi]=useState(false);
+const[refi,setRefi]=useState({scope:'all',rate:'',termYears:'',costs:''});
+const refiComparison=useMemo(()=>{
+if(!showRefi)return null;
+const nr=Number(refi.rate),nt=Number(refi.termYears),nc=Number(refi.costs)||0;
+if(!nr||!nt)return null;
+function portionCurrentState(ps){
+if(!ps||!ps.schedule.length)return null;
+const idx=ps.schedule.findIndex(m=>new Date(m.date)>=new Date(todayStr));
+const cur=idx>=0?ps.schedule[idx]:ps.schedule[ps.schedule.length-1];
+const monthsLeft=idx>=0?ps.schedule.length-idx:1;
+return{balance:cur.balance,rate:cur.rate,monthsLeft};
+}
+function theoreticalMonthly(bal,ratePct,monthsLeft){
+if(!bal||!ratePct||!monthsLeft)return 0;
+const mo=ratePct/100/12;
+if(mo<=0)return bal/monthsLeft;
+return bal*mo*Math.pow(1+mo,monthsLeft)/(Math.pow(1+mo,monthsLeft)-1);
+}
+let curBal=0,curM=0,curTotalInterest=0;
+const scopedPortions=refi.scope==='all'?portions:portions.filter(p=>p.id===refi.scope);
+scopedPortions.forEach(p=>{
+const ps=portionSchedules.find(x=>x.id===p.id);
+const state=portionCurrentState(ps);
+if(!state)return;
+const pM=theoreticalMonthly(state.balance,state.rate,state.monthsLeft);
+curBal+=state.balance;curM+=pM;curTotalInterest+=pM*state.monthsLeft-state.balance;
+});
+if(!curBal)return null;
+const nBal=curBal+nc,nN=nt*12;
+const nM=theoreticalMonthly(nBal,nr,nN);
+const nTotalInterest=nM*nN-nBal;
+const monthlySaving=curM-nM;
+return{currentBalance:curBal,currentMonthly:curM,refiMonthly:nM,monthlySaving,interestSaved:curTotalInterest-nTotalInterest,breakEven:monthlySaving>0?nc/monthlySaving:null};
+},[showRefi,refi,portions,portionSchedules]);
 const W=400,H=260,LPAD=52,RPAD=8,PAD=LPAD;
 const xScale=i=>LPAD+i*(W-LPAD-RPAD)/(Math.max(maxScheduleLen/12-1,1));
 const combinedData=useMemo(()=>{
@@ -1227,11 +1297,28 @@ return{year,balance,interest,principal,lump};
 },[portionSchedules,maxScheduleLen]);
 const allRateChangeMonths=[...new Set(portions.flatMap(p=>(p.rateChanges||[]).map(rc=>rc.month)))];
 const allLumpSums=portions.flatMap(p=>p.lumpSums||[]);
+const scCombinedData=useMemo(()=>{
+if(!scActive)return null;
+const numYears=Math.ceil(scMaxScheduleLen/12);
+return Array.from({length:numYears},(_,yi)=>{
+let balance=0,interest=0,principal=0,lump=0;
+scPortionSchedules.forEach(ps=>{
+const yearMonths=ps.schedule.slice(yi*12,(yi+1)*12);
+interest+=yearMonths.reduce((s,m)=>s+m.interest,0);
+principal+=yearMonths.reduce((s,m)=>s+m.principal,0);
+lump+=yearMonths.reduce((s,m)=>s+m.lump,0);
+const lastMonthThisYear=ps.schedule[Math.min((yi+1)*12-1,ps.schedule.length-1)];
+balance+=lastMonthThisYear?lastMonthThisYear.balance:0;
+});
+return{interest,principal,lump,balance};
+});
+},[scActive,scPortionSchedules,scMaxScheduleLen]);
 const maxStack=Math.max(...combinedData.map(d=>d.interest+d.principal+d.lump),1);
 const minV=Math.min(...combinedData.map(d=>d.balance),0),maxV=Math.max(...combinedData.map(d=>d.balance),1);
 const yScale=v=>H-LPAD-(v-minV)/(maxV-minV)*(H-LPAD-RPAD*4);
 const balPath=combinedData.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(d.balance)}`).join(" ");
 const barW=Math.max(1,(W-LPAD-RPAD)/combinedData.length-1);
+const scenPath=scActive&&scCombinedData?scCombinedData.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(Math.max(0,d.balance))}`).join(" "):null;
 
 return(
 <div style={{background:C.card,borderRadius:16,overflow:"hidden",marginBottom:16}}>
@@ -1246,16 +1333,23 @@ return(
 <Btn onClick={()=>{setLoanCfgD(loanCfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}><span style={{display:'flex',alignItems:'center',gap:5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup</span></Btn>
 </Row>
 <div className="hscroll" style={{gap:10}}>
-{[
+{(scActive?[
+{label:pmtLabel,val:fmt(scPeriodPmt),color:C.purple,diff:`+${fmt(scPeriodPmt-periodPmt)} extra/${displayPeriod}`},
+{label:"Total Interest",val:fmt(scCombinedTotalInterest),color:C.purple,diff:`save ${fmt(combinedTotalInterest-scCombinedTotalInterest)}`},
+{label:"Total Cost",val:fmt(scCombinedTotalCost),color:C.purple,diff:`save ${fmt(combinedTotalCost-scCombinedTotalCost)}`},
+{label:"Paid Off",val:scPaidOff?`${MON_SHORT[scPaidOff.getMonth()]} ${scPaidOff.getFullYear()}`:"—",color:C.purple,diff:`${fmtN((maxScheduleLen-scMaxScheduleLen)/12)} yrs earlier`},
+{label:"Years Left",val:`${fmtN(scYearsLeft)} yrs`,color:C.purple,diff:`save ${fmtN(maxScheduleLen/12-scYearsLeft)} yrs`},
+]:[
 {label:pmtLabel,val:fmt(periodPmt),color:C.t1},
 {label:"Total Interest",val:fmt(combinedTotalInterest),color:C.red},
 {label:"Total Cost",val:fmt(combinedTotalCost),color:C.amber},
 {label:"Paid Off",val:paidOff?`${MON_SHORT[paidOff.getMonth()]} ${paidOff.getFullYear()}`:"—",color:C.green},
 {label:"Years Left",val:`${fmtN(maxScheduleLen/12)} yrs`,color:C.cyan},
-].map(s=>(
-<div key={s.label} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",minWidth:130,flexShrink:0}}>
+]).map(s=>(
+<div key={s.label} style={{background:scActive?"rgba(167,139,250,.07)":"rgba(255,255,255,.03)",border:`1px solid ${scActive?"rgba(167,139,250,.3)":C.border}`,borderRadius:10,padding:"10px 14px",minWidth:130,flexShrink:0}}>
 <div style={{fontSize:10,color:C.t4,marginBottom:4,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={14}>{s.val}</Mono>
+{s.diff&&<div style={{fontSize:10,color:C.purple,marginTop:3}}>{s.diff}</div>}
 </div>
 ))}
 </div>
@@ -1281,8 +1375,51 @@ return(
 {[{k:"balance",l:"Balance"},{k:"split",l:"Interest vs Principal"}].map(o=>(
 <button key={o.k} onClick={()=>setChartView(o.k)} className={`rb ${chartView===o.k?"on":""}`}>{o.l}</button>
 ))}
-<span style={{fontSize:10,color:C.t5,fontStyle:'italic',marginLeft:'auto'}}>What-if & Refinance coming soon for split mortgages</span>
+<button onClick={()=>setWhatIf(w=>({...w,active:!w.active,portionId:w.portionId||portions[0]?.id||null}))} className={`rb ${whatIf.active?"on":""}`} style={{marginLeft:"auto",color:whatIf.active?C.purple:undefined,borderColor:whatIf.active?C.purple:undefined,background:whatIf.active?"rgba(167,139,250,.15)":undefined}}>{whatIf.active?"✓ ":""}What-if</button>
+<button onClick={()=>setShowRefi(v=>!v)} className={`rb ${showRefi?"oo":""}`}>{showRefi?"✓ ":""}Refinance</button>
 </div>
+{whatIf.active&&(
+<div style={{background:"rgba(167,139,250,.07)",border:`1px solid rgba(167,139,250,.2)`,borderRadius:12,padding:14,marginBottom:14}}>
+<div style={{fontSize:12,fontWeight:700,color:C.purple,marginBottom:10}}>What-if Scenario</div>
+<div style={{marginBottom:10}}>
+<label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Portion</label>
+<select className="fi" value={whatIf.portionId||''} onChange={e=>setWhatIf(w=>({...w,portionId:e.target.value?Number(e.target.value):null}))} style={{padding:"8px 12px"}}>
+{portions.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+</select>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Extra monthly ($)</label><input className="fi" type="text" inputMode="decimal" value={whatIf.extraMonthly===0?"":whatIf.extraMonthly} onFocus={e=>e.target.select()} onChange={e=>setWhatIf(w=>({...w,extraMonthly:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Lump sum now ($)</label><input className="fi" type="text" inputMode="decimal" value={whatIf.lumpAtStart===0?"":whatIf.lumpAtStart} onFocus={e=>e.target.select()} onChange={e=>setWhatIf(w=>({...w,lumpAtStart:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+</div>
+<div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>Extra payments apply to this portion only — pick whichever one you'd actually direct the money to.</div>
+</div>
+)}
+{showRefi&&(
+<div style={{background:"rgba(251,191,36,.06)",border:`1px solid rgba(251,191,36,.3)`,borderRadius:12,padding:14,marginBottom:14}}>
+<div style={{fontSize:12,fontWeight:700,color:C.amber,marginBottom:12}}>Refinance Comparison</div>
+<div style={{marginBottom:10}}>
+<label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Refinance</label>
+<select className="fi" value={refi.scope} onChange={e=>setRefi(r=>({...r,scope:e.target.value==='all'?'all':Number(e.target.value)}))} style={{padding:"8px 12px"}}>
+<option value="all">Whole mortgage (all portions)</option>
+{portions.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+</select>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>New Rate (%)</label><input className="fi" type="text" inputMode="decimal" value={refi.rate} onFocus={e=>e.target.select()} onChange={e=>setRefi(r=>({...r,rate:e.target.value}))} style={{padding:"8px 10px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>New Term (yrs)</label><input className="fi" type="text" inputMode="decimal" value={refi.termYears} onFocus={e=>e.target.select()} onChange={e=>setRefi(r=>({...r,termYears:e.target.value}))} style={{padding:"8px 10px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Refi Costs ($)</label><input className="fi" type="text" inputMode="decimal" placeholder="0" value={refi.costs} onFocus={e=>e.target.select()} onChange={e=>setRefi(r=>({...r,costs:e.target.value}))} style={{padding:"8px 10px"}}/></div>
+</div>
+{refiComparison&&<>
+<div style={{fontSize:11,color:C.t3,marginBottom:8}}>Current balance being refinanced: <Mono color={C.t2} size={11}>{fmt(refiComparison.currentBalance)}</Mono></div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+{[{label:"Current monthly",val:fmt(refiComparison.currentMonthly),color:C.t2},{label:"New monthly",val:fmt(refiComparison.refiMonthly),color:refiComparison.refiMonthly<refiComparison.currentMonthly?C.green:C.red},{label:"Monthly saving",val:(refiComparison.monthlySaving>=0?"+":"")+fmt(refiComparison.monthlySaving),color:refiComparison.monthlySaving>=0?C.green:C.red},{label:"Interest saved",val:(refiComparison.interestSaved>=0?"+":"-")+fmtS(Math.abs(refiComparison.interestSaved)),color:refiComparison.interestSaved>=0?C.green:C.red}].map(s=>(
+<div key={s.label} style={{background:C.bg,borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:C.t3,marginBottom:3}}>{s.label}</div><Mono color={s.color} size={13}>{s.val}</Mono></div>
+))}
+</div>
+{refiComparison.breakEven!=null&&<div style={{fontSize:12,color:C.t2}}>💡 Break-even in <strong>{Math.ceil(refiComparison.breakEven)} months</strong></div>}
+</>}
+</div>
+)}
 <div style={{margin:"0 -20px",marginBottom:6}} onMouseLeave={()=>setHoverIdx(null)}>
 <svg width="100%" height="260" viewBox={`0 0 ${W} ${H+36}`} style={{display:"block",cursor:"crosshair"}}
 onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.clientX-rect.left)*(W/rect.width);const idx=Math.round((mx-PAD)/(W-PAD*2)*(combinedData.length-1));setHoverIdx(Math.max(0,Math.min(combinedData.length-1,idx)));}}>
@@ -1290,6 +1427,7 @@ onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.
 <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.green} stopOpacity=".18"/><stop offset="100%" stopColor={C.green} stopOpacity=".01"/></linearGradient></defs>
 <path d={`${balPath} L${xScale(combinedData.length-1)},${H-LPAD} L${xScale(0)},${H-LPAD} Z`} fill="url(#bg)"/>
 <path d={balPath} fill="none" stroke={C.green} strokeWidth={2}/>
+{scenPath&&<path d={scenPath} fill="none" stroke={C.purple} strokeWidth={2} strokeDasharray="5 3"/>}
 {allRateChangeMonths.map((month,i)=>{const yi=Math.floor(month/12);if(yi>=combinedData.length)return null;return <line key={i} x1={xScale(yi)} y1={RPAD*2} x2={xScale(yi)} y2={H-LPAD} stroke={C.amber} strokeWidth={1} strokeDasharray="3 2" opacity={.7}/>;}) }
 {allLumpSums.map((l,i)=>{const yi=Math.floor(l.month/12);if(yi>=combinedData.length)return null;return <circle key={i} cx={xScale(yi)} cy={yScale((combinedData[yi]&&combinedData[yi].balance)||0)} r={4} fill={C.purple} stroke={C.bg} strokeWidth={1.5}/>;}) }
 {[0,.25,.5,.75,1].map(f=><text key={f} x={LPAD-4} y={yScale(totalPrincipal*f)+4} fill={C.t5} fontSize={9} textAnchor="end">{fmtS(totalPrincipal*f)}</text>)}
@@ -1298,14 +1436,18 @@ onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.
 {chartView==='split'&&combinedData.map((d,i)=>{
 const x=LPAD+i*(barW+1);
 const chartH=H-LPAD-RPAD*2;
-const intH=(d.interest/maxStack)*chartH;
-const prinH=(d.principal/maxStack)*chartH;
-const lumpH=(d.lump/maxStack)*chartH;
+const sd=scActive&&scCombinedData?scCombinedData[i]:null;
+const bars=sd||d;
+const intH=(bars.interest/maxStack)*chartH;
+const prinH=(bars.principal/maxStack)*chartH;
+const lumpH=(bars.lump/maxStack)*chartH;
+const splitY=H-LPAD-(d.principal/maxStack)*chartH-(d.lump/maxStack)*chartH;
 return(
 <g key={i}>
 <rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={intH} rx={1} fill={C.red} opacity={.8}/>
 <rect x={x} y={H-LPAD-prinH-lumpH} width={barW} height={prinH} rx={1} fill={C.green} opacity={.8}/>
-{d.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={barW} height={lumpH} rx={1} fill={C.purple} opacity={.9}/>}
+{bars.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={barW} height={lumpH} rx={1} fill={C.purple} opacity={.9}/>}
+{sd&&<line x1={x} y1={splitY} x2={x+barW} y2={splitY} stroke={C.amber} strokeWidth={1} opacity={.6}/>}
 </g>
 );
 })}
@@ -1316,28 +1458,34 @@ return(
 {hoverIdx!==null&&combinedData[hoverIdx]&&(
 <div style={{background:C.border,border:`1px solid ${C.t5}`,borderRadius:10,padding:"10px 14px",marginTop:8,display:"flex",gap:16,flexWrap:"wrap"}}>
 <div style={{fontSize:12,fontWeight:700,color:C.t1,minWidth:"100%"}}>{combinedData[hoverIdx].year}</div>
-{[{l:"Balance",v:fmt(combinedData[hoverIdx].balance),c:C.green},{l:"Interest",v:fmt(combinedData[hoverIdx].interest),c:C.red},{l:"Principal",v:fmt(combinedData[hoverIdx].principal),c:C.green},...(combinedData[hoverIdx].lump>0?[{l:"Lump sum",v:fmt(combinedData[hoverIdx].lump),c:C.purple}]:[])].map(s=>(
+{[{l:"Balance",v:fmt(combinedData[hoverIdx].balance),c:C.green},{l:"Interest",v:fmt(combinedData[hoverIdx].interest),c:C.red},{l:"Principal",v:fmt(combinedData[hoverIdx].principal),c:C.green},...(combinedData[hoverIdx].lump>0?[{l:"Lump sum",v:fmt(combinedData[hoverIdx].lump),c:C.purple}]:[]),...(scActive&&scCombinedData&&scCombinedData[hoverIdx]?[{l:"Sc. balance",v:fmt(scCombinedData[hoverIdx].balance),c:C.purple},{l:"Sc. interest",v:fmt(scCombinedData[hoverIdx].interest),c:C.purple}]:[])].map(s=>(
 <div key={s.l}><div style={{fontSize:10,color:C.t3}}>{s.l}</div><Mono color={s.c} size={12}>{s.v}</Mono></div>
 ))}
 </div>
 )}
 <div style={{display:"flex",gap:12,marginTop:10,flexWrap:"wrap",fontSize:10,color:C.t3}}>
-{chartView==="balance"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.green,display:"inline-block",borderRadius:1}}/>Balance</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.amber,display:"inline-block",borderRadius:"50%"}}/>Rate change</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.purple,display:"inline-block",borderRadius:"50%"}}/>Lump sum</div></>}
+{chartView==="balance"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.green,display:"inline-block",borderRadius:1}}/>Balance</div>{whatIf.active&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.purple,display:"inline-block",borderRadius:1}}/>Scenario</div>}<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.amber,display:"inline-block",borderRadius:"50%"}}/>Rate change</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.purple,display:"inline-block",borderRadius:"50%"}}/>Lump sum</div></>}
 {chartView==="split"&&<>
 <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.red,display:"inline-block",borderRadius:2}}/>Interest</div>
 <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.green,display:"inline-block",borderRadius:2}}/>Principal</div>
 <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.purple,display:"inline-block",borderRadius:2}}/>Lump sum</div>
+{scActive&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.amber,display:"inline-block",borderRadius:1,opacity:.7}}/>Base split</div>}
+{scActive&&<div style={{fontSize:10,color:C.purple,marginLeft:"auto"}}>Showing what-if scenario</div>}
 </>}
 </div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:16}}>
-{[
+{(scActive?[
+{label:"Interest over life",val:fmt(scCombinedTotalInterest),color:C.purple,pct:fmtN(scCombinedTotalInterest/scCombinedTotalCost*100),barColor:C.purple,diff:`save ${fmt(combinedTotalInterest-scCombinedTotalInterest)}`},
+{label:"Principal",val:fmt(totalPrincipal),color:C.green,pct:fmtN(totalPrincipal/scCombinedTotalCost*100),barColor:C.green},
+]:[
 {label:"Interest over life",val:fmt(combinedTotalInterest),color:C.red,pct:fmtN(combinedTotalInterest/combinedTotalCost*100),barColor:C.red},
 {label:"Principal",val:fmt(totalPrincipal),color:C.green,pct:fmtN(totalPrincipal/combinedTotalCost*100),barColor:C.green},
-].map(s=>(
-<div key={s.label} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
+]).map(s=>(
+<div key={s.label} style={{background:C.bg,border:`1px solid ${scActive&&s.diff?'rgba(167,139,250,.25)':C.border}`,borderRadius:12,padding:"12px 14px"}}>
 <div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={16}>{s.val}</Mono>
 <div style={{fontSize:11,color:C.t4,marginTop:3}}>{s.pct}% of total cost</div>
+{s.diff&&<div style={{fontSize:11,color:C.purple,marginTop:2,fontWeight:600}}>{s.diff}</div>}
 <div style={{height:4,background:C.border,borderRadius:2,marginTop:8,overflow:"hidden"}}><div style={{height:"100%",width:`${s.pct}%`,background:s.barColor,borderRadius:2}}/></div>
 </div>
 ))}
