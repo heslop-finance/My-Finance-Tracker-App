@@ -1112,87 +1112,126 @@ return(
 
 // ── MORTGAGE ──────────────────────────────────────────────────
 const DEFAULT_MORT={principal:500000,annualRate:6.5,termYears:30,startDate:"2025-01-01",fixedUntil:""};
+const DEFAULT_LOAN_CFG={startDate:"2025-01-01",termYears:30};
 
-function MortgageWidget({cfg,setCfg,rateChanges,setRateChanges,lumpSums,setLumpSums,displayPeriod="monthly"}){
-const[cfgD,setCfgD]=useState(cfg);
-useEffect(()=>{setCfgD(cfg);},[cfg]);
-const[showSetup,setShowSetup]=useState(false);
+function portionRateAlert(p){
+if(!p.fixedUntil)return null;
+const expiry=new Date(p.fixedUntil),daysLeft=Math.round((expiry-new Date(todayStr))/(1000*60*60*24));
+if(daysLeft<0)return{color:C.red,icon:"⚠️",title:`${p.label} — fixed rate has expired`,msg:`Expired ${Math.abs(daysLeft)} days ago`};
+if(daysLeft<=90)return{color:C.red,icon:"🔔",title:`${p.label} — fixed rate expiring soon`,msg:`${daysLeft} days left · ${p.fixedUntil}`};
+if(daysLeft<=180)return{color:C.amber,icon:"📅",title:`${p.label} — fixed rate expiring in ${daysLeft} days`,msg:`Expires ${p.fixedUntil}`};
+return null;
+}
+
+function PortionDetail({portion,loanCfg,updatePortion}){
 const[showRF,setShowRF]=useState(false);
 const[showLF,setShowLF]=useState(false);
-const[chartView,setChartView]=useState("balance");
-const[hoverIdx,setHoverIdx]=useState(null);
-const[scenario,setScenario]=useState({active:false,extraMonthly:0,lumpAtStart:0});
-const[showRefi,setShowRefi]=useState(false);
-const[refi,setRefi]=useState({rate:"",termYears:"",costs:""});
 const[newRate,setNewRate]=useState({month:12,rate:6.0});
 const[newLump,setNewLump]=useState({month:12,amount:10000,note:""});
-const schedule=useMemo(()=>buildSchedule(cfg.principal,cfg.annualRate,cfg.termYears,cfg.startDate,rateChanges,lumpSums),[cfg,rateChanges,lumpSums]);
-const monthlyPmt=schedule.length?schedule[0].payment:0;
-const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
-const periodPmt=monthlyPmt*(pDays/30.44);
-const pmtLabel=({weekly:"Weekly",fortnightly:"Fortnightly",monthly:"Monthly",yearly:"Yearly"})[displayPeriod]+" Payment";
-const totalInterest=schedule.reduce((s,m)=>s+m.interest,0);
-const totalCost=cfg.principal+totalInterest;
-const paidOff=schedule.length?schedule[schedule.length-1].date:null;
-const W=400,H=260,LPAD=52,RPAD=8,PAD=LPAD;
-const xScale=i=>LPAD+i*(W-LPAD-RPAD)/(Math.max(schedule.length/12-1,1));
-const data=useMemo(()=>schedule.filter((_,i)=>i%12===0).map((m,yi)=>({year:m.date.getFullYear(),balance:m.balance,interest:schedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.interest,0),principal:schedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.principal,0),lump:schedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.lump,0)})),[schedule]);
-const maxStack=Math.max(...data.map(d=>d.interest+d.principal+d.lump),1);
-const minV=Math.min(...data.map(d=>d.balance),0),maxV=Math.max(...data.map(d=>d.balance),1);
-const yScale=v=>H-LPAD-(v-minV)/(maxV-minV)*(H-LPAD-RPAD*4);
-const balPath=data.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(d.balance)}`).join(" ");
-const barW=Math.max(1,(W-LPAD-RPAD)/data.length-1);
-const scenarioSchedule=useMemo(()=>{
-if(!scenario.active)return[];
-const extra=Number(scenario.extraMonthly)||0;
-const lump0=Number(scenario.lumpAtStart)||0;
-if(!cfg.principal||!cfg.annualRate||!cfg.termYears)return[];
-const rateAt=mi=>{let r=cfg.annualRate;rateChanges.slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
-let bal=Math.max(0,cfg.principal-lump0);
-const sc=[];const start=parseDt(cfg.startDate);
-for(let mi=0;mi<cfg.termYears*12&&bal>0.01;mi++){
-const ar=rateAt(mi),mo=ar/100/12,n=cfg.termYears*12-mi;
-const payment=bal*mo*Math.pow(1+mo,n)/(Math.pow(1+mo,n)-1);
-const lump=(lumpSums.find(l=>l.month===mi)||{amount:0}).amount;
-const interest=bal*mo,principalPart=Math.min(payment-interest,bal);
-const extraPrin=Math.min(extra,Math.max(0,bal-principalPart-lump));
-bal=Math.max(0,bal-principalPart-lump-extraPrin);
-const date=new Date(start);date.setMonth(date.getMonth()+mi);
-sc.push({mi,date,payment:payment+lump+extraPrin,interest,principal:principalPart+lump+extraPrin,lump:lump+extraPrin,balance:bal,rate:ar});
+const rateChanges=portion.rateChanges||[];
+const lumpSums=portion.lumpSums||[];
+return(
+<div style={{borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:10}}>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Principal ($)</label><input className="fi" type="text" inputMode="decimal" value={portion.principal} onFocus={e=>e.target.select()} onChange={e=>updatePortion(portion.id,p=>({...p,principal:Number(e.target.value)||0}))} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Rate (%)</label><input className="fi" type="text" inputMode="decimal" value={portion.annualRate} onFocus={e=>e.target.select()} onChange={e=>updatePortion(portion.id,p=>({...p,annualRate:Number(e.target.value)||0}))} style={{padding:"8px 12px"}}/></div>
+</div>
+<div style={{marginBottom:14}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Fixed until</label><input className="fi" type="date" value={portion.fixedUntil||''} onChange={e=>updatePortion(portion.id,p=>({...p,fixedUntil:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+<div style={{marginBottom:16}}>
+<Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Rate Changes</div><button onClick={()=>setShowRF(s=>!s)} className={`rb ${showRF?"oo":""}`}>+ Add</button></Row>
+{showRF&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Date of rate change</label><input className="fi" type="date" value={newRate.date||loanCfg.startDate} onChange={e=>{const d=parseDt(e.target.value),s=parseDt(loanCfg.startDate);const mo=Math.max(0,Math.round((d-s)/86400000/30.44));setNewRate(r=>({...r,date:e.target.value,month:mo}));}} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>New rate (%)</label><input className="fi" type="text" inputMode="decimal" value={newRate.rate===0?"":newRate.rate} onFocus={e=>e.target.select()} onChange={e=>setNewRate(r=>({...r,rate:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+</div>
+<GradBtn onClick={()=>{updatePortion(portion.id,p=>({...p,rateChanges:[...(p.rateChanges||[]),{...newRate,id:Date.now()}].sort((a,b)=>a.month-b.month)}));setShowRF(false);}}>Add Rate Change</GradBtn>
+</div>
+)}
+{rateChanges.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No rate changes — running at {portion.annualRate}% for full term.</div>}
+{rateChanges.map((rc,i)=>{const d=new Date(parseDt(loanCfg.startDate));d.setMonth(d.getMonth()+rc.month);return(
+<div key={rc.id||i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
+<div><span style={{fontSize:12,fontWeight:600,color:C.amber}}>{rc.rate}% p.a.</span><span style={{fontSize:11,color:C.t4,marginLeft:8}}>from {MON_SHORT[d.getMonth()]} {d.getFullYear()}</span></div>
+<button onClick={()=>updatePortion(portion.id,p=>({...p,rateChanges:(p.rateChanges||[]).filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16}}>×</button>
+</div>
+);})}
+</div>
+<div>
+<Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Lump Sum Payments</div><button onClick={()=>setShowLF(s=>!s)} className={`rb ${showLF?"on":""}`} style={showLF?{color:C.purple,borderColor:C.purple,background:"rgba(167,139,250,.15)"}:{}}>+ Add</button></Row>
+{showLF&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Date of payment</label><input className="fi" type="date" value={newLump.date||loanCfg.startDate} onChange={e=>{const d=parseDt(e.target.value),s=parseDt(loanCfg.startDate);const mo=Math.max(0,Math.round((d-s)/86400000/30.44));setNewLump(l=>({...l,date:e.target.value,month:mo}));}} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Amount ($)</label><input className="fi" type="text" inputMode="decimal" value={newLump.amount===0?"":newLump.amount} onFocus={e=>e.target.select()} onChange={e=>setNewLump(l=>({...l,amount:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+</div>
+<div style={{marginBottom:10}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Note (optional)</label><input className="fi" placeholder="e.g. Tax refund" value={newLump.note} onChange={e=>setNewLump(l=>({...l,note:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+<GradBtn onClick={()=>{updatePortion(portion.id,p=>({...p,lumpSums:[...(p.lumpSums||[]),{...newLump,id:Date.now()}]}));setShowLF(false);}}>Add Lump Sum</GradBtn>
+</div>
+)}
+{lumpSums.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No lump sums recorded yet.</div>}
+{lumpSums.map((l,i)=>{const d=new Date(parseDt(loanCfg.startDate));d.setMonth(d.getMonth()+l.month);return(
+<div key={l.id||i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
+<div><Mono color={C.purple} size={12}>{fmt(l.amount)}</Mono><span style={{fontSize:11,color:C.t4,marginLeft:8}}>{MON_SHORT[d.getMonth()]} {d.getFullYear()}</span>{l.note&&<span style={{fontSize:11,color:C.t3,marginLeft:6}}>· {l.note}</span>}</div>
+<button onClick={()=>updatePortion(portion.id,p=>({...p,lumpSums:(p.lumpSums||[]).filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16}}>×</button>
+</div>
+);})}
+</div>
+</div>
+);
 }
-return sc;
-},[scenario,cfg,rateChanges,lumpSums]);
-const scActive=scenario.active&&scenarioSchedule.length>0;
-const scMonthlyPmt=scenarioSchedule.length?scenarioSchedule[0].payment:0;
-const scPeriodPmt=scMonthlyPmt*(pDays/30.44);
-const scTotalInterest=scenarioSchedule.reduce((s,m)=>s+m.interest,0);
-const scTotalCost=cfg.principal+scTotalInterest;
-const scPaidOff=scenarioSchedule.length?scenarioSchedule[scenarioSchedule.length-1].date:null;
-const scYearsLeft=scenarioSchedule.length/12;
-const scData=useMemo(()=>scActive?scenarioSchedule.filter((_,i)=>i%12===0).map((m,yi)=>({year:m.date.getFullYear(),balance:m.balance,interest:scenarioSchedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.interest,0),principal:scenarioSchedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.principal,0),lump:scenarioSchedule.slice(yi*12,(yi+1)*12).reduce((s,x)=>s+x.lump,0)})):null,[scenarioSchedule,scActive]);
-const scenPath=scActive&&scData?scData.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(Math.max(0,d.balance))}`).join(" "):null;
-const refiComparison=useMemo(()=>{
-if(!showRefi)return null;
-const nr=Number(refi.rate)||cfg.annualRate,nt=Number(refi.termYears)||cfg.termYears,nc=Number(refi.costs)||0;
-const curBal=schedule.length?schedule[0].balance:cfg.principal;
-const curMo=cfg.annualRate/100/12,curN=schedule.length;
-const curM=curBal*curMo*Math.pow(1+curMo,curN)/(Math.pow(1+curMo,curN)-1);
-const nMo=nr/100/12,nN=nt*12;
-const nM=(curBal+nc)*nMo*Math.pow(1+nMo,nN)/(Math.pow(1+nMo,nN)-1);
-const curTotalInterest=curM*curN-curBal;
-const nTotalInterest=nM*nN-(curBal+nc);
-const monthlySaving=curM-nM;
-return{currentMonthly:curM,refiMonthly:nM,monthlySaving,interestSaved:curTotalInterest-nTotalInterest,breakEven:monthlySaving>0?nc/monthlySaving:null};
-},[showRefi,refi,schedule,cfg]);
 
-const rateAlert=(()=>{
-if(!cfg.fixedUntil)return null;
-const expiry=new Date(cfg.fixedUntil),daysLeft=Math.round((expiry-new Date(todayStr))/(1000*60*60*24));
-if(daysLeft<0)return{color:C.red,icon:"⚠️",title:"Fixed rate has expired",msg:`Expired ${Math.abs(daysLeft)} days ago`};
-if(daysLeft<=90)return{color:C.red,icon:"🔔",title:"Fixed rate expiring soon",msg:`${daysLeft} days left · ${cfg.fixedUntil}`};
-if(daysLeft<=180)return{color:C.amber,icon:"📅",title:`Fixed rate expiring in ${daysLeft} days`,msg:`Expires ${cfg.fixedUntil}`};
-return null;
-})();
+function MortgageWidget({loanCfg,setLoanCfg,portions,setPortions,displayPeriod="monthly"}){
+const[loanCfgD,setLoanCfgD]=useState(loanCfg);
+useEffect(()=>{setLoanCfgD(loanCfg);},[loanCfg]);
+const[showSetup,setShowSetup]=useState(false);
+const[chartView,setChartView]=useState("balance");
+const[hoverIdx,setHoverIdx]=useState(null);
+const[showAddPortion,setShowAddPortion]=useState(false);
+const[newPortion,setNewPortion]=useState({label:'',principal:'',annualRate:'',fixedUntil:''});
+const[expandedPortionId,setExpandedPortionId]=useState(null);
+function updatePortion(id,updater){setPortions(prev=>prev.map(p=>p.id===id?updater(p):p));}
+const portionSchedules=useMemo(()=>portions.map(p=>({
+id:p.id,
+schedule:buildSchedule(p.principal,p.annualRate,loanCfg.termYears,loanCfg.startDate,p.rateChanges||[],p.lumpSums||[])
+})),[portions,loanCfg]);
+const maxScheduleLen=Math.max(0,...portionSchedules.map(ps=>ps.schedule.length));
+const totalPrincipal=portions.reduce((s,p)=>s+(Number(p.principal)||0),0);
+const combinedMonthlyPmt=portionSchedules.reduce((s,ps)=>s+(ps.schedule.length?ps.schedule[0].payment:0),0);
+const combinedTotalInterest=portionSchedules.reduce((s,ps)=>s+ps.schedule.reduce((ss,m)=>ss+m.interest,0),0);
+const combinedTotalCost=totalPrincipal+combinedTotalInterest;
+const longestSchedule=portionSchedules.find(ps=>ps.schedule.length===maxScheduleLen)?.schedule||[];
+const paidOff=longestSchedule.length?longestSchedule[longestSchedule.length-1].date:null;
+const combinedBalanceToday=portionSchedules.reduce((s,ps)=>{
+if(!ps.schedule.length)return s;
+const cur=ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
+return s+(cur?cur.balance:ps.schedule[ps.schedule.length-1].balance);
+},0);
+const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
+const periodPmt=combinedMonthlyPmt*(pDays/30.44);
+const pmtLabel=({weekly:"Weekly",fortnightly:"Fortnightly",monthly:"Monthly",yearly:"Yearly"})[displayPeriod]+" Payment";
+const W=400,H=260,LPAD=52,RPAD=8,PAD=LPAD;
+const xScale=i=>LPAD+i*(W-LPAD-RPAD)/(Math.max(maxScheduleLen/12-1,1));
+const combinedData=useMemo(()=>{
+if(!maxScheduleLen)return[];
+const numYears=Math.ceil(maxScheduleLen/12);
+return Array.from({length:numYears},(_,yi)=>{
+let balance=0,interest=0,principal=0,lump=0,year=null;
+portionSchedules.forEach(ps=>{
+const yearMonths=ps.schedule.slice(yi*12,(yi+1)*12);
+if(yearMonths.length){year=yearMonths[0].date.getFullYear();interest+=yearMonths.reduce((s,m)=>s+m.interest,0);principal+=yearMonths.reduce((s,m)=>s+m.principal,0);lump+=yearMonths.reduce((s,m)=>s+m.lump,0);}
+const lastMonthThisYear=ps.schedule[Math.min((yi+1)*12-1,ps.schedule.length-1)];
+balance+=lastMonthThisYear?lastMonthThisYear.balance:0;
+});
+return{year,balance,interest,principal,lump};
+});
+},[portionSchedules,maxScheduleLen]);
+const allRateChangeMonths=[...new Set(portions.flatMap(p=>(p.rateChanges||[]).map(rc=>rc.month)))];
+const allLumpSums=portions.flatMap(p=>p.lumpSums||[]);
+const maxStack=Math.max(...combinedData.map(d=>d.interest+d.principal+d.lump),1);
+const minV=Math.min(...combinedData.map(d=>d.balance),0),maxV=Math.max(...combinedData.map(d=>d.balance),1);
+const yScale=v=>H-LPAD-(v-minV)/(maxV-minV)*(H-LPAD-RPAD*4);
+const balPath=combinedData.map((d,i)=>`${i===0?"M":"L"}${xScale(i)},${yScale(d.balance)}`).join(" ");
+const barW=Math.max(1,(W-LPAD-RPAD)/combinedData.length-1);
 
 return(
 <div style={{background:C.card,borderRadius:16,overflow:"hidden",marginBottom:16}}>
@@ -1200,203 +1239,142 @@ return(
 <Row mb={12}>
 <div>
 <Label color={C.t3} mb={2}>Mortgage Tracker</Label>
-{schedule.length>0?(()=>{const cur=schedule.find(m=>new Date(m.date)>=new Date(todayStr));const bal=cur?cur.balance:schedule[schedule.length-1].balance;return <><Mono color={C.t1} size={22}>{fmt(bal)}</Mono><div style={{fontSize:11,color:C.t3,marginTop:2}}>Original loan: <span style={{color:C.t2,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(cfg.principal)}</span></div></>;})():<Mono color={C.t1} size={22}>{fmt(cfg.principal)}</Mono>}
-<div style={{fontSize:12,color:C.t3,marginTop:2}}>{cfg.annualRate}% p.a. · {cfg.termYears} yr · from {cfg.startDate}</div>
+<Mono color={C.t1} size={22}>{fmt(combinedBalanceToday)}</Mono>
+<div style={{fontSize:11,color:C.t3,marginTop:2}}>Original loan: <span style={{color:C.t2,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em"}}>{fmt(totalPrincipal)}</span></div>
+<div style={{fontSize:12,color:C.t3,marginTop:2}}>{loanCfg.termYears} yr · from {loanCfg.startDate}</div>
 </div>
-<Btn onClick={()=>{setCfgD(cfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}><span style={{display:'flex',alignItems:'center',gap:5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup</span></Btn>
+<Btn onClick={()=>{setLoanCfgD(loanCfg);setShowSetup(s=>!s);}} bg={showSetup?"rgba(110,231,183,.15)":C.border} border={showSetup?C.green:C.t5} color={showSetup?C.green:C.t2}><span style={{display:'flex',alignItems:'center',gap:5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup</span></Btn>
 </Row>
 <div className="hscroll" style={{gap:10}}>
-{(scActive?[
-{label:pmtLabel,val:fmt(scPeriodPmt),color:C.purple,diff:`+${fmt(scPeriodPmt-periodPmt)} extra/${displayPeriod}`},
-{label:"Total Interest",val:fmt(scTotalInterest),color:C.purple,diff:`save ${fmt(totalInterest-scTotalInterest)}`},
-{label:"Total Cost",val:fmt(scTotalCost),color:C.purple,diff:`save ${fmt(totalCost-scTotalCost)}`},
-{label:"Paid Off",val:scPaidOff?`${MON_SHORT[scPaidOff.getMonth()]} ${scPaidOff.getFullYear()}`:"—",color:C.purple,diff:`${fmtN((schedule.length-scenarioSchedule.length)/12)} yrs earlier`},
-{label:"Years Left",val:`${fmtN(scYearsLeft)} yrs`,color:C.purple,diff:`save ${fmtN(schedule.length/12-scYearsLeft)} yrs`},
-]:[
+{[
 {label:pmtLabel,val:fmt(periodPmt),color:C.t1},
-{label:"Total Interest",val:fmt(totalInterest),color:C.red},
-{label:"Total Cost",val:fmt(totalCost),color:C.amber},
+{label:"Total Interest",val:fmt(combinedTotalInterest),color:C.red},
+{label:"Total Cost",val:fmt(combinedTotalCost),color:C.amber},
 {label:"Paid Off",val:paidOff?`${MON_SHORT[paidOff.getMonth()]} ${paidOff.getFullYear()}`:"—",color:C.green},
-{label:"Years Left",val:`${fmtN(schedule.length/12)} yrs`,color:C.cyan},
-]).map(s=>(
-<div key={s.label} style={{background:scActive?"rgba(167,139,250,.07)":"rgba(255,255,255,.03)",border:`1px solid ${scActive?"rgba(167,139,250,.3)":C.border}`,borderRadius:10,padding:"10px 14px",minWidth:130,flexShrink:0}}>
+{label:"Years Left",val:`${fmtN(maxScheduleLen/12)} yrs`,color:C.cyan},
+].map(s=>(
+<div key={s.label} style={{background:"rgba(255,255,255,.03)",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",minWidth:130,flexShrink:0}}>
 <div style={{fontSize:10,color:C.t4,marginBottom:4,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={14}>{s.val}</Mono>
-{s.diff&&<div style={{fontSize:10,color:C.purple,marginTop:3}}>{s.diff}</div>}
 </div>
 ))}
 </div>
 </div>
 {showSetup&&(
 <div style={{background:C.bg,borderBottom:`1px solid ${C.border}`,padding:"16px 20px"}}>
-<div style={{fontSize:13,fontWeight:700,color:C.t2,marginBottom:14}}>Mortgage Details</div>
+<div style={{fontSize:13,fontWeight:700,color:C.t2,marginBottom:14}}>Loan Settings</div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-{[{label:"Loan Amount ($)",key:"principal",type:"number"},{label:"Annual Rate (%)",key:"annualRate",type:"number"},{label:"Term (years)",key:"termYears",type:"number"},{label:"Start Date",key:"startDate",type:"date"},{label:"Fixed Rate Expiry",key:"fixedUntil",type:"date"}].map(f=>(
-<div key={f.key}>
-<label style={{fontSize:11,color:C.t3,display:"block",marginBottom:5}}>{f.label}</label>
-<input className="fi" type={f.type==="number"?"text":f.type} inputMode={f.type==="number"?"decimal":undefined} value={cfgD[f.key]} onFocus={e=>e.target.select()} onChange={e=>setCfgD(d=>({...d,[f.key]:e.target.value}))} style={{padding:"9px 12px"}}/>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:5}}>Start Date</label><input className="fi" type="date" value={loanCfgD.startDate} onChange={e=>setLoanCfgD(d=>({...d,startDate:e.target.value}))} style={{padding:"9px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:5}}>Term (years)</label><input className="fi" type="text" inputMode="decimal" value={loanCfgD.termYears} onFocus={e=>e.target.select()} onChange={e=>setLoanCfgD(d=>({...d,termYears:e.target.value}))} style={{padding:"9px 12px"}}/></div>
 </div>
-))}
-</div>
-<GradBtn onClick={()=>{setCfg({...cfgD,principal:Number(cfgD.principal)||0,annualRate:Number(cfgD.annualRate)||0,termYears:Number(cfgD.termYears)||0});setShowSetup(false);}}>Apply Changes</GradBtn>
+<GradBtn onClick={()=>{setLoanCfg({...loanCfgD,termYears:Number(loanCfgD.termYears)||0});setShowSetup(false);}}>Apply Changes</GradBtn>
 </div>
 )}
-{rateAlert&&(
-<div style={{background:`rgba(${rateAlert.color==="#fb7185"?"251,113,133":"251,191,36"},.1)`,borderBottom:`1px solid rgba(${rateAlert.color==="#fb7185"?"251,113,133":"251,191,36"},.25)`,padding:"10px 20px",display:"flex",alignItems:"center",gap:10}}>
-<span style={{fontSize:16}}>{rateAlert.icon}</span>
-<div><div style={{fontSize:12,fontWeight:700,color:rateAlert.color}}>{rateAlert.title}</div><div style={{fontSize:11,color:C.t2}}>{rateAlert.msg}</div></div>
+{portions.map(p=>{const alert=portionRateAlert(p);if(!alert)return null;return(
+<div key={p.id} style={{background:`rgba(${alert.color==="#fb7185"?"251,113,133":"251,191,36"},.1)`,borderBottom:`1px solid rgba(${alert.color==="#fb7185"?"251,113,133":"251,191,36"},.25)`,padding:"10px 20px",display:"flex",alignItems:"center",gap:10}}>
+<span style={{fontSize:16}}>{alert.icon}</span>
+<div><div style={{fontSize:12,fontWeight:700,color:alert.color}}>{alert.title}</div><div style={{fontSize:11,color:C.t2}}>{alert.msg}</div></div>
 </div>
-)}
+);})}
 <div style={{padding:"16px 20px"}}>
 <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
 {[{k:"balance",l:"Balance"},{k:"split",l:"Interest vs Principal"}].map(o=>(
 <button key={o.k} onClick={()=>setChartView(o.k)} className={`rb ${chartView===o.k?"on":""}`}>{o.l}</button>
 ))}
-<button onClick={()=>setScenario(s=>({...s,active:!s.active}))} className={`rb ${scenario.active?"on":""}`} style={{marginLeft:"auto",color:scenario.active?C.purple:undefined,borderColor:scenario.active?C.purple:undefined,background:scenario.active?"rgba(167,139,250,.15)":undefined}}>{scenario.active?"✓ ":""}What-if</button>
-<button onClick={()=>setShowRefi(v=>!v)} className={`rb ${showRefi?"oo":""}`}>{showRefi?"✓ ":""}Refinance</button>
+<span style={{fontSize:10,color:C.t5,fontStyle:'italic',marginLeft:'auto'}}>What-if & Refinance coming soon for split mortgages</span>
 </div>
-{scenario.active&&(
-<div style={{background:"rgba(167,139,250,.07)",border:`1px solid rgba(167,139,250,.2)`,borderRadius:12,padding:14,marginBottom:14}}>
-<div style={{fontSize:12,fontWeight:700,color:C.purple,marginBottom:10}}>What-if Scenario</div>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Extra monthly ($)</label><input className="fi" type="text" inputMode="decimal" value={scenario.extraMonthly===0?"":scenario.extraMonthly} onFocus={e=>e.target.select()} onChange={e=>setScenario(s=>({...s,extraMonthly:e.target.value}))} style={{padding:"8px 12px"}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Lump sum now ($)</label><input className="fi" type="text" inputMode="decimal" value={scenario.lumpAtStart===0?"":scenario.lumpAtStart} onFocus={e=>e.target.select()} onChange={e=>setScenario(s=>({...s,lumpAtStart:e.target.value}))} style={{padding:"8px 12px"}}/></div>
-</div>
-</div>
-)}
-{showRefi&&(
-<div style={{background:"rgba(251,191,36,.06)",border:`1px solid rgba(251,191,36,.3)`,borderRadius:12,padding:14,marginBottom:14}}>
-<div style={{fontSize:12,fontWeight:700,color:C.amber,marginBottom:12}}>Refinance Comparison</div>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
-{[{label:"New Rate (%)",key:"rate",ph:String(cfg.annualRate)},{label:"New Term (yrs)",key:"termYears",ph:String(cfg.termYears)},{label:"Refi Costs ($)",key:"costs",ph:"0"}].map(f=>(
-<div key={f.key}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>{f.label}</label><input className="fi" type="text" inputMode="decimal" placeholder={f.ph} value={refi[f.key]} onFocus={e=>e.target.select()} onChange={e=>setRefi(r=>({...r,[f.key]:e.target.value}))} style={{padding:"8px 10px"}}/></div>
-))}
-</div>
-{refiComparison&&<>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-{[{label:"Current monthly",val:fmt(refiComparison.currentMonthly),color:C.t2},{label:"New monthly",val:fmt(refiComparison.refiMonthly),color:refiComparison.refiMonthly<refiComparison.currentMonthly?C.green:C.red},{label:"Monthly saving",val:(refiComparison.monthlySaving>=0?"+":"")+fmt(refiComparison.monthlySaving),color:refiComparison.monthlySaving>=0?C.green:C.red},{label:"Interest saved",val:(refiComparison.interestSaved>=0?"+":"-")+fmtS(Math.abs(refiComparison.interestSaved)),color:refiComparison.interestSaved>=0?C.green:C.red}].map(s=>(
-<div key={s.label} style={{background:C.bg,borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:C.t3,marginBottom:3}}>{s.label}</div><Mono color={s.color} size={13}>{s.val}</Mono></div>
-))}
-</div>
-{refiComparison.breakEven!=null&&<div style={{fontSize:12,color:C.t2}}>💡 Break-even in <strong>{Math.ceil(refiComparison.breakEven)} months</strong></div>}
-</>}
-</div>
-)}
 <div style={{margin:"0 -20px",marginBottom:6}} onMouseLeave={()=>setHoverIdx(null)}>
 <svg width="100%" height="260" viewBox={`0 0 ${W} ${H+36}`} style={{display:"block",cursor:"crosshair"}}
-onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.clientX-rect.left)*(W/rect.width);const idx=Math.round((mx-PAD)/(W-PAD*2)*(data.length-1));setHoverIdx(Math.max(0,Math.min(data.length-1,idx)));}}>
+onMouseMove={e=>{const rect=e.currentTarget.getBoundingClientRect();const mx=(e.clientX-rect.left)*(W/rect.width);const idx=Math.round((mx-PAD)/(W-PAD*2)*(combinedData.length-1));setHoverIdx(Math.max(0,Math.min(combinedData.length-1,idx)));}}>
 {chartView==="balance"&&<>
 <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.green} stopOpacity=".18"/><stop offset="100%" stopColor={C.green} stopOpacity=".01"/></linearGradient></defs>
-<path d={`${balPath} L${xScale(data.length-1)},${H-LPAD} L${xScale(0)},${H-LPAD} Z`} fill="url(#bg)"/>
+<path d={`${balPath} L${xScale(combinedData.length-1)},${H-LPAD} L${xScale(0)},${H-LPAD} Z`} fill="url(#bg)"/>
 <path d={balPath} fill="none" stroke={C.green} strokeWidth={2}/>
-{scenPath&&<path d={scenPath} fill="none" stroke={C.purple} strokeWidth={2} strokeDasharray="5 3"/>}
-{rateChanges.map((rc,i)=>{const yi=Math.floor(rc.month/12);if(yi>=data.length)return null;return <line key={i} x1={xScale(yi)} y1={RPAD*2} x2={xScale(yi)} y2={H-LPAD} stroke={C.amber} strokeWidth={1} strokeDasharray="3 2" opacity={.7}/>;}) }
-{lumpSums.map((l,i)=>{const yi=Math.floor(l.month/12);if(yi>=data.length)return null;return <circle key={i} cx={xScale(yi)} cy={yScale((data[yi]&&data[yi].balance)||0)} r={4} fill={C.purple} stroke={C.bg} strokeWidth={1.5}/>;}) }
-{[0,.25,.5,.75,1].map(f=><text key={f} x={LPAD-4} y={yScale(cfg.principal*f)+4} fill={C.t5} fontSize={9} textAnchor="end">{fmtS(cfg.principal*f)}</text>)}
-{hoverIdx!==null&&data[hoverIdx]&&<circle cx={xScale(hoverIdx)} cy={yScale(data[hoverIdx].balance)} r={4} fill={C.green} stroke={C.bg} strokeWidth={2}/>}
+{allRateChangeMonths.map((month,i)=>{const yi=Math.floor(month/12);if(yi>=combinedData.length)return null;return <line key={i} x1={xScale(yi)} y1={RPAD*2} x2={xScale(yi)} y2={H-LPAD} stroke={C.amber} strokeWidth={1} strokeDasharray="3 2" opacity={.7}/>;}) }
+{allLumpSums.map((l,i)=>{const yi=Math.floor(l.month/12);if(yi>=combinedData.length)return null;return <circle key={i} cx={xScale(yi)} cy={yScale((combinedData[yi]&&combinedData[yi].balance)||0)} r={4} fill={C.purple} stroke={C.bg} strokeWidth={1.5}/>;}) }
+{[0,.25,.5,.75,1].map(f=><text key={f} x={LPAD-4} y={yScale(totalPrincipal*f)+4} fill={C.t5} fontSize={9} textAnchor="end">{fmtS(totalPrincipal*f)}</text>)}
+{hoverIdx!==null&&combinedData[hoverIdx]&&<circle cx={xScale(hoverIdx)} cy={yScale(combinedData[hoverIdx].balance)} r={4} fill={C.green} stroke={C.bg} strokeWidth={2}/>}
 </>}
-{chartView==='split'&&data.map((d,i)=>{
+{chartView==='split'&&combinedData.map((d,i)=>{
 const x=LPAD+i*(barW+1);
 const chartH=H-LPAD-RPAD*2;
 const intH=(d.interest/maxStack)*chartH;
 const prinH=(d.principal/maxStack)*chartH;
 const lumpH=(d.lump/maxStack)*chartH;
-const sd=scActive&&scData?scData.find(s=>s.year===d.year):null;
-const scIntH=sd?(sd.interest/maxStack)*chartH:0;
-const scPrinH=sd?(sd.principal/maxStack)*chartH:0;
-const scLumpH=sd?(sd.lump/maxStack)*chartH:0;
-const splitY=H-LPAD-prinH-lumpH;
 return(
 <g key={i}>
-<rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={intH} rx={1} fill={C.red} opacity={scActive?.2:.8}/>
-<rect x={x} y={H-LPAD-prinH-lumpH} width={barW} height={prinH} rx={1} fill={C.green} opacity={scActive?.2:.8}/>
-{d.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={barW} height={lumpH} rx={1} fill={C.purple} opacity={scActive?.2:.9}/>}
-{sd&&<>
-<rect x={x} y={H-LPAD-scIntH-scPrinH-scLumpH} width={barW} height={scIntH} rx={1} fill={C.red} opacity={.85}/>
-<rect x={x} y={H-LPAD-scPrinH-scLumpH} width={barW} height={scPrinH} rx={1} fill={C.green} opacity={.85}/>
-{sd.lump>0&&<rect x={x} y={H-LPAD-scLumpH} width={barW} height={scLumpH} rx={1} fill={C.purple} opacity={.9}/>}
-<line x1={x} y1={splitY} x2={x+barW} y2={splitY} stroke={C.amber} strokeWidth={1} opacity={.5}/>
-</>}
+<rect x={x} y={H-LPAD-intH-prinH-lumpH} width={barW} height={intH} rx={1} fill={C.red} opacity={.8}/>
+<rect x={x} y={H-LPAD-prinH-lumpH} width={barW} height={prinH} rx={1} fill={C.green} opacity={.8}/>
+{d.lump>0&&<rect x={x} y={H-LPAD-lumpH} width={barW} height={lumpH} rx={1} fill={C.purple} opacity={.9}/>}
 </g>
 );
 })}
-{data.map((d,i)=>i%5===0?<text key={i} x={xScale(i)} y={H+18} textAnchor="middle" fill={C.t5} fontSize={9}>{d.year}</text>:null)}
-{hoverIdx!==null&&data[hoverIdx]&&<line x1={xScale(hoverIdx)} y1={RPAD*2} x2={xScale(hoverIdx)} y2={H-LPAD} stroke={C.t4} strokeWidth={1} strokeDasharray="2 2"/>}
+{combinedData.map((d,i)=>i%5===0?<text key={i} x={xScale(i)} y={H+18} textAnchor="middle" fill={C.t5} fontSize={9}>{d.year}</text>:null)}
+{hoverIdx!==null&&combinedData[hoverIdx]&&<line x1={xScale(hoverIdx)} y1={RPAD*2} x2={xScale(hoverIdx)} y2={H-LPAD} stroke={C.t4} strokeWidth={1} strokeDasharray="2 2"/>}
 </svg>
 </div>
-{hoverIdx!==null&&data[hoverIdx]&&(
+{hoverIdx!==null&&combinedData[hoverIdx]&&(
 <div style={{background:C.border,border:`1px solid ${C.t5}`,borderRadius:10,padding:"10px 14px",marginTop:8,display:"flex",gap:16,flexWrap:"wrap"}}>
-<div style={{fontSize:12,fontWeight:700,color:C.t1,minWidth:"100%"}}>{data[hoverIdx].year}</div>
-{(()=>{const scDH=scActive&&scData?scData.find(s=>s.year===data[hoverIdx].year):null;return[{l:"Balance",v:fmt(data[hoverIdx].balance),c:C.green},{l:"Interest",v:fmt(data[hoverIdx].interest),c:C.red},{l:"Principal",v:fmt(data[hoverIdx].principal),c:C.green},...(data[hoverIdx].lump>0?[{l:"Lump sum",v:fmt(data[hoverIdx].lump),c:C.purple}]:[]),...(scDH?[{l:"Sc. balance",v:fmt(scDH.balance),c:C.purple},{l:"Sc. interest",v:fmt(scDH.interest),c:C.purple}]:[])];})().map(s=>(
+<div style={{fontSize:12,fontWeight:700,color:C.t1,minWidth:"100%"}}>{combinedData[hoverIdx].year}</div>
+{[{l:"Balance",v:fmt(combinedData[hoverIdx].balance),c:C.green},{l:"Interest",v:fmt(combinedData[hoverIdx].interest),c:C.red},{l:"Principal",v:fmt(combinedData[hoverIdx].principal),c:C.green},...(combinedData[hoverIdx].lump>0?[{l:"Lump sum",v:fmt(combinedData[hoverIdx].lump),c:C.purple}]:[])].map(s=>(
 <div key={s.l}><div style={{fontSize:10,color:C.t3}}>{s.l}</div><Mono color={s.c} size={12}>{s.v}</Mono></div>
 ))}
 </div>
 )}
 <div style={{display:"flex",gap:12,marginTop:10,flexWrap:"wrap",fontSize:10,color:C.t3}}>
-{chartView==="balance"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.green,display:"inline-block",borderRadius:1}}/>Balance</div>{scenario.active&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.purple,display:"inline-block",borderRadius:1}}/>Scenario</div>}<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.amber,display:"inline-block",borderRadius:"50%"}}/>Rate change</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.purple,display:"inline-block",borderRadius:"50%"}}/>Lump sum</div></>}
+{chartView==="balance"&&<><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.green,display:"inline-block",borderRadius:1}}/>Balance</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.amber,display:"inline-block",borderRadius:"50%"}}/>Rate change</div><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,background:C.purple,display:"inline-block",borderRadius:"50%"}}/>Lump sum</div></>}
 {chartView==="split"&&<>
-<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.red,display:"inline-block",borderRadius:2,opacity:.85}}/>Interest</div>
-<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.green,display:"inline-block",borderRadius:2,opacity:.85}}/>Principal</div>
-<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.purple,display:"inline-block",borderRadius:2,opacity:.9}}/>Lump sum</div>
-{scActive&&<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2,background:C.amber,display:"inline-block",borderRadius:1,opacity:.7}}/>Base split</div>}
-{scActive&&<div style={{fontSize:10,color:C.purple,marginLeft:"auto"}}>Showing what-if scenario</div>}
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.red,display:"inline-block",borderRadius:2}}/>Interest</div>
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.green,display:"inline-block",borderRadius:2}}/>Principal</div>
+<div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:C.purple,display:"inline-block",borderRadius:2}}/>Lump sum</div>
 </>}
 </div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:16}}>
-{(scActive?[
-{label:"Interest over life",val:fmt(scTotalInterest),color:C.purple,pct:fmtN(scTotalInterest/scTotalCost*100),barColor:C.purple,diff:`save ${fmt(totalInterest-scTotalInterest)}`},
-{label:"Principal",val:fmt(cfg.principal),color:C.green,pct:fmtN(cfg.principal/scTotalCost*100),barColor:C.green},
-]:[
-{label:"Interest over life",val:fmt(totalInterest),color:C.red,pct:fmtN(totalInterest/totalCost*100),barColor:C.red},
-{label:"Principal",val:fmt(cfg.principal),color:C.green,pct:fmtN(cfg.principal/totalCost*100),barColor:C.green},
-]).map(s=>(
-<div key={s.label} style={{background:C.bg,border:`1px solid ${scActive&&s.diff?'rgba(167,139,250,.25)':C.border}`,borderRadius:12,padding:"12px 14px"}}>
+{[
+{label:"Interest over life",val:fmt(combinedTotalInterest),color:C.red,pct:fmtN(combinedTotalInterest/combinedTotalCost*100),barColor:C.red},
+{label:"Principal",val:fmt(totalPrincipal),color:C.green,pct:fmtN(totalPrincipal/combinedTotalCost*100),barColor:C.green},
+].map(s=>(
+<div key={s.label} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
 <div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
 <Mono color={s.color} size={16}>{s.val}</Mono>
 <div style={{fontSize:11,color:C.t4,marginTop:3}}>{s.pct}% of total cost</div>
-{s.diff&&<div style={{fontSize:11,color:C.purple,marginTop:2,fontWeight:600}}>{s.diff}</div>}
 <div style={{height:4,background:C.border,borderRadius:2,marginTop:8,overflow:"hidden"}}><div style={{height:"100%",width:`${s.pct}%`,background:s.barColor,borderRadius:2}}/></div>
 </div>
 ))}
 </div>
 <div style={{marginTop:16}}>
-<Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Rate Changes</div><button onClick={()=>setShowRF(s=>!s)} className={`rb ${showRF?"oo":""}`}>+ Add</button></Row>
-{showRF&&(
+<Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Mortgage Portions</div><button onClick={()=>setShowAddPortion(v=>!v)} className={`rb ${showAddPortion?"on":""}`}>+ Add Portion</button></Row>
+{showAddPortion&&(
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
+<div style={{marginBottom:10}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Label</label><input className="fi" placeholder="e.g. 1yr fixed portion" value={newPortion.label} onChange={e=>setNewPortion(p=>({...p,label:e.target.value}))} style={{padding:"8px 12px"}}/></div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Date of rate change</label><input className="fi" type="date" value={newRate.date||cfg.startDate} onChange={e=>{const d=parseDt(e.target.value),s=parseDt(cfg.startDate);const mo=Math.max(0,Math.round((d-s)/86400000/30.44));setNewRate(r=>({...r,date:e.target.value,month:mo}));}} style={{padding:"8px 12px"}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>New rate (%)</label><input className="fi" type="text" inputMode="decimal" value={newRate.rate===0?"":newRate.rate} onFocus={e=>e.target.select()} onChange={e=>setNewRate(r=>({...r,rate:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Principal ($)</label><input className="fi" type="text" inputMode="decimal" value={newPortion.principal} onFocus={e=>e.target.select()} onChange={e=>setNewPortion(p=>({...p,principal:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Rate (%)</label><input className="fi" type="text" inputMode="decimal" value={newPortion.annualRate} onFocus={e=>e.target.select()} onChange={e=>setNewPortion(p=>({...p,annualRate:e.target.value}))} style={{padding:"8px 12px"}}/></div>
 </div>
-<GradBtn onClick={()=>{setRateChanges(rc=>[...rc,{...newRate,id:Date.now()}].sort((a,b)=>a.month-b.month));setShowRF(false);}}>Add Rate Change</GradBtn>
+<div style={{marginBottom:10}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Fixed until (optional)</label><input className="fi" type="date" value={newPortion.fixedUntil} onChange={e=>setNewPortion(p=>({...p,fixedUntil:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+<GradBtn onClick={()=>{if(!newPortion.label||!newPortion.principal)return;setPortions(prev=>[...prev,{id:Date.now(),label:newPortion.label,principal:Number(newPortion.principal)||0,annualRate:Number(newPortion.annualRate)||0,fixedUntil:newPortion.fixedUntil,rateChanges:[],lumpSums:[]}]);setNewPortion({label:'',principal:'',annualRate:'',fixedUntil:''});setShowAddPortion(false);}}>Add Portion</GradBtn>
 </div>
 )}
-{rateChanges.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No rate changes — running at {cfg.annualRate}% for full term.</div>}
-{rateChanges.map((rc,i)=>{const d=new Date(parseDt(cfg.startDate));d.setMonth(d.getMonth()+rc.month);return(
-<div key={rc.id||i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
-<div><span style={{fontSize:12,fontWeight:600,color:C.amber}}>{rc.rate}% p.a.</span><span style={{fontSize:11,color:C.t4,marginLeft:8}}>from {MON_SHORT[d.getMonth()]} {d.getFullYear()}</span></div>
-<button onClick={()=>setRateChanges(rc2=>rc2.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16}}>×</button>
+{portions.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No portions yet — add one to start tracking your mortgage.</div>}
+{portions.map(p=>{
+const ps=portionSchedules.find(x=>x.id===p.id);
+const cur=ps&&ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
+const bal=cur?cur.balance:(ps&&ps.schedule.length?ps.schedule[ps.schedule.length-1].balance:p.principal);
+const expanded=expandedPortionId===p.id;
+return(
+<div key={p.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
+<Row mb={expanded?10:0}>
+<div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.label}</div><div style={{fontSize:11,color:C.t4,marginTop:2}}>{fmt(p.principal)} @ {p.annualRate}%{p.fixedUntil?` · fixed until ${p.fixedUntil}`:''}</div></div>
+<div style={{display:'flex',gap:6,alignItems:'center'}}>
+<Mono color={C.green} size={13}>{fmt(bal)}</Mono>
+<button onClick={()=>setExpandedPortionId(expanded?null:p.id)} className="rb">{expanded?'Close':'Manage'}</button>
+<button onClick={()=>setPortions(prev=>prev.filter(x=>x.id!==p.id))} style={{background:'none',border:'none',color:C.t5,cursor:'pointer',fontSize:16}}>×</button>
 </div>
-);})}
+</Row>
+{expanded&&<PortionDetail portion={p} loanCfg={loanCfg} updatePortion={updatePortion}/>}
 </div>
-<div style={{marginTop:16}}>
-<Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Lump Sum Payments</div><button onClick={()=>setShowLF(s=>!s)} className={`rb ${showLF?"on":""}`} style={showLF?{color:C.purple,borderColor:C.purple,background:"rgba(167,139,250,.15)"}:{}}>+ Add</button></Row>
-{showLF&&(
-<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Date of payment</label><input className="fi" type="date" value={newLump.date||cfg.startDate} onChange={e=>{const d=parseDt(e.target.value),s=parseDt(cfg.startDate);const mo=Math.max(0,Math.round((d-s)/86400000/30.44));setNewLump(l=>({...l,date:e.target.value,month:mo}));}} style={{padding:"8px 12px"}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Amount ($)</label><input className="fi" type="text" inputMode="decimal" value={newLump.amount===0?"":newLump.amount} onFocus={e=>e.target.select()} onChange={e=>setNewLump(l=>({...l,amount:e.target.value}))} style={{padding:"8px 12px"}}/></div>
-</div>
-<div style={{marginBottom:10}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Note (optional)</label><input className="fi" placeholder="e.g. Tax refund" value={newLump.note} onChange={e=>setNewLump(l=>({...l,note:e.target.value}))} style={{padding:"8px 12px"}}/></div>
-<GradBtn onClick={()=>{setLumpSums(ls=>[...ls,{...newLump,id:Date.now()}]);setShowLF(false);}}>Add Lump Sum</GradBtn>
-</div>
-)}
-{lumpSums.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No lump sums recorded yet.</div>}
-{lumpSums.map((l,i)=>{const d=new Date(parseDt(cfg.startDate));d.setMonth(d.getMonth()+l.month);return(
-<div key={l.id||i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
-<div><Mono color={C.purple} size={12}>{fmt(l.amount)}</Mono><span style={{fontSize:11,color:C.t4,marginLeft:8}}>{MON_SHORT[d.getMonth()]} {d.getFullYear()}</span>{l.note&&<span style={{fontSize:11,color:C.t3,marginLeft:6}}>· {l.note}</span>}</div>
-<button onClick={()=>setLumpSums(ls=>ls.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16}}>×</button>
-</div>
-);})}
+);
+})}
 </div>
 </div>
 </div>
@@ -2012,6 +1990,8 @@ const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],a
 const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
 const[mortgageRateChanges,setMortgageRateChanges]=useState(()=>loadLS('ft_mortgageRateChanges',[]));
 const[mortgageLumpSums,setMortgageLumpSums]=useState(()=>loadLS('ft_mortgageLumpSums',[]));
+const[mortgageLoanCfg,setMortgageLoanCfg]=useState(()=>loadLS('ft_mortgageLoanCfg',DEFAULT_LOAN_CFG));
+const[mortgagePortions,setMortgagePortions]=useState(()=>loadLS('ft_mortgagePortions',[]));
 const[assets,setAssets]=useState(()=>loadLS('ft_assets',[{id:1,label:"Home Value",value:650000},{id:2,label:"KiwiSaver",value:42000},{id:3,label:"Savings",value:15000},{id:4,label:"Investments",value:8000}]));
 const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000,linkMortgage:true},{id:2,label:"Car Loan",value:12000}]));
 const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
@@ -2032,6 +2012,8 @@ useEffect(()=>{localStorage.setItem('ft_tab',JSON.stringify(tab));},[tab]);
 useEffect(()=>{localStorage.setItem('ft_mortgageCfg',JSON.stringify(mortgageCfg));},[mortgageCfg]);
 useEffect(()=>{localStorage.setItem('ft_mortgageRateChanges',JSON.stringify(mortgageRateChanges));},[mortgageRateChanges]);
 useEffect(()=>{localStorage.setItem('ft_mortgageLumpSums',JSON.stringify(mortgageLumpSums));},[mortgageLumpSums]);
+useEffect(()=>{localStorage.setItem('ft_mortgageLoanCfg',JSON.stringify(mortgageLoanCfg));},[mortgageLoanCfg]);
+useEffect(()=>{localStorage.setItem('ft_mortgagePortions',JSON.stringify(mortgagePortions));},[mortgagePortions]);
 useEffect(()=>{localStorage.setItem('ft_assets',JSON.stringify(assets));},[assets]);
 useEffect(()=>{localStorage.setItem('ft_liabilities',JSON.stringify(liabilities));},[liabilities]);
 useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networthSnapshots));},[networthSnapshots]);
@@ -2083,6 +2065,22 @@ const seeded={...prev};
 Object.entries(AKAHU_ACCOUNTS).forEach(([id,cfg])=>{if(!seeded[id])seeded[id]=cfg;});
 return seeded;
 });
+},[]);
+useEffect(()=>{
+if(localStorage.getItem('ft_migration_mortgageportions'))return;
+localStorage.setItem('ft_migration_mortgageportions','1');
+if(mortgagePortions.length===0&&mortgageCfg.principal){
+setMortgagePortions([{
+id:1,
+label:'Portion 1',
+principal:mortgageCfg.principal,
+annualRate:mortgageCfg.annualRate,
+fixedUntil:mortgageCfg.fixedUntil||'',
+rateChanges:mortgageRateChanges||[],
+lumpSums:mortgageLumpSums||[],
+}]);
+setMortgageLoanCfg(prev=>({...prev,startDate:mortgageCfg.startDate||prev.startDate,termYears:mortgageCfg.termYears||prev.termYears}));
+}
 },[]);
 
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
@@ -2608,7 +2606,7 @@ return(
 </>}
 </>}
 
-{view==="mortgage"&&<MortgageWidget cfg={mortgageCfg} setCfg={setMortgageCfg} rateChanges={mortgageRateChanges} setRateChanges={setMortgageRateChanges} lumpSums={mortgageLumpSums} setLumpSums={setMortgageLumpSums} displayPeriod={displayPeriod}/>}
+{view==="mortgage"&&<MortgageWidget loanCfg={mortgageLoanCfg} setLoanCfg={setMortgageLoanCfg} portions={mortgagePortions} setPortions={setMortgagePortions} displayPeriod={displayPeriod}/>}
 {view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
