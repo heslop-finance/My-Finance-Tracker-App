@@ -1146,8 +1146,8 @@ const lumpSums=portion.lumpSums||[];
 return(
 <div style={{borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:10}}>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Principal ($)</label><input className="fi" type="text" inputMode="decimal" value={portion.principal} onFocus={e=>e.target.select()} onChange={e=>updatePortion(portion.id,p=>({...p,principal:Number(e.target.value)||0}))} style={{padding:"8px 12px"}}/></div>
-<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Rate (%)</label><input className="fi" type="text" inputMode="decimal" value={portion.annualRate} onFocus={e=>e.target.select()} onChange={e=>updatePortion(portion.id,p=>({...p,annualRate:Number(e.target.value)||0}))} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Principal ($)</label><input className="fi" type="text" inputMode="decimal" value={portion.principal} onFocus={e=>e.target.select()} onChange={e=>updatePortion(portion.id,p=>({...p,principal:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+<div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Rate (%)</label><input className="fi" type="text" inputMode="decimal" value={portion.annualRate} onFocus={e=>e.target.select()} onChange={e=>updatePortion(portion.id,p=>({...p,annualRate:e.target.value}))} style={{padding:"8px 12px"}}/></div>
 </div>
 <div style={{marginBottom:14}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Fixed until</label><input className="fi" type="date" value={portion.fixedUntil||''} onChange={e=>updatePortion(portion.id,p=>({...p,fixedUntil:e.target.value}))} style={{padding:"8px 12px"}}/></div>
 <div style={{marginBottom:16}}>
@@ -1161,7 +1161,7 @@ return(
 <GradBtn onClick={()=>{updatePortion(portion.id,p=>({...p,rateChanges:[...(p.rateChanges||[]),{...newRate,id:Date.now()}].sort((a,b)=>a.month-b.month)}));setShowRF(false);}}>Add Rate Change</GradBtn>
 </div>
 )}
-{rateChanges.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No rate changes — running at {portion.annualRate}% for full term.</div>}
+{rateChanges.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No rate changes — running at {Number(portion.annualRate)||0}% for full term.</div>}
 {rateChanges.map((rc,i)=>{const d=new Date(parseDt(loanCfg.startDate));d.setMonth(d.getMonth()+rc.month);return(
 <div key={rc.id||i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
 <div><span style={{fontSize:12,fontWeight:600,color:C.amber}}>{rc.rate}% p.a.</span><span style={{fontSize:11,color:C.t4,marginLeft:8}}>from {MON_SHORT[d.getMonth()]} {d.getFullYear()}</span></div>
@@ -1205,7 +1205,7 @@ const[expandedPortionId,setExpandedPortionId]=useState(null);
 function updatePortion(id,updater){setPortions(prev=>prev.map(p=>p.id===id?updater(p):p));}
 const portionSchedules=useMemo(()=>portions.map(p=>({
 id:p.id,
-schedule:buildSchedule(p.principal,p.annualRate,loanCfg.termYears,loanCfg.startDate,p.rateChanges||[],p.lumpSums||[])
+schedule:buildSchedule(Number(p.principal)||0,Number(p.annualRate)||0,loanCfg.termYears,loanCfg.startDate,p.rateChanges||[],p.lumpSums||[])
 })),[portions,loanCfg]);
 const totalPrincipal=portions.reduce((s,p)=>s+(Number(p.principal)||0),0);
 const{monthlyPmt:combinedMonthlyPmt,totalInterest:combinedTotalInterest,paidOffDate:paidOff,maxLen:maxScheduleLen,balanceToday:combinedBalanceToday}=useMemo(()=>aggregateSchedules(portionSchedules),[portionSchedules]);
@@ -1217,11 +1217,13 @@ const[whatIf,setWhatIf]=useState({active:false,portionId:null,extraMonthly:0,lum
 const whatIfPortionSchedule=useMemo(()=>{
 if(!whatIf.active||!whatIf.portionId)return[];
 const p=portions.find(x=>x.id===whatIf.portionId);
-if(!p||!p.principal||!p.annualRate||!loanCfg.termYears)return[];
+const pPrincipal=p?Number(p.principal)||0:0;
+const pRate=p?Number(p.annualRate)||0:0;
+if(!p||!pPrincipal||!pRate||!loanCfg.termYears)return[];
 const extra=Number(whatIf.extraMonthly)||0;
 const lump0=Number(whatIf.lumpAtStart)||0;
-const rateAt=mi=>{let r=p.annualRate;(p.rateChanges||[]).slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
-let bal=Math.max(0,p.principal-lump0);
+const rateAt=mi=>{let r=pRate;(p.rateChanges||[]).slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
+let bal=Math.max(0,pPrincipal-lump0);
 const sc=[];const start=parseDt(loanCfg.startDate);
 for(let mi=0;mi<loanCfg.termYears*12&&bal>0.01;mi++){
 const ar=rateAt(mi),mo=ar/100/12,n=loanCfg.termYears*12-mi;
@@ -1507,12 +1509,12 @@ return(
 {portions.map(p=>{
 const ps=portionSchedules.find(x=>x.id===p.id);
 const cur=ps&&ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
-const bal=cur?cur.balance:(ps&&ps.schedule.length?ps.schedule[ps.schedule.length-1].balance:p.principal);
+const bal=cur?cur.balance:(ps&&ps.schedule.length?ps.schedule[ps.schedule.length-1].balance:Number(p.principal)||0);
 const expanded=expandedPortionId===p.id;
 return(
 <div key={p.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
 <Row mb={expanded?10:0}>
-<div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.label}</div><div style={{fontSize:11,color:C.t4,marginTop:2}}>{fmt(p.principal)} @ {p.annualRate}%{p.fixedUntil?` · fixed until ${p.fixedUntil}`:''}</div></div>
+<div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.label}</div><div style={{fontSize:11,color:C.t4,marginTop:2}}>{fmt(Number(p.principal)||0)} @ {Number(p.annualRate)||0}%{p.fixedUntil?` · fixed until ${p.fixedUntil}`:''}</div></div>
 <div style={{display:'flex',gap:6,alignItems:'center'}}>
 <Mono color={C.green} size={13}>{fmt(bal)}</Mono>
 <button onClick={()=>setExpandedPortionId(expanded?null:p.id)} className="rb">{expanded?'Close':'Manage'}</button>
@@ -1562,8 +1564,7 @@ buckets[key]+=Number(a.value)||0;
 });
 liabilities.forEach(l=>{
 const val=l.linkMortgage?liveBal:(Number(l.value)||0);
-const key=l.splitCategory&&buckets.hasOwnProperty(l.splitCategory)?l.splitCategory:'uncategorised';
-buckets[key]+=val;
+buckets.debt+=val;
 });
 return buckets;
 },[assets,liabilities,liveBal]);
@@ -1713,12 +1714,7 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 <option key={b.id} value={b.id}>{b.name} · ${Math.abs(b.balance||0).toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>
 ))}
 </select>}
-<div style={{display:'flex',gap:6,marginTop:4}}>
-<input type="text" inputMode="decimal" placeholder="Interest rate % (optional)" value={l.interestRate==null?'':l.interestRate} onFocus={e=>e.target.select()} onChange={e=>updateLiab(l.id,'interestRate',e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}/>
-<select value={l.splitCategory||inferSplitCategory(l.label,true)} onChange={e=>updateLiab(l.id,'splitCategory',e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
-{SPLIT_CATS.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
-</select>
-</div>
+<input type="text" inputMode="decimal" placeholder="Interest rate % (optional)" value={l.interestRate==null?'':l.interestRate} onFocus={e=>e.target.select()} onChange={e=>updateLiab(l.id,'interestRate',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}/>
 </div>
 ))}
 <button onClick={()=>setLiabilities(ls=>[...ls,{id:Date.now(),label:"New Liability",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Liability</button>
