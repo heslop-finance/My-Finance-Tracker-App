@@ -11,11 +11,11 @@ incDk:"#0d2420",expDk:"#1f0d12",
 const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
 const s=(extra={})=>({...extra});
 
-const INCOME_CATS=["Salary","Freelance","Rental Income","Investment Returns","Benefits","Government Benefits","Other Income"];
+const INCOME_CATS=["Salary","Freelance","Rental Income","Utilities Reimbursement","Investment Returns","Benefits","Government Benefits","Other Income"];
 const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Sinking Fund","Investments","Travel","Car & Maintenance","Fines","Debt Repayment","Other"];
 const SAVINGS_CATS=new Set(["Savings Goal","Investments","Sinking Fund"]);
 const FIXED_CATS=new Set(["Mortgage","Rent","Rates","Insurance","Subscriptions"]);
-const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Sinking Fund":"#38bdf8","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
+const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Sinking Fund":"#38bdf8","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Utilities Reimbursement":"#2dd4bf","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const SPLIT_CATS=[
 {key:'freedom_fund',label:'🕊 Freedom Fund',color:C.green},
 {key:'valuable_liability',label:'🏠 Valuable Liability',color:C.cyan},
@@ -1408,6 +1408,7 @@ function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,lia
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
+const[showCompositionLegend,setShowCompositionLegend]=useState(false);
 const[useCustomTarget,setUseCustomTarget]=useState(false);
 const[customTarget,setCustomTarget]=useState('');
 const[withdrawalRate,setWithdrawalRate]=useState(0.04);
@@ -1524,7 +1525,12 @@ return(
 <div style={{height:'100%',width:`${(splitBuckets.uncategorised/splitTotal)*100}%`,background:C.t5,transition:'width .6s ease'}}/>
 )}
 </div>
-<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:8,fontSize:10,color:C.t3}}>
+<div onClick={()=>setShowCompositionLegend(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,marginTop:8,cursor:'pointer'}}>
+<span style={{fontSize:10,color:C.t4,fontWeight:600}}>Key</span>
+<span style={{color:C.t4,fontSize:10,display:'inline-block',transform:showCompositionLegend?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
+</div>
+{showCompositionLegend&&(
+<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:6,fontSize:10,color:C.t3}}>
 {SPLIT_CATS.map(s=>splitBuckets[s.key]>0&&(
 <div key={s.key} style={{display:'flex',alignItems:'center',gap:4}}>
 <span style={{width:8,height:8,background:s.color,borderRadius:2,display:'inline-block'}}/>
@@ -1538,6 +1544,7 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 </div>
 )}
 </div>
+)}
 </div>
 )}
 {editMode?(
