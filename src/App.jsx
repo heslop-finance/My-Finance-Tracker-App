@@ -54,6 +54,9 @@ const AKAHU_ACCOUNT_RULES={
 'Student Loan':{treat:'balance_only'},
 'Sharesies':{treat:'balance_only'},
 'Rates':{treat:'savings',depositCategory:'Sinking Fund'},
+'Gift Fund':{treat:'savings',depositCategory:'Sinking Fund'},
+'House Insurance':{treat:'savings',depositCategory:'Sinking Fund'},
+'Mortgage':{treat:'savings',depositCategory:'Sinking Fund'},
 };
 
 // ── HELPERS ────────────────────────────────────────────────────
