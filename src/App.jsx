@@ -2104,6 +2104,64 @@ const SEED=[
 const loadLS=(key,fallback)=>{try{const s=localStorage.getItem(key);return s?JSON.parse(s):fallback;}catch{return fallback;}};
 const AKAHU_ENABLED=localStorage.getItem('ft_akahu_enabled')==='true';
 
+// ── AKAHU SYNC PROCESSING ─────────────────────────────────────
+const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
+const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
+function categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules}){
+const treat=(updatedAccountMap[t.account]||{treat:'transactions'}).treat;
+if(treat==='balance_only')return null;
+if(treat==='savings'&&t.amount>0){
+const depositCat=(updatedAccountMap[t.account]||{}).depositCategory||'Savings Goal';
+return{...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false};
+}
+if(liabilityAccountIds.has(t.account)){
+if(t.amount>0)return{...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false};
+return null;
+}
+const desc=t.description||'';
+if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04','0462579-05'].some(s=>desc.includes(s)))return null;
+const ledgerlyType=t.amount>=0?'income':'expense';
+const descUpper=(t.description||'').toUpperCase();
+if(['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'].some(p=>descUpper.includes(p))){
+return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};
+}
+const merchant=t.merchant||null;
+const rule=categoryRules.find(r=>{const rMatchField=r.matchField||'merchant';const rMatchValue=(r.matchValue||r.merchant||'').toLowerCase();if(!rMatchValue)return false;if(rMatchField==='merchant'){return merchant&&merchant.toLowerCase()===rMatchValue;}return(t.description||'').toLowerCase()===rMatchValue;});
+if(rule)return{...t,ledgerlyType:rule.ledgerlyType,ledgerlyCategory:rule.ledgerlyCategory,needsReview:false};
+const map=ledgerlyType==='income'?INCOME_CATEGORY_MAP:CATEGORY_MAP;
+const mapped=t.akahuCategory?map[t.akahuCategory]:undefined;
+return{...t,ledgerlyType,ledgerlyCategory:mapped||'Other',needsReview:!mapped};
+}
+function dedupeAndMatchTransfers(txns,updatedAccountMap){
+const transferIds=new Set();
+txns.forEach((a,ai)=>{
+if(transferIds.has(a.id))return;
+txns.forEach((b,bi)=>{
+if(ai===bi||transferIds.has(b.id))return;
+const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);
+const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);
+const bothOwnAccounts=updatedAccountMap[a.account]&&updatedAccountMap[b.account];
+const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
+const withinTimeWindow=timeDiff<=5*60*1000;
+if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){
+const aSpecial=a.isDebtRepayment||a.isSavingsDeposit;
+const bSpecial=b.isDebtRepayment||b.isSavingsDeposit;
+if(aSpecial&&!bSpecial){transferIds.add(b.id);return;}
+if(bSpecial&&!aSpecial){transferIds.add(a.id);return;}
+transferIds.add(a.id);transferIds.add(b.id);
+}
+});
+});
+const afterTransferRemoval=txns.filter(t=>!transferIds.has(t.id));
+const fingerprintSeen=new Map();
+return afterTransferRemoval.filter(t=>{
+const key=`${t.date}|${Math.abs(t.amount)}|${t.description||''}`;
+if(fingerprintSeen.has(key))return false;
+fingerprintSeen.set(key,true);
+return true;
+});
+}
+
 // ── APP ────────────────────────────────────────────────────────
 export default function App(){
 const[entries,setEntries]=useState(()=>loadLS('ft_entries',SEED));
@@ -2227,8 +2285,6 @@ setMortgageLoanCfg(prev=>({...prev,startDate:mortgageCfg.startDate||prev.startDa
 }
 },[]);
 
-const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
-const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
 async function handleSync(forceStartDate){
 if(!AKAHU_ENABLED)return;
 setSyncing(true);
@@ -2256,82 +2312,17 @@ const updatedAccountMap={...akahuAccountMap};
 (balData.items||[]).forEach(item=>{
 const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCase().trim()===(item.name||'').toLowerCase().trim());
 const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
-updatedAccountMap[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined};
+updatedAccountMap[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined,hasRule:!!rule};
 });
 setAkahuAccountMap(updatedAccountMap);
 setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.items||[]).find(a=>a.id===g.akahuAccountId);if(!bal||bal.balance==null)return g;return{...g,saved:Math.max(0,bal.balance)};}));
 setUpcomingPayments(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,saved:Math.max(0,bal.balance)};}));
 setAssets(prev=>prev.map(a=>{if(!a.akahuAccountId)return a;const bal=(balData.items||[]).find(b=>b.id===a.akahuAccountId);if(!bal||bal.balance==null)return a;return{...a,value:Math.max(0,bal.balance)};}));
 setLiabilities(prev=>prev.map(l=>{if(!l.akahuAccountId)return l;const bal=(balData.items||[]).find(b=>b.id===l.akahuAccountId);if(!bal||bal.balance==null)return l;return{...l,value:Math.abs(bal.balance)};}));
-const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]).map(l=>l.akahuAccountId));
+const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
 const incoming=txData.items||[];
-const processed=[];
-for(const t of incoming){
-const treat=(updatedAccountMap[t.account]||{treat:'transactions'}).treat;
-if(treat==='balance_only')continue;
-if(treat==='savings'&&t.amount>0){
-const depositCat=(updatedAccountMap[t.account]||{}).depositCategory||'Savings Goal';
-processed.push({...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false});
-continue;
-}
-if(liabilityAccountIds.has(t.account)){
-if(t.amount>0){
-processed.push({...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false});
-}
-continue;
-}
-const desc=t.description||'';
-if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04','0462579-05'].some(s=>desc.includes(s)))continue;
-const ledgerlyType=t.amount>=0?'income':'expense';
-const descUpper=(t.description||'').toUpperCase();
-if(['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'].some(p=>descUpper.includes(p))){
-processed.push({...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false});
-continue;
-}
-const merchant=t.merchant||null;
-const rule=categoryRules.find(r=>{const rMatchField=r.matchField||'merchant';const rMatchValue=(r.matchValue||r.merchant||'').toLowerCase();if(!rMatchValue)return false;if(rMatchField==='merchant'){return merchant&&merchant.toLowerCase()===rMatchValue;}return(t.description||'').toLowerCase()===rMatchValue;});
-if(rule){
-processed.push({...t,ledgerlyType:rule.ledgerlyType,ledgerlyCategory:rule.ledgerlyCategory,needsReview:false});
-continue;
-}
-const map=ledgerlyType==='income'?INCOME_CATEGORY_MAP:CATEGORY_MAP;
-const mapped=t.akahuCategory?map[t.akahuCategory]:undefined;
-const ledgerlyCategory=mapped||'Other';
-const needsReview=!mapped;
-processed.push({...t,ledgerlyType,ledgerlyCategory,needsReview});
-}
-const transferIds=new Set();
-const isOwnAccount=acc=>Boolean(updatedAccountMap[acc])||liabilityAccountIds.has(acc);
-processed.forEach((a,ai)=>{
-if(transferIds.has(a.id))return;
-processed.forEach((b,bi)=>{
-if(ai===bi)return;
-if(transferIds.has(b.id))return;
-const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);
-const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);
-const bothOwnAccounts=isOwnAccount(a.account)&&isOwnAccount(b.account);
-const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
-const withinTimeWindow=timeDiff<=5*60*1000;
-if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){
-if(a.isDebtRepayment&&!b.isDebtRepayment){
-transferIds.add(b.id);
-}else if(b.isDebtRepayment&&!a.isDebtRepayment){
-transferIds.add(a.id);
-}else{
-transferIds.add(a.id);
-transferIds.add(b.id);
-}
-}
-});
-});
-const dedupedTransactions=processed.filter(t=>!transferIds.has(t.id));
-const fingerprintSeen=new Map();
-const fingerprintDeduped=dedupedTransactions.filter(t=>{
-const key=`${t.date}|${Math.abs(t.amount)}|${t.description||''}`;
-if(fingerprintSeen.has(key))return false;
-fingerprintSeen.set(key,true);
-return true;
-});
+const processed=incoming.map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
+const fingerprintDeduped=dedupeAndMatchTransfers(processed,updatedAccountMap);
 const newTxsForPmt=[];
 setSyncedTransactions(prev=>{
 const existingIds=new Set(prev.map(t=>t.id));
@@ -2362,6 +2353,26 @@ const elapsed=Date.now()-syncStart;
 if(elapsed<600)await new Promise(res=>setTimeout(res,600-elapsed));
 setSyncing(false);
 }
+}
+async function handleReprocessAll(){
+setSyncing(true);
+try{
+const balRes=await fetch('/.netlify/functions/akahu-balances');
+const balData=await balRes.json();
+setAkahuBalances(balData.items||[]);
+const updatedAccountMap={...akahuAccountMap};
+(balData.items||[]).forEach(item=>{
+const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCase().trim()===(item.name||'').toLowerCase().trim());
+const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
+updatedAccountMap[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined,hasRule:!!rule};
+});
+setAkahuAccountMap(updatedAccountMap);
+const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
+const recategorized=syncedTransactions.map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
+const deduped=dedupeAndMatchTransfers(recategorized,updatedAccountMap);
+setSyncedTransactions(deduped);
+}catch(err){console.error('Reprocess failed:',err);}
+finally{setSyncing(false);}
 }
 const filteredTransactionCount=useMemo(()=>syncedTransactions.filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).length,[syncedTransactions,txSearch,txCatFilter]);
 const displayedTransactions=useMemo(()=>[...syncedTransactions].filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,txLimit),[syncedTransactions,txSearch,txCatFilter,txLimit]);
@@ -2638,6 +2649,7 @@ return <>
 {syncing?"↻ Syncing...":"↻ Sync"}
 </button>
 <button onClick={()=>setShowResync(v=>!v)} className={`rb ${showResync?'oo':''}`} style={{marginLeft:6}}>↻ Resync from date</button>
+<button onClick={()=>{if(window.confirm('Reprocess all stored transactions with the current categorisation logic? Any one-off manual recategorisations that were not saved as a rule will be reset to automatic categorisation.'))handleReprocessAll();}} disabled={syncing} className="rb" style={{marginLeft:6}}>↻ Reprocess All</button>
 </div>
 </div>
 {showResync&&(
