@@ -2110,6 +2110,20 @@ const AKAHU_ENABLED=localStorage.getItem('ft_akahu_enabled')==='true';
 // ── AKAHU SYNC PROCESSING ─────────────────────────────────────
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
+function buildUpdatedAccountMap(currentMap,balanceItems,liabilities){
+const updated={...currentMap};
+(balanceItems||[]).forEach(item=>{
+const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCase().trim()===(item.name||'').toLowerCase().trim());
+const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
+updated[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined,hasRule:!!rule};
+});
+liabilities.forEach(l=>{
+if(l.akahuAccountId&&!updated[l.akahuAccountId]){
+updated[l.akahuAccountId]={name:l.label,treat:'transactions',hasRule:false};
+}
+});
+return updated;
+}
 function categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules}){
 const treat=(updatedAccountMap[t.account]||{treat:'transactions'}).treat;
 if(treat==='balance_only')return null;
@@ -2311,12 +2325,7 @@ setSyncError(null);
 const txData=await txRes.json();
 const balData=await balRes.json();
 setAkahuBalances(balData.items||[]);
-const updatedAccountMap={...akahuAccountMap};
-(balData.items||[]).forEach(item=>{
-const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCase().trim()===(item.name||'').toLowerCase().trim());
-const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
-updatedAccountMap[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined,hasRule:!!rule};
-});
+const updatedAccountMap=buildUpdatedAccountMap(akahuAccountMap,balData.items,liabilities);
 setAkahuAccountMap(updatedAccountMap);
 setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.items||[]).find(a=>a.id===g.akahuAccountId);if(!bal||bal.balance==null)return g;return{...g,saved:Math.max(0,bal.balance)};}));
 setUpcomingPayments(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,saved:Math.max(0,bal.balance)};}));
@@ -2363,12 +2372,7 @@ try{
 const balRes=await fetch('/.netlify/functions/akahu-balances');
 const balData=await balRes.json();
 setAkahuBalances(balData.items||[]);
-const updatedAccountMap={...akahuAccountMap};
-(balData.items||[]).forEach(item=>{
-const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCase().trim()===(item.name||'').toLowerCase().trim());
-const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
-updatedAccountMap[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined,hasRule:!!rule};
-});
+const updatedAccountMap=buildUpdatedAccountMap(akahuAccountMap,balData.items,liabilities);
 setAkahuAccountMap(updatedAccountMap);
 const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
 const recategorized=syncedTransactions.map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
