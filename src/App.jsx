@@ -2143,8 +2143,6 @@ if(liabilityAccountIds.has(t.account)){
 if(t.amount>0)return{...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false};
 return null;
 }
-const desc=t.description||'';
-if(['0462579-00','0462579-01','0462579-02','0462579-03','0462579-04','0462579-05'].some(s=>desc.includes(s)))return null;
 const ledgerlyType=t.amount>=0?'income':'expense';
 const descUpper=(t.description||'').toUpperCase();
 if(['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'].some(p=>descUpper.includes(p))){
