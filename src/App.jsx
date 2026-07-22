@@ -48,15 +48,15 @@ const AKAHU_ACCOUNT_RULES={
 'Main':{treat:'transactions'},
 'Travel':{treat:'savings'},
 'Sony 200-600mm':{treat:'savings'},
-'Utilities':{treat:'savings',depositCategory:'Sinking Fund'},
+'Utilities':{treat:'sinking',depositCategory:'Utilities'},
 'Rainy Day':{treat:'savings'},
 'Holding Account':{treat:'transactions'},
 'Student Loan':{treat:'balance_only'},
 'Sharesies':{treat:'balance_only'},
-'Rates':{treat:'savings',depositCategory:'Sinking Fund'},
-'Gift Fund':{treat:'savings',depositCategory:'Sinking Fund'},
-'House Insurance':{treat:'savings',depositCategory:'Sinking Fund'},
-'Mortgage':{treat:'savings',depositCategory:'Sinking Fund'},
+'Rates':{treat:'sinking',depositCategory:'Rates'},
+'Gift Fund':{treat:'sinking',depositCategory:'Gifts & Donations'},
+'House Insurance':{treat:'sinking',depositCategory:'Insurance'},
+'Mortgage':{treat:'sinking',depositCategory:'Mortgage'},
 };
 
 // ── HELPERS ────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ const filteredEntries=useMemo(()=>catFilter==="All Expenses"?allExpEntries:allEx
 const stackCats=useMemo(()=>{
 const fromEntries=[...new Set(allExpEntries.map(e=>e.category))];
 if(!actualsMode)return fromEntries;
-const fromTransactions=[...new Set(syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).map(t=>t.ledgerlyCategory).filter(Boolean))];
+const fromTransactions=[...new Set(syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit).map(t=>t.ledgerlyCategory).filter(Boolean))];
 return[...new Set([...fromEntries,...fromTransactions])];
 },[allExpEntries,actualsMode,syncedTransactions]);
 const bars=useMemo(()=>{
@@ -247,7 +247,7 @@ const y=earliest+i;
 const isFuture=y>currentYear;
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
 if(!isFuture){
-syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date.startsWith(String(y))&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
+syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit&&t.date.startsWith(String(y))&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
 }
 const val=Object.values(bycat).reduce((s,v)=>s+v,0);
 return{label:String(y),val,bycat,isFuture};
@@ -269,7 +269,7 @@ if(isYearly){
 if(actualsMode){
 return Array.from({length:12},(_,m)=>{
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
-syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{
+syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{
 const td=parseDt(t.date);
 if(td.getFullYear()===now.getFullYear()&&td.getMonth()===m){const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);}
 });
@@ -293,7 +293,7 @@ return Array.from({length:days},(_,di)=>{
 const d=new Date(start);d.setDate(d.getDate()+di);
 const dStr=dateKey(d);
 const bycat={};stackCats.forEach(c=>{bycat[c]=0;});
-syncedTransactions.filter(t=>t.date===dStr&&t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
+syncedTransactions.filter(t=>t.date===dStr&&t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).forEach(t=>{const c=t.ledgerlyCategory||'Other';bycat[c]=(bycat[c]||0)+Math.abs(t.amount);});
 const val=Object.values(bycat).reduce((s,v)=>s+v,0);
 return{label:pad(d.getDate()),val,bycat,isFuture:false,date:d};
 });
@@ -317,7 +317,7 @@ const pDays=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
 if(actualsMode){
 const oneYearAgo=new Date();oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
 const oneYearAgoStr=dateKey(oneYearAgo);
-const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date>oneYearAgoStr&&t.date<=todayStr&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).reduce((s,t)=>s+Math.abs(t.amount),0);
+const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit&&t.date>oneYearAgoStr&&t.date<=todayStr&&(catFilter==="All Expenses"||t.ledgerlyCategory===catFilter)).reduce((s,t)=>s+Math.abs(t.amount),0);
 return total*(pDays/365);
 }
 const from=new Date();from.setFullYear(from.getFullYear()-1);
@@ -345,6 +345,7 @@ const remainingDays=Math.max(0,totalDays-(isYearly?monthsElapsed:daysElapsed));
 const periodTxns=syncedTransactions.filter(t=>
 t.ledgerlyType==='expense'&&
 !t.isSavingsDeposit&&
+!t.isSinkingFundDeposit&&
 t.date>=startStr&&
 t.date<=todayStr&&
 (catFilter==='All Expenses'||t.ledgerlyCategory===catFilter)
@@ -580,7 +581,7 @@ if(actualsMode){
 syncedTransactions.filter(t=>t.date.startsWith(String(y))).forEach(t=>{
 if(t.ledgerlyType==='income')inc+=Math.abs(t.amount);
 else if(t.isSavingsDeposit)sav+=Math.abs(t.amount);
-else if(t.ledgerlyType==='expense')exp+=Math.abs(t.amount);
+else if(t.ledgerlyType==='expense'&&!t.isSinkingFundDeposit)exp+=Math.abs(t.amount);
 });
 }else{
 datesInRange(new Date(y,0,1),new Date(y,11,31)).forEach(d=>{
@@ -639,13 +640,13 @@ return(
 const yStr=String(selYearData.year);
 const yTxns=syncedTransactions.filter(t=>t.date.startsWith(yStr));
 const yInc=yTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0);
-const yExp=yTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
+const yExp=yTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
 const ySav=yTxns.filter(t=>t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
 const monthRows=Array.from({length:12},(_,m)=>{
 const mStr=`${yStr}-${pad(m+1)}`;
 const mTxns=yTxns.filter(t=>t.date.startsWith(mStr));
 const mInc=mTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0);
-const mExp=mTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
+const mExp=mTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit).reduce((s,t)=>s+Math.abs(t.amount),0);
 return{m,mInc,mExp,hasTxns:mTxns.length>0};
 });
 return(<>
@@ -729,7 +730,7 @@ if(actualsMode){
 const mStr=`${calYear}-${pad(m+1)}`;
 syncedTransactions.filter(t=>t.date.startsWith(mStr)).forEach(t=>{
 if(t.ledgerlyType==='income')inc+=Math.abs(t.amount);
-else if(t.ledgerlyType==='expense'&&!t.isSavingsDeposit)exp+=Math.abs(t.amount);
+else if(t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit)exp+=Math.abs(t.amount);
 });
 }else{
 datesInRange(from,to).forEach(d=>{inc+=dailyTotal(entries,d,"income");exp+=dailyTotal(entries,d,"expense");});
@@ -755,7 +756,7 @@ return(
 const mStr=`${calYear}-${pad(selMonth+1)}`;
 const mTxns=syncedTransactions.filter(t=>t.date.startsWith(mStr));
 const incTxns=mTxns.filter(t=>t.ledgerlyType==='income');
-const expTxns=mTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit);
+const expTxns=mTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit);
 const savTxns=mTxns.filter(t=>t.isSavingsDeposit);
 const totalIn=incTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
 const totalOut=expTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
@@ -855,7 +856,7 @@ const dStr=dateKey(date);
 const isFutureDate=date>today;
 const dayTxns=actualsMode&&!isFutureDate?syncedTransactions.filter(t=>t.date===dStr):null;
 const inc=actualsMode&&!isFutureDate?dayTxns.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,'income');
-const exp=actualsMode&&!isFutureDate?dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit).reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,'expense');
+const exp=actualsMode&&!isFutureDate?dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit).reduce((s,t)=>s+Math.abs(t.amount),0):dailyTotal(entries,date,'expense');
 const isToday=dateKey(date)===todayStr;
 const isSel=sel&&dateKey(date)===dateKey(sel);
 const hasAct=inc>0||exp>0;
@@ -885,7 +886,7 @@ style={{background:isSel?"rgba(110,231,183,.18)":isToday?"rgba(110,231,183,.08)"
 const dStr=dateKey(sel);
 const dayTxns=syncedTransactions.filter(t=>t.date===dStr);
 const incTxns=dayTxns.filter(t=>t.ledgerlyType==='income');
-const expTxns=dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit);
+const expTxns=dayTxns.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundDeposit);
 const savTxns=dayTxns.filter(t=>t.isSavingsDeposit);
 const totalIn=incTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
 const totalOut=expTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
@@ -2131,6 +2132,13 @@ if(treat==='savings'&&t.amount>0){
 const depositCat=(updatedAccountMap[t.account]||{}).depositCategory||'Savings Goal';
 return{...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false};
 }
+if(treat==='sinking'){
+const depositCat=(updatedAccountMap[t.account]||{}).depositCategory||'Other';
+if(t.amount>0){
+return{...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSinkingFundDeposit:true,needsReview:false};
+}
+return{...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSinkingFundPayout:true,needsReview:false};
+}
 if(liabilityAccountIds.has(t.account)){
 if(t.amount>0)return{...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false};
 return null;
@@ -2161,8 +2169,8 @@ const bothOwnAccounts=updatedAccountMap[a.account]&&updatedAccountMap[b.account]
 const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
 const withinTimeWindow=timeDiff<=5*60*1000;
 if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){
-const aSpecial=a.isDebtRepayment||a.isSavingsDeposit;
-const bSpecial=b.isDebtRepayment||b.isSavingsDeposit;
+const aSpecial=a.isDebtRepayment||a.isSavingsDeposit||a.isSinkingFundDeposit;
+const bSpecial=b.isDebtRepayment||b.isSavingsDeposit||b.isSinkingFundDeposit;
 if(aSpecial&&!bSpecial){transferIds.add(b.id);return;}
 if(bSpecial&&!aSpecial){transferIds.add(a.id);return;}
 transferIds.add(a.id);transferIds.add(b.id);
@@ -2414,11 +2422,11 @@ const incByCategory=useMemo(()=>{const map={};entries.filter(e=>e.type==="income
 const savingsRate=useMemo(()=>{if(totalIncome<=0)return 0;const sv=entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,pDays),0);return Math.min(100,(sv/totalIncome)*100);},[entries,totalIncome,pDays]);
 const periodTransactions=useMemo(()=>actualsMode?getTransactionsForPeriod(syncedTransactions,displayPeriod):[],[actualsMode,syncedTransactions,displayPeriod]);
 const actualIncome=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
-const actualTrueExp=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
+const actualTrueExp=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundPayout&&!SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
 const actualSavingsRatioAmt=useMemo(()=>periodTransactions.filter(t=>t.isSavingsDeposit||SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
 const actualExpenses=actualTrueExp+actualSavingsRatioAmt;
 const actualSavingsRate=actualIncome>0?Math.min(100,(actualSavingsRatioAmt/actualIncome)*100):0;
-const actualByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='expense').forEach(t=>{const c=t.ledgerlyCategory||'Other';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
+const actualByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSinkingFundPayout).forEach(t=>{const c=t.ledgerlyCategory||'Other';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
 const actualIncByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='income').forEach(t=>{const c=t.ledgerlyCategory||'Other Income';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
 const hasActualData=periodTransactions.length>0;
 const isEstimate=actualsMode&&!hasActualData;
