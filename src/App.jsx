@@ -133,10 +133,11 @@ return '';
 }
 function buildSchedule(principal,annualRate,termYears,startDateStr,rateChanges,lumpSums){
 if(!principal||!annualRate||!termYears)return[];
+const totalMonths=Math.round(termYears*12);
 const rateAt=mi=>{let r=annualRate;rateChanges.slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
 let bal=principal;const schedule=[];const start=parseDt(startDateStr);
-for(let mi=0;mi<termYears*12&&bal>0;mi++){
-const ar=rateAt(mi),mo=ar/100/12,n=termYears*12-mi;
+for(let mi=0;mi<totalMonths&&bal>0;mi++){
+const ar=rateAt(mi),mo=ar/100/12,n=totalMonths-mi;
 const payment=bal*mo*Math.pow(1+mo,n)/(Math.pow(1+mo,n)-1);
 const lump=(lumpSums.find(l=>l.month===mi)||{amount:0}).amount;
 const interest=bal*mo,principalPart=Math.min(payment-interest,bal);
@@ -158,6 +159,43 @@ const cur=ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
 return s+(cur?cur.balance:ps.schedule[ps.schedule.length-1].balance);
 },0);
 return{maxLen,monthlyPmt,totalInterest,paidOffDate,balanceToday};
+}
+function portionTodayState(p,loanCfg){
+const start=parseDt(loanCfg.startDate);const today=parseDt(todayStr);
+const monthsElapsed=Math.max(0,(today.getFullYear()-start.getFullYear())*12+(today.getMonth()-start.getMonth()));
+const principal=Number(p.principal)||0,rate=Number(p.annualRate)||0;
+const originalSchedule=buildSchedule(principal,rate,loanCfg.termYears,loanCfg.startDate,p.rateChanges||[],p.lumpSums||[]);
+const idx=Math.min(monthsElapsed,Math.max(0,originalSchedule.length-1));
+const curEntry=originalSchedule[idx];
+const scheduledPayment=curEntry?curEntry.payment-(curEntry.lump||0):0;
+const scheduledBalance=monthsElapsed>0&&originalSchedule[monthsElapsed-1]?originalSchedule[monthsElapsed-1].balance:principal;
+const balance=(p.akahuAccountId&&p.liveBalance!=null)?p.liveBalance:scheduledBalance;
+let currentRate=rate;(p.rateChanges||[]).slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(monthsElapsed>=rc.month)currentRate=rc.rate;});
+const futureRateChanges=(p.rateChanges||[]).filter(rc=>rc.month>monthsElapsed).map(rc=>({...rc,month:rc.month-monthsElapsed}));
+const futureLumpSums=(p.lumpSums||[]).filter(l=>l.month>monthsElapsed).map(l=>({...l,month:l.month-monthsElapsed}));
+return{balance,currentRate,scheduledPayment,futureRateChanges,futureLumpSums,monthsElapsed};
+}
+
+function buildForwardSchedule(state,extraMonthly=0,lumpNow=0){
+const basePayment=state.scheduledPayment;
+let bal=Math.max(0,state.balance-(Number(lumpNow)||0));
+const extra=Number(extraMonthly)||0;
+if(bal<=0.01||basePayment<=0)return[];
+const sc=[];const today=parseDt(todayStr);const CAP=600;
+for(let mi=0;mi<CAP&&bal>0.01;mi++){
+let ar=state.currentRate;
+state.futureRateChanges.slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)ar=rc.rate;});
+const mo=ar/100/12;
+const interest=bal*mo;
+if(basePayment+extra<=interest)break;
+const lump=(state.futureLumpSums.find(l=>l.month===mi)||{amount:0}).amount;
+const principalPart=Math.min(Math.max(0,basePayment-interest),bal);
+const extraPrin=Math.min(extra,Math.max(0,bal-principalPart-lump));
+bal=Math.max(0,bal-principalPart-lump-extraPrin);
+const date=new Date(today);date.setMonth(date.getMonth()+mi);
+sc.push({mi,date,payment:basePayment+lump+extraPrin,interest,principal:principalPart+lump+extraPrin,lump:lump+extraPrin,balance:bal,rate:ar});
+}
+return sc;
 }
 
 // ── CSS ────────────────────────────────────────────────────────
@@ -1140,7 +1178,7 @@ if(daysLeft<=180)return{color:C.amber,icon:"📅",title:`${p.label} — fixed ra
 return null;
 }
 
-function PortionDetail({portion,loanCfg,updatePortion}){
+function PortionDetail({portion,loanCfg,updatePortion,akahuBalances=[]}){
 const[showRF,setShowRF]=useState(false);
 const[showLF,setShowLF]=useState(false);
 const[newRate,setNewRate]=useState({month:12,rate:6.0});
@@ -1154,6 +1192,13 @@ return(
 <div><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Rate (%)</label><input className="fi" type="text" inputMode="decimal" value={portion.annualRate} onFocus={e=>e.target.select()} onChange={e=>updatePortion(portion.id,p=>({...p,annualRate:e.target.value}))} style={{padding:"8px 12px"}}/></div>
 </div>
 <div style={{marginBottom:14}}><label style={{fontSize:11,color:C.t3,display:"block",marginBottom:4}}>Fixed until</label><input className="fi" type="date" value={portion.fixedUntil||''} onChange={e=>updatePortion(portion.id,p=>({...p,fixedUntil:e.target.value}))} style={{padding:"8px 12px"}}/></div>
+{AKAHU_ENABLED&&<div style={{marginTop:10,marginBottom:14}}>
+<label style={{fontSize:11,color:C.t3,display:'block',marginBottom:4}}>Link to Akahu account (auto-updates balance)</label>
+<select className="fi" value={portion.akahuAccountId||''} onChange={e=>updatePortion(portion.id,p=>({...p,akahuAccountId:e.target.value}))} style={{padding:'8px 12px'}}>
+<option value=''>— not linked —</option>
+{akahuBalances.map(a=><option key={a.id} value={a.id}>{a.name} — ${Math.abs(a.balance||0).toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})}</option>)}
+</select>
+</div>}
 <div style={{marginBottom:16}}>
 <Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Rate Changes</div><button onClick={()=>setShowRF(s=>!s)} className={`rb ${showRF?"oo":""}`}>+ Add</button></Row>
 {showRF&&(
@@ -1197,7 +1242,7 @@ return(
 );
 }
 
-function MortgageWidget({loanCfg,setLoanCfg,portions,setPortions,displayPeriod="monthly"}){
+function MortgageWidget({loanCfg,setLoanCfg,portions,setPortions,displayPeriod="monthly",akahuBalances=[]}){
 const[loanCfgD,setLoanCfgD]=useState(loanCfg);
 useEffect(()=>{setLoanCfgD(loanCfg);},[loanCfg]);
 const[showSetup,setShowSetup]=useState(false);
@@ -1207,40 +1252,22 @@ const[showAddPortion,setShowAddPortion]=useState(false);
 const[newPortion,setNewPortion]=useState({label:'',principal:'',annualRate:'',fixedUntil:''});
 const[expandedPortionId,setExpandedPortionId]=useState(null);
 function updatePortion(id,updater){setPortions(prev=>prev.map(p=>p.id===id?updater(p):p));}
-const portionSchedules=useMemo(()=>portions.map(p=>({
-id:p.id,
-schedule:buildSchedule(Number(p.principal)||0,Number(p.annualRate)||0,loanCfg.termYears,loanCfg.startDate,p.rateChanges||[],p.lumpSums||[])
-})),[portions,loanCfg]);
+const portionStates=useMemo(()=>portions.map(p=>({id:p.id,state:portionTodayState(p,loanCfg)})),[portions,loanCfg]);
+const portionSchedules=useMemo(()=>portionStates.map(({id,state})=>({id,schedule:buildForwardSchedule(state),startBalance:state.balance})),[portionStates]);
+const combinedBalanceToday=useMemo(()=>portionSchedules.reduce((s,ps)=>s+ps.startBalance,0),[portionSchedules]);
 const totalPrincipal=portions.reduce((s,p)=>s+(Number(p.principal)||0),0);
-const{monthlyPmt:combinedMonthlyPmt,totalInterest:combinedTotalInterest,paidOffDate:paidOff,maxLen:maxScheduleLen,balanceToday:combinedBalanceToday}=useMemo(()=>aggregateSchedules(portionSchedules),[portionSchedules]);
-const combinedTotalCost=totalPrincipal+combinedTotalInterest;
+const{monthlyPmt:combinedMonthlyPmt,totalInterest:combinedTotalInterest,paidOffDate:paidOff,maxLen:maxScheduleLen}=useMemo(()=>aggregateSchedules(portionSchedules),[portionSchedules]);
+const combinedTotalCost=combinedBalanceToday+combinedTotalInterest;
 const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
 const periodPmt=combinedMonthlyPmt*(pDays/30.44);
 const pmtLabel=({weekly:"Weekly",fortnightly:"Fortnightly",monthly:"Monthly",yearly:"Yearly"})[displayPeriod]+" Payment";
 const[whatIf,setWhatIf]=useState({active:false,portionId:null,extraMonthly:0,lumpAtStart:0});
 const whatIfPortionSchedule=useMemo(()=>{
 if(!whatIf.active||!whatIf.portionId)return[];
-const p=portions.find(x=>x.id===whatIf.portionId);
-const pPrincipal=p?Number(p.principal)||0:0;
-const pRate=p?Number(p.annualRate)||0:0;
-if(!p||!pPrincipal||!pRate||!loanCfg.termYears)return[];
-const extra=Number(whatIf.extraMonthly)||0;
-const lump0=Number(whatIf.lumpAtStart)||0;
-const rateAt=mi=>{let r=pRate;(p.rateChanges||[]).slice().sort((a,b)=>a.month-b.month).forEach(rc=>{if(mi>=rc.month)r=rc.rate;});return r;};
-let bal=Math.max(0,pPrincipal-lump0);
-const sc=[];const start=parseDt(loanCfg.startDate);
-for(let mi=0;mi<loanCfg.termYears*12&&bal>0.01;mi++){
-const ar=rateAt(mi),mo=ar/100/12,n=loanCfg.termYears*12-mi;
-const payment=bal*mo*Math.pow(1+mo,n)/(Math.pow(1+mo,n)-1);
-const lump=((p.lumpSums||[]).find(l=>l.month===mi)||{amount:0}).amount;
-const interest=bal*mo,principalPart=Math.min(payment-interest,bal);
-const extraPrin=Math.min(extra,Math.max(0,bal-principalPart-lump));
-bal=Math.max(0,bal-principalPart-lump-extraPrin);
-const date=new Date(start);date.setMonth(date.getMonth()+mi);
-sc.push({mi,date,payment:payment+lump+extraPrin,interest,principal:principalPart+lump+extraPrin,lump:lump+extraPrin,balance:bal,rate:ar});
-}
-return sc;
-},[whatIf,portions,loanCfg]);
+const entry=portionStates.find(x=>x.id===whatIf.portionId);
+if(!entry)return[];
+return buildForwardSchedule(entry.state,whatIf.extraMonthly,whatIf.lumpAtStart);
+},[whatIf,portionStates]);
 const scActive=whatIf.active&&whatIf.portionId&&whatIfPortionSchedule.length>0;
 const scPortionSchedules=useMemo(()=>portions.map(p=>({
 id:p.id,
@@ -1248,7 +1275,7 @@ schedule:scActive&&p.id===whatIf.portionId?whatIfPortionSchedule:(portionSchedul
 })),[portions,scActive,whatIf.portionId,whatIfPortionSchedule,portionSchedules]);
 const{monthlyPmt:scCombinedMonthlyPmt,totalInterest:scCombinedTotalInterest,paidOffDate:scPaidOff,maxLen:scMaxScheduleLen}=useMemo(()=>scActive?aggregateSchedules(scPortionSchedules):{monthlyPmt:0,totalInterest:0,paidOffDate:null,maxLen:0,balanceToday:0},[scActive,scPortionSchedules]);
 const scPeriodPmt=scCombinedMonthlyPmt*(pDays/30.44);
-const scCombinedTotalCost=totalPrincipal+scCombinedTotalInterest;
+const scCombinedTotalCost=combinedBalanceToday+scCombinedTotalInterest;
 const scYearsLeft=scMaxScheduleLen/12;
 const[showRefi,setShowRefi]=useState(false);
 const[refi,setRefi]=useState({scope:'all',rate:'',termYears:'',costs:''});
@@ -1301,8 +1328,9 @@ balance+=lastMonthThisYear?lastMonthThisYear.balance:0;
 return{year,balance,interest,principal,lump};
 });
 },[portionSchedules,maxScheduleLen]);
-const allRateChangeMonths=[...new Set(portions.flatMap(p=>(p.rateChanges||[]).map(rc=>rc.month)))];
-const allLumpSums=portions.flatMap(p=>p.lumpSums||[]);
+const monthsElapsedGlobal=useMemo(()=>{const start=parseDt(loanCfg.startDate);const today=parseDt(todayStr);return Math.max(0,(today.getFullYear()-start.getFullYear())*12+(today.getMonth()-start.getMonth()));},[loanCfg]);
+const allRateChangeMonths=[...new Set(portions.flatMap(p=>(p.rateChanges||[]).filter(rc=>rc.month>monthsElapsedGlobal).map(rc=>rc.month-monthsElapsedGlobal)))];
+const allLumpSums=portions.flatMap(p=>(p.lumpSums||[]).filter(l=>l.month>monthsElapsedGlobal).map(l=>({...l,month:l.month-monthsElapsedGlobal})));
 const scCombinedData=useMemo(()=>{
 if(!scActive)return null;
 const numYears=Math.ceil(scMaxScheduleLen/12);
@@ -1482,10 +1510,10 @@ return(
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:16}}>
 {(scActive?[
 {label:"Interest over life",val:fmt(scCombinedTotalInterest),color:C.purple,pct:fmtN(scCombinedTotalInterest/scCombinedTotalCost*100),barColor:C.purple,diff:`save ${fmt(combinedTotalInterest-scCombinedTotalInterest)}`},
-{label:"Principal",val:fmt(totalPrincipal),color:C.green,pct:fmtN(totalPrincipal/scCombinedTotalCost*100),barColor:C.green},
+{label:"Balance remaining",val:fmt(combinedBalanceToday),color:C.green,pct:fmtN(combinedBalanceToday/scCombinedTotalCost*100),barColor:C.green},
 ]:[
 {label:"Interest over life",val:fmt(combinedTotalInterest),color:C.red,pct:fmtN(combinedTotalInterest/combinedTotalCost*100),barColor:C.red},
-{label:"Principal",val:fmt(totalPrincipal),color:C.green,pct:fmtN(totalPrincipal/combinedTotalCost*100),barColor:C.green},
+{label:"Balance remaining",val:fmt(combinedBalanceToday),color:C.green,pct:fmtN(combinedBalanceToday/combinedTotalCost*100),barColor:C.green},
 ]).map(s=>(
 <div key={s.label} style={{background:C.bg,border:`1px solid ${scActive&&s.diff?'rgba(167,139,250,.25)':C.border}`,borderRadius:12,padding:"12px 14px"}}>
 <div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:".06em"}}>{s.label}</div>
@@ -1511,21 +1539,19 @@ return(
 )}
 {portions.length===0&&<div style={{fontSize:12,color:C.t5,fontStyle:"italic"}}>No portions yet — add one to start tracking your mortgage.</div>}
 {portions.map(p=>{
-const ps=portionSchedules.find(x=>x.id===p.id);
-const cur=ps&&ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
-const bal=cur?cur.balance:(ps&&ps.schedule.length?ps.schedule[ps.schedule.length-1].balance:Number(p.principal)||0);
+const bal=portionSchedules.find(x=>x.id===p.id)?.startBalance??(Number(p.principal)||0);
 const expanded=expandedPortionId===p.id;
 return(
 <div key={p.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
 <Row mb={expanded?10:0}>
-<div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.label}</div><div style={{fontSize:11,color:C.t4,marginTop:2}}>{fmt(Number(p.principal)||0)} @ {Number(p.annualRate)||0}%{p.fixedUntil?` · fixed until ${p.fixedUntil}`:''}</div></div>
+<div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{p.label}</div><div style={{fontSize:11,color:C.t4,marginTop:2}}>{fmt(Number(p.principal)||0)} @ {Number(p.annualRate)||0}%{p.fixedUntil?` · fixed until ${p.fixedUntil}`:''}{p.akahuAccountId&&<span style={{fontSize:10,color:C.cyan,marginLeft:6}}>Live · {akahuBalances.find(a=>a.id===p.akahuAccountId)?.name||''}</span>}</div></div>
 <div style={{display:'flex',gap:6,alignItems:'center'}}>
 <Mono color={C.green} size={13}>{fmt(bal)}</Mono>
 <button onClick={()=>setExpandedPortionId(expanded?null:p.id)} className="rb">{expanded?'Close':'Manage'}</button>
 <button onClick={()=>setPortions(prev=>prev.filter(x=>x.id!==p.id))} style={{background:'none',border:'none',color:C.t5,cursor:'pointer',fontSize:16}}>×</button>
 </div>
 </Row>
-{expanded&&<PortionDetail portion={p} loanCfg={loanCfg} updatePortion={updatePortion}/>}
+{expanded&&<PortionDetail portion={p} loanCfg={loanCfg} updatePortion={updatePortion} akahuBalances={akahuBalances}/>}
 </div>
 );
 })}
@@ -1536,7 +1562,7 @@ return(
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({mortgageSchedule,mortgagePrincipal,assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[]}){
+function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[]}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
@@ -1550,14 +1576,8 @@ const[showFILine,setShowFILine]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
 const[nominalReturn,setNominalReturn]=useState('7.0');
 const[inflationRate,setInflationRate]=useState('2.5');
-const liveBal=useMemo(()=>{
-if(!mortgageSchedule||!mortgageSchedule.length) return mortgagePrincipal;
-const today=new Date();
-const current=mortgageSchedule.find(m=>new Date(m.date)>=today);
-return current?current.balance:mortgageSchedule[mortgageSchedule.length-1].balance;
-},[mortgageSchedule,mortgagePrincipal]);
 const totalAssets=assets.reduce((s,a)=>s+Number(a.value),0);
-const totalLiabs=liabilities.reduce((s,l)=>s+(l.linkMortgage?liveBal:Number(l.value)),0);
+const totalLiabs=liabilities.reduce((s,l)=>s+(Number(l.value)||0),0);
 const netWorth=totalAssets-totalLiabs;
 const equityPct=totalAssets>0?(totalAssets-totalLiabs)/totalAssets*100:0;
 const splitBuckets=useMemo(()=>{
@@ -1567,11 +1587,11 @@ const key=a.splitCategory&&buckets.hasOwnProperty(a.splitCategory)?a.splitCatego
 buckets[key]+=Number(a.value)||0;
 });
 liabilities.forEach(l=>{
-const val=l.linkMortgage?liveBal:(Number(l.value)||0);
+const val=Number(l.value)||0;
 buckets.debt+=val;
 });
 return buckets;
-},[assets,liabilities,liveBal]);
+},[assets,liabilities]);
 const splitTotal=Object.values(splitBuckets).reduce((s,v)=>s+v,0);
 const suggestedAnnualExpenses=useMemo(()=>{
 if(syncedTransactions.length>0){
@@ -1709,7 +1729,7 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 <div key={l.id} style={{marginTop:6}}>
 <div style={{display:"flex",alignItems:"center",gap:6}}>
 <input className="ci" value={l.label} placeholder="Liability name" onChange={e=>updateLiab(l.id,"label",e.target.value)} style={{flex:1,minWidth:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.t1,fontSize:16,boxSizing:"border-box"}}/>
-<input className="ci" type="text" inputMode="decimal" value={l.linkMortgage?Math.round(liveBal):(l.value===0?"":l.value)} placeholder="0" onFocus={e=>e.target.select()} disabled={l.linkMortgage} onChange={e=>updateLiab(l.id,"value",e.target.value)} style={{width:88,flexShrink:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.red,fontSize:16,fontFamily:F.mono,textAlign:"right",opacity:l.linkMortgage?.7:1,boxSizing:"border-box"}}/>
+<input className="ci" type="text" inputMode="decimal" value={l.value===0?"":l.value} placeholder="0" onFocus={e=>e.target.select()} onChange={e=>updateLiab(l.id,"value",e.target.value)} style={{width:88,flexShrink:0,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:"6px 8px",color:C.red,fontSize:16,fontFamily:F.mono,textAlign:"right",boxSizing:"border-box"}}/>
 <button onClick={()=>setLiabilities(ls=>ls.filter(x=>x.id!==l.id))} style={{background:"none",border:"none",color:C.t4,cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
 </div>
 {AKAHU_ENABLED&&<select value={l.akahuAccountId||''} onChange={e=>updateLiab(l.id,'akahuAccountId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
@@ -1745,7 +1765,7 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 {liabilities.map(l=>(
 <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{l.label}</span>
-<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.linkMortgage?liveBal:l.value)}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.value)}</span>
 </div>
 ))}
 </div>
@@ -2218,7 +2238,7 @@ const[mortgageLumpSums,setMortgageLumpSums]=useState(()=>loadLS('ft_mortgageLump
 const[mortgageLoanCfg,setMortgageLoanCfg]=useState(()=>loadLS('ft_mortgageLoanCfg',DEFAULT_LOAN_CFG));
 const[mortgagePortions,setMortgagePortions]=useState(()=>loadLS('ft_mortgagePortions',[]));
 const[assets,setAssets]=useState(()=>loadLS('ft_assets',[{id:1,label:"Home Value",value:650000},{id:2,label:"KiwiSaver",value:42000},{id:3,label:"Savings",value:15000},{id:4,label:"Investments",value:8000}]));
-const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000,linkMortgage:true},{id:2,label:"Car Loan",value:12000}]));
+const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000},{id:2,label:"Car Loan",value:12000}]));
 const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
 const[budgetLimits,setBudgetLimits]=useState(()=>loadLS('ft_budgetLimits',{}));
 const[budgetEditing,setBudgetEditing]=useState(false);
@@ -2307,6 +2327,11 @@ lumpSums:mortgageLumpSums||[],
 setMortgageLoanCfg(prev=>({...prev,startDate:mortgageCfg.startDate||prev.startDate,termYears:mortgageCfg.termYears||prev.termYears}));
 }
 },[]);
+useEffect(()=>{
+if(localStorage.getItem('ft_migration_unlinkmortgage'))return;
+localStorage.setItem('ft_migration_unlinkmortgage','1');
+setLiabilities(prev=>prev.map(l=>{if(!l.linkMortgage)return l;const{linkMortgage,...rest}=l;return rest;}));
+},[]);
 
 async function handleSync(forceStartDate){
 if(!AKAHU_ENABLED)return;
@@ -2337,6 +2362,7 @@ setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.ite
 setUpcomingPayments(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,saved:Math.max(0,bal.balance)};}));
 setAssets(prev=>prev.map(a=>{if(!a.akahuAccountId)return a;const bal=(balData.items||[]).find(b=>b.id===a.akahuAccountId);if(!bal||bal.balance==null)return a;return{...a,value:Math.max(0,bal.balance)};}));
 setLiabilities(prev=>prev.map(l=>{if(!l.akahuAccountId)return l;const bal=(balData.items||[]).find(b=>b.id===l.akahuAccountId);if(!bal||bal.balance==null)return l;return{...l,value:Math.abs(bal.balance)};}));
+setMortgagePortions(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,liveBalance:Math.abs(bal.balance)};}));
 const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
 const incoming=txData.items||[];
 const processed=incoming.map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
@@ -2387,20 +2413,36 @@ setSyncedTransactions(deduped);
 }catch(err){console.error('Reprocess failed:',err);}
 finally{setSyncing(false);}
 }
+async function handleFullRebuild(){
+setSyncing(true);
+try{
+const[txRes,balRes]=await Promise.all([fetch('/.netlify/functions/akahu-transactions'),fetch('/.netlify/functions/akahu-balances')]);
+if(txRes.status===429){setSyncError('Rate limited — try again shortly');return;}
+setSyncError(null);
+const txData=await txRes.json();
+const balData=await balRes.json();
+setAkahuBalances(balData.items||[]);
+const updatedAccountMap=buildUpdatedAccountMap(akahuAccountMap,balData.items,liabilities);
+setAkahuAccountMap(updatedAccountMap);
+const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
+const processed=(txData.items||[]).map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
+setSyncedTransactions(dedupeAndMatchTransfers(processed,updatedAccountMap));
+setMortgagePortions(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,liveBalance:Math.abs(bal.balance)};}));
+setLastSynced(new Date().toISOString());
+}catch(err){console.error('Full rebuild failed:',err);setSyncError('Full rebuild failed — check console');}
+finally{setSyncing(false);}
+}
 const filteredTransactionCount=useMemo(()=>syncedTransactions.filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).length,[syncedTransactions,txSearch,txCatFilter]);
 const displayedTransactions=useMemo(()=>[...syncedTransactions].filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,txLimit),[syncedTransactions,txSearch,txCatFilter,txLimit]);
-const mortSchedule=useMemo(()=>buildSchedule(mortgageCfg.principal,mortgageCfg.annualRate,mortgageCfg.termYears,mortgageCfg.startDate,mortgageRateChanges,mortgageLumpSums),[mortgageCfg,mortgageRateChanges,mortgageLumpSums]);
 
 // Auto monthly net worth snapshot
-const mortSchedForSnap=useMemo(()=>{if(!mortgageCfg.principal||!mortgageCfg.annualRate||!mortgageCfg.termYears)return null;const mo=mortgageCfg.annualRate/100/12,n=mortgageCfg.termYears*12,pmt=mortgageCfg.principal*mo*Math.pow(1+mo,n)/(Math.pow(1+mo,n)-1);let bal=mortgageCfg.principal;const sc=[];for(let i=0;i<n&&bal>0;i++){const interest=bal*mo,principal=Math.min(pmt-interest,bal);bal=Math.max(0,bal-principal);sc.push({balance:bal});}return sc;},[mortgageCfg]);
 useEffect(()=>{
 const thisMonth=todayStr.slice(0,7);
 if(networthSnapshots.some(s=>s.date.slice(0,7)===thisMonth))return;
-const liveBal=mortSchedForSnap&&mortSchedForSnap.length?mortSchedForSnap[0].balance:mortgageCfg.principal;
 const totalA=assets.reduce((s,a)=>s+Number(a.value),0);
-const totalL=liabilities.reduce((s,l)=>s+(l.linkMortgage?liveBal:Number(l.value)),0);
+const totalL=liabilities.reduce((s,l)=>s+(Number(l.value)||0),0);
 setNetworthSnapshots(prev=>[...prev,{id:Date.now(),date:todayStr,netWorth:totalA-totalL,totalAssets:totalA,totalLiabs:totalL,auto:true}].sort((a,b)=>a.date.localeCompare(b.date)));
-},[assets,liabilities,networthSnapshots,mortSchedForSnap,mortgageCfg.principal]);
+},[assets,liabilities,networthSnapshots]);
 
 const pDays=PERIODS.find(p=>p.key===displayPeriod).days;
 const{totalIncome,totalExpenses}=useMemo(()=>{let inc=0,exp=0;entries.forEach(e=>{if(e.recur!=="One-off"){const a=periodAmt(e,pDays);if(e.type==="income")inc+=a;else exp+=a;}});return{totalIncome:inc,totalExpenses:exp};},[entries,pDays]);
@@ -2663,6 +2705,7 @@ return <>
 </button>
 <button onClick={()=>setShowResync(v=>!v)} className={`rb ${showResync?'oo':''}`} style={{marginLeft:6}}>↻ Resync from date</button>
 <button onClick={()=>{if(window.confirm('Reprocess all stored transactions with the current categorisation logic? Any one-off manual recategorisations that were not saved as a rule will be reset to automatic categorisation.'))handleReprocessAll();}} disabled={syncing} className="rb" style={{marginLeft:6}}>↻ Reprocess All</button>
+<button onClick={()=>{if(window.confirm('Full rebuild: delete all stored transactions and refetch everything from Akahu.\n\n• Akahu only provides the last 365 days — anything older will be permanently lost.\n• Manual recategorisations not saved as rules will be reset.\n\nContinue?'))handleFullRebuild();}} disabled={syncing} style={{background:'rgba(251,113,133,.1)',border:`1px solid ${C.red}`,borderRadius:8,padding:'7px 12px',color:C.red,fontSize:11,fontWeight:700,cursor:syncing?'default':'pointer',marginLeft:6}}>⟳ Full Rebuild</button>
 </div>
 </div>
 {showResync&&(
@@ -2775,8 +2818,8 @@ return(
 </>}
 </>}
 
-{view==="mortgage"&&<MortgageWidget loanCfg={mortgageLoanCfg} setLoanCfg={setMortgageLoanCfg} portions={mortgagePortions} setPortions={setMortgagePortions} displayPeriod={displayPeriod}/>}
-{view==="networth"&&<NetWorthWidget mortgageSchedule={mortSchedule} mortgagePrincipal={mortgageCfg.principal} assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries}/>}
+{view==="mortgage"&&<MortgageWidget loanCfg={mortgageLoanCfg} setLoanCfg={setMortgageLoanCfg} portions={mortgagePortions} setPortions={setMortgagePortions} displayPeriod={displayPeriod} akahuBalances={akahuBalances}/>}
+{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
