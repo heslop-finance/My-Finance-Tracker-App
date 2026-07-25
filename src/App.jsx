@@ -131,6 +131,14 @@ if(l.includes('kiwisaver')||l.includes('etf')||l.includes('sharesies'))return 'f
 if(l.includes('emergency fund'))return 'cash';
 return '';
 }
+function debtGlow(rate){
+const r=Number(rate)||0;
+if(r<=6)return null;
+const intensity=Math.min(1,(r-6)/9);
+const blur=4+intensity*14;
+const opacity=0.4+intensity*0.5;
+return `0 0 ${blur.toFixed(0)}px rgba(251,113,133,${opacity.toFixed(2)})`;
+}
 function buildSchedule(principal,annualRate,termYears,startDateStr,rateChanges,lumpSums){
 if(!principal||!annualRate||!termYears)return[];
 const totalMonths=Math.round(termYears*12);
@@ -1578,6 +1586,8 @@ const[nominalReturn,setNominalReturn]=useState('7.0');
 const[inflationRate,setInflationRate]=useState('2.5');
 const totalAssets=assets.reduce((s,a)=>s+Number(a.value),0);
 const totalLiabs=liabilities.reduce((s,l)=>s+(Number(l.value)||0),0);
+const sortedAssets=useMemo(()=>[...assets].sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)),[assets]);
+const sortedLiabilities=useMemo(()=>[...liabilities].sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)),[liabilities]);
 const netWorth=totalAssets-totalLiabs;
 const equityPct=totalAssets>0?(totalAssets-totalLiabs)/totalAssets*100:0;
 const splitBuckets=useMemo(()=>{
@@ -1750,7 +1760,7 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Total Assets</div>
 <Mono color={C.green} size={16}>{fmt(totalAssets)}</Mono>
 <div style={{marginTop:8}}>
-{assets.map(a=>(
+{sortedAssets.map(a=>(
 <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
 <span style={{fontSize:11,color:C.t3}}>{a.label}</span>
 <span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.green}}>{fmtS(a.value)}</span>
@@ -1762,12 +1772,15 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Total Liabilities</div>
 <Mono color={C.red} size={16}>{fmt(totalLiabs)}</Mono>
 <div style={{marginTop:8}}>
-{liabilities.map(l=>(
+{sortedLiabilities.map(l=>{
+const glow=debtGlow(l.interestRate);
+return(
 <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
-<span style={{fontSize:11,color:C.t3}}>{l.label}</span>
-<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.value)}</span>
+<span style={{fontSize:11,color:C.t3,textShadow:glow}}>{l.label}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red,textShadow:glow}}>{fmtS(l.value)}</span>
 </div>
-))}
+);
+})}
 </div>
 </div>
 </div>
@@ -2108,6 +2121,63 @@ style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadi
 </div>
 </div>
 {isVar&&swipeable&&<button onClick={()=>setShowLog(true)} style={{width:"100%",marginTop:3,background:"rgba(251,191,36,.08)",border:`1px solid rgba(251,191,36,.2)`,borderRadius:8,padding:"5px",color:C.amber,fontSize:11,fontWeight:600,cursor:"pointer"}}>📋 Log bill{entry.actuals&&entry.actuals.length>0?` · ${entry.actuals.length} logged`:""}</button>}
+</div>
+);
+}
+
+function TransactionRow({t,akahuAccountMap,isEditing,setTxEditingId,categoryRules,setCategoryRules,setSyncedTransactions}){
+const[swipeX,setSwipeX]=useState(0);
+const[swiping,setSwiping]=useState(false);
+const txStart=useRef(null),tyStart=useRef(null);
+const REVEAL=72;
+const onTS=e=>{txStart.current=e.touches[0].clientX;tyStart.current=e.touches[0].clientY;setSwiping(false);};
+const onTM=e=>{if(txStart.current===null)return;const dx=e.touches[0].clientX-txStart.current,dy=e.touches[0].clientY-tyStart.current;if(!swiping&&Math.abs(dy)>Math.abs(dx))return;setSwiping(true);setSwipeX(Math.max(-REVEAL,Math.min(0,dx+(swipeX===-REVEAL?-REVEAL:0))));};
+const onTE=()=>{if(swipeX<-REVEAL/2)setSwipeX(-REVEAL);else setSwipeX(0);setSwiping(false);txStart.current=null;};
+const accountName=akahuAccountMap[t.account]?.name||'Unknown';
+const catColor=CAT_COLORS[t.ledgerlyCategory]||C.t3;
+return(
+<div style={{marginBottom:6}}>
+<div style={{position:"relative",borderRadius:10}}>
+{swipeX<0&&<div style={{position:"absolute",right:0,top:0,bottom:0,width:REVEAL,display:"flex",alignItems:"center",justifyContent:"center"}}>
+<button onClick={()=>{if(window.confirm("Delete this transaction? This only removes it from Ledgerly — it won't affect your bank account.")){setSyncedTransactions(prev=>prev.filter(x=>x.id!==t.id));setTxEditingId(null);}}} style={{background:"#ef4444",border:"none",cursor:"pointer",width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"0 10px 10px 0"}}>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="3,6 5,6 21,6" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M10 11v6M14 11v6" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+</button>
+</div>}
+<div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
+onClick={()=>{if(swipeX!==0){setSwipeX(0);return;}setTxEditingId(isEditing?null:t.id);}}
+style={{background:t.needsReview?"rgba(251,191,36,.06)":C.bg,border:`1px solid ${t.needsReview?"rgba(251,191,36,.3)":C.border}`,borderLeft:`3px solid ${t.needsReview?C.amber:catColor}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",transform:`translateX(${swipeX}px) translateZ(0)`,transition:swiping||swipeX===0?"none":"transform .2s ease",position:"relative",zIndex:1}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontSize:13,fontWeight:600,color:C.t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.merchant||t.description}</div>
+<div style={{fontSize:10,color:C.t3,marginTop:2,display:"flex",gap:8,alignItems:"center"}}>
+<span>{t.date}</span><span>·</span><span>{accountName}</span><span>·</span>
+<span style={{color:catColor}}>{t.ledgerlyCategory}</span>
+{t.needsReview&&<span style={{background:"rgba(251,191,36,.15)",color:C.amber,borderRadius:4,padding:"1px 5px",fontSize:9,fontWeight:700}}>Review</span>}
+</div>
+</div>
+<div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+<span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:13,letterSpacing:"-0.02em",color:t.ledgerlyType==="income"?C.green:C.red}}>
+{t.ledgerlyType==="income"?"+":"−"}{Math.abs(t.amount).toLocaleString("en-NZ",{minimumFractionDigits:2,maximumFractionDigits:2})}
+</span>
+</div>
+</div>
+</div>
+</div>
+{isEditing&&(
+<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}} onClick={e=>e.stopPropagation()}>
+<div style={{fontSize:11,color:C.t3,marginBottom:6}}>Recategorise</div>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+<select className="fi" defaultValue={t.ledgerlyCategory} onChange={e=>{const newCat=e.target.value;const newType=INCOME_CATS.includes(newCat)?'income':'expense';setSyncedTransactions(prev=>prev.map(x=>x.id===t.id?{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false}:x));}} style={{flex:1,padding:"7px 10px",fontSize:13}}>
+<optgroup label="Expenses">{EXPENSE_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
+<optgroup label="Income">{INCOME_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
+</select>
+<button onClick={()=>{const newCat=t.ledgerlyCategory;const newType=INCOME_CATS.includes(newCat)?'income':'expense';const merchant=t.merchant||null;const matchField=merchant?'merchant':'description';const matchValue=(merchant||t.description||'').trim();setCategoryRules(prev=>{const exists=prev.find(r=>r.matchValue&&r.matchValue.toLowerCase()===matchValue.toLowerCase()||r.merchant&&r.merchant.toLowerCase()===matchValue.toLowerCase());if(exists)return prev.map(r=>{const key=r.matchValue&&r.matchValue.toLowerCase()===matchValue.toLowerCase()||r.merchant&&r.merchant.toLowerCase()===matchValue.toLowerCase();return key?{...r,matchField,matchValue,ledgerlyCategory:newCat,ledgerlyType:newType}:r;});return[...prev,{id:Date.now(),matchField,matchValue,ledgerlyCategory:newCat,ledgerlyType:newType}];});const matchValueLower=matchValue.toLowerCase();setSyncedTransactions(prev=>prev.map(x=>{const xVal=((matchField==='merchant'?x.merchant:x.description)||'').toLowerCase();if(xVal===matchValueLower)return{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false};return x;}));setTxEditingId(null);}} style={{background:"rgba(110,231,183,.1)",border:`1px solid ${C.green}`,borderRadius:8,padding:"7px 12px",color:C.green,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Save as rule</button>
+<button onClick={()=>{if(window.confirm("Delete this transaction? This only removes it from Ledgerly — it won't affect your bank account.")){setSyncedTransactions(prev=>prev.filter(x=>x.id!==t.id));setTxEditingId(null);}}} style={{background:"rgba(251,113,133,.12)",border:`1px solid ${C.red}`,borderRadius:8,padding:"7px 12px",color:C.red,fontSize:11,fontWeight:700,cursor:"pointer"}}>Delete</button>
+<button onClick={()=>setTxEditingId(null)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 12px",color:C.t4,fontSize:11,cursor:"pointer"}}>Cancel</button>
+</div>
+<div style={{fontSize:10,color:C.t4,marginTop:6}}>"Save as rule" will automatically categorise all future {t.merchant||t.description} transactions</div>
+</div>
+)}
 </div>
 );
 }
@@ -2732,44 +2802,9 @@ return <>
 </select>
 </div>
 <div style={{maxHeight:480,overflowY:"auto"}}>
-{displayedTransactions.map(t=>{
-const isEditing=txEditingId===t.id;
-const accountName=akahuAccountMap[t.account]?.name||'Unknown';
-const catColor=CAT_COLORS[t.ledgerlyCategory]||C.t3;
-return(
-<div key={t.id} style={{background:t.needsReview?"rgba(251,191,36,.06)":C.bg,border:`1px solid ${t.needsReview?"rgba(251,191,36,.3)":C.border}`,borderLeft:`3px solid ${t.needsReview?C.amber:catColor}`,borderRadius:10,padding:"10px 12px",marginBottom:6,cursor:"pointer"}} onClick={()=>setTxEditingId(isEditing?null:t.id)}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-<div style={{flex:1,minWidth:0}}>
-<div style={{fontSize:13,fontWeight:600,color:C.t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.merchant||t.description}</div>
-<div style={{fontSize:10,color:C.t3,marginTop:2,display:"flex",gap:8,alignItems:"center"}}>
-<span>{t.date}</span><span>·</span><span>{accountName}</span><span>·</span>
-<span style={{color:catColor}}>{t.ledgerlyCategory}</span>
-{t.needsReview&&<span style={{background:"rgba(251,191,36,.15)",color:C.amber,borderRadius:4,padding:"1px 5px",fontSize:9,fontWeight:700}}>Review</span>}
-</div>
-</div>
-<div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
-<span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:13,letterSpacing:"-0.02em",color:t.ledgerlyType==="income"?C.green:C.red}}>
-{t.ledgerlyType==="income"?"+":"−"}{Math.abs(t.amount).toLocaleString("en-NZ",{minimumFractionDigits:2,maximumFractionDigits:2})}
-</span>
-</div>
-</div>
-{isEditing&&(
-<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}} onClick={e=>e.stopPropagation()}>
-<div style={{fontSize:11,color:C.t3,marginBottom:6}}>Recategorise</div>
-<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-<select className="fi" defaultValue={t.ledgerlyCategory} onChange={e=>{const newCat=e.target.value;const newType=INCOME_CATS.includes(newCat)?'income':'expense';setSyncedTransactions(prev=>prev.map(x=>x.id===t.id?{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false}:x));}} style={{flex:1,padding:"7px 10px",fontSize:13}}>
-<optgroup label="Expenses">{EXPENSE_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
-<optgroup label="Income">{INCOME_CATS.map(c=><option key={c} value={c}>{c}</option>)}</optgroup>
-</select>
-<button onClick={()=>{const cur=syncedTransactions.find(x=>x.id===t.id);const newCat=cur?cur.ledgerlyCategory:t.ledgerlyCategory;const newType=INCOME_CATS.includes(newCat)?'income':'expense';const merchant=t.merchant||null;const matchField=merchant?'merchant':'description';const matchValue=(merchant||t.description||'').trim();setCategoryRules(prev=>{const exists=prev.find(r=>r.matchValue&&r.matchValue.toLowerCase()===matchValue.toLowerCase()||r.merchant&&r.merchant.toLowerCase()===matchValue.toLowerCase());if(exists)return prev.map(r=>{const key=r.matchValue&&r.matchValue.toLowerCase()===matchValue.toLowerCase()||r.merchant&&r.merchant.toLowerCase()===matchValue.toLowerCase();return key?{...r,matchField,matchValue,ledgerlyCategory:newCat,ledgerlyType:newType}:r;});return[...prev,{id:Date.now(),matchField,matchValue,ledgerlyCategory:newCat,ledgerlyType:newType}];});const matchValueLower=matchValue.toLowerCase();setSyncedTransactions(prev=>prev.map(x=>{const xVal=((matchField==='merchant'?x.merchant:x.description)||'').toLowerCase();if(xVal===matchValueLower)return{...x,ledgerlyCategory:newCat,ledgerlyType:newType,needsReview:false};return x;}));setTxEditingId(null);}} style={{background:"rgba(110,231,183,.1)",border:`1px solid ${C.green}`,borderRadius:8,padding:"7px 12px",color:C.green,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Save as rule</button>
-<button onClick={()=>setTxEditingId(null)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 12px",color:C.t4,fontSize:11,cursor:"pointer"}}>Cancel</button>
-</div>
-<div style={{fontSize:10,color:C.t4,marginTop:6}}>"Save as rule" will automatically categorise all future {t.merchant||t.description} transactions</div>
-</div>
-)}
-</div>
-);
-})}
+{displayedTransactions.map(t=>(
+<TransactionRow key={t.id} t={t} akahuAccountMap={akahuAccountMap} isEditing={txEditingId===t.id} setTxEditingId={setTxEditingId} categoryRules={categoryRules} setCategoryRules={setCategoryRules} setSyncedTransactions={setSyncedTransactions}/>
+))}
 {txLimit<filteredTransactionCount&&(
 <div style={{textAlign:"center",padding:"12px 0 4px"}}>
 <button onClick={e=>{e.stopPropagation();setTxLimit(v=>v+90);}} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 20px",color:C.t3,fontSize:12,fontWeight:600,cursor:"pointer"}}>Load more</button>
