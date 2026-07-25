@@ -2249,21 +2249,26 @@ function dedupeAndMatchTransfers(txns,updatedAccountMap){
 const transferIds=new Set();
 txns.forEach((a,ai)=>{
 if(transferIds.has(a.id))return;
+let best=null,bestDiff=Infinity;
 txns.forEach((b,bi)=>{
 if(ai===bi||transferIds.has(b.id))return;
+if(a.account===b.account)return;
 const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);
 const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);
 const bothOwnAccounts=updatedAccountMap[a.account]&&updatedAccountMap[b.account];
 const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));
 const withinTimeWindow=timeDiff<=5*60*1000;
-if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){
-const aSpecial=a.isDebtRepayment||a.isSavingsDeposit||a.isSinkingFundDeposit;
-const bSpecial=b.isDebtRepayment||b.isSavingsDeposit||b.isSinkingFundDeposit;
-if(aSpecial&&!bSpecial){transferIds.add(b.id);return;}
-if(bSpecial&&!aSpecial){transferIds.add(a.id);return;}
-transferIds.add(a.id);transferIds.add(b.id);
+if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow&&timeDiff<bestDiff){
+best=b;bestDiff=timeDiff;
 }
 });
+if(best){
+const aSpecial=a.isDebtRepayment||a.isSavingsDeposit||a.isSinkingFundDeposit;
+const bSpecial=best.isDebtRepayment||best.isSavingsDeposit||best.isSinkingFundDeposit;
+if(aSpecial&&!bSpecial){transferIds.add(best.id);}
+else if(bSpecial&&!aSpecial){transferIds.add(a.id);}
+else{transferIds.add(a.id);transferIds.add(best.id);}
+}
 });
 const afterTransferRemoval=txns.filter(t=>!transferIds.has(t.id));
 const fingerprintSeen=new Map();
