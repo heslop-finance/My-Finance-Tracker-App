@@ -2290,8 +2290,6 @@ const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
 const[akahuBalances,setAkahuBalances]=useState(()=>AKAHU_ENABLED?loadLS('ft_akahuBalances',[]):[]);
 const[akahuAccountMap,setAkahuAccountMap]=useState(()=>loadLS('ft_akahuAccountMap',{}));
 const[syncing,setSyncing]=useState(false);
-const[showResync,setShowResync]=useState(false);
-const[resyncDate,setResyncDate]=useState('');
 const[syncError,setSyncError]=useState(null);
 const[categoryRules,setCategoryRules]=useState(()=>loadLS('ft_categoryRules',[]));
 const[txSearch,setTxSearch]=useState('');
@@ -2403,14 +2401,14 @@ localStorage.setItem('ft_migration_unlinkmortgage','1');
 setLiabilities(prev=>prev.map(l=>{if(!l.linkMortgage)return l;const{linkMortgage,...rest}=l;return rest;}));
 },[]);
 
-async function handleSync(forceStartDate){
+async function handleSync(){
 if(!AKAHU_ENABLED)return;
 setSyncing(true);
 const syncStart=Date.now();
 try{
 const mostRecent=syncedTransactions.length?syncedTransactions.reduce((latest,t)=>t.date>latest?t.date:latest,'2000-01-01'):null;
-const startDate=forceStartDate?new Date(forceStartDate):(mostRecent?new Date(mostRecent):null);
-if(startDate&&!forceStartDate)startDate.setDate(startDate.getDate()-1);
+const startDate=mostRecent?new Date(mostRecent):null;
+if(startDate)startDate.setDate(startDate.getDate()-1);
 const startParam=startDate?`?start=${dateKey(startDate)}`:'';
 const[txRes,balRes]=await Promise.all([
 fetch(`/.netlify/functions/akahu-transactions${startParam}`),
@@ -2467,40 +2465,6 @@ const elapsed=Date.now()-syncStart;
 if(elapsed<600)await new Promise(res=>setTimeout(res,600-elapsed));
 setSyncing(false);
 }
-}
-async function handleReprocessAll(){
-setSyncing(true);
-try{
-const balRes=await fetch('/.netlify/functions/akahu-balances');
-const balData=await balRes.json();
-setAkahuBalances(balData.items||[]);
-const updatedAccountMap=buildUpdatedAccountMap(akahuAccountMap,balData.items,liabilities);
-setAkahuAccountMap(updatedAccountMap);
-const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
-const recategorized=syncedTransactions.map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
-const deduped=dedupeAndMatchTransfers(recategorized,updatedAccountMap);
-setSyncedTransactions(deduped);
-}catch(err){console.error('Reprocess failed:',err);}
-finally{setSyncing(false);}
-}
-async function handleFullRebuild(){
-setSyncing(true);
-try{
-const[txRes,balRes]=await Promise.all([fetch('/.netlify/functions/akahu-transactions'),fetch('/.netlify/functions/akahu-balances')]);
-if(txRes.status===429){setSyncError('Rate limited — try again shortly');return;}
-setSyncError(null);
-const txData=await txRes.json();
-const balData=await balRes.json();
-setAkahuBalances(balData.items||[]);
-const updatedAccountMap=buildUpdatedAccountMap(akahuAccountMap,balData.items,liabilities);
-setAkahuAccountMap(updatedAccountMap);
-const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
-const processed=(txData.items||[]).map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
-setSyncedTransactions(dedupeAndMatchTransfers(processed,updatedAccountMap));
-setMortgagePortions(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,liveBalance:Math.abs(bal.balance)};}));
-setLastSynced(new Date().toISOString());
-}catch(err){console.error('Full rebuild failed:',err);setSyncError('Full rebuild failed — check console');}
-finally{setSyncing(false);}
 }
 const filteredTransactionCount=useMemo(()=>syncedTransactions.filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).length,[syncedTransactions,txSearch,txCatFilter]);
 const displayedTransactions=useMemo(()=>[...syncedTransactions].filter(t=>{const matchSearch=!txSearch||(t.merchant||t.description||'').toLowerCase().includes(txSearch.toLowerCase());const matchCat=!txCatFilter||t.ledgerlyCategory===txCatFilter;return matchSearch&&matchCat;}).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,txLimit),[syncedTransactions,txSearch,txCatFilter,txLimit]);
@@ -2770,20 +2734,11 @@ return <>
 </div>
 </div>
 <div style={{display:"flex",alignItems:"center"}}>
-<button onClick={()=>handleSync()} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
+<button onClick={handleSync} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
 {syncing?"↻ Syncing...":"↻ Sync"}
 </button>
-<button onClick={()=>setShowResync(v=>!v)} className={`rb ${showResync?'oo':''}`} style={{marginLeft:6}}>↻ Resync from date</button>
-<button onClick={()=>{if(window.confirm('Reprocess all stored transactions with the current categorisation logic? Any one-off manual recategorisations that were not saved as a rule will be reset to automatic categorisation.'))handleReprocessAll();}} disabled={syncing} className="rb" style={{marginLeft:6}}>↻ Reprocess All</button>
-<button onClick={()=>{if(window.confirm('Full rebuild: delete all stored transactions and refetch everything from Akahu.\n\n• Akahu only provides the last 365 days — anything older will be permanently lost.\n• Manual recategorisations not saved as rules will be reset.\n\nContinue?'))handleFullRebuild();}} disabled={syncing} style={{background:'rgba(251,113,133,.1)',border:`1px solid ${C.red}`,borderRadius:8,padding:'7px 12px',color:C.red,fontSize:11,fontWeight:700,cursor:syncing?'default':'pointer',marginLeft:6}}>⟳ Full Rebuild</button>
 </div>
 </div>
-{showResync&&(
-<div style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
-<input className="fi" type="date" value={resyncDate} onChange={e=>setResyncDate(e.target.value)} style={{padding:'8px 12px',flex:1}}/>
-<button onClick={()=>{if(resyncDate){handleSync(resyncDate);setShowResync(false);}}} className="rb on" disabled={!resyncDate}>Resync</button>
-</div>
-)}
 </div>
 {syncError&&(
 <div style={{background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.3)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:C.amber}}>
