@@ -2268,7 +2268,7 @@ transferIds.add(a.id);transferIds.add(b.id);
 const afterTransferRemoval=txns.filter(t=>!transferIds.has(t.id));
 const fingerprintSeen=new Map();
 return afterTransferRemoval.filter(t=>{
-const key=`${t.date}|${Math.abs(t.amount)}|${t.description||''}`;
+const key=`${t.timestamp||t.date}|${Math.abs(t.amount)}|${t.description||''}`;
 if(fingerprintSeen.has(key))return false;
 fingerprintSeen.set(key,true);
 return true;
@@ -2290,6 +2290,8 @@ const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
 const[akahuBalances,setAkahuBalances]=useState(()=>AKAHU_ENABLED?loadLS('ft_akahuBalances',[]):[]);
 const[akahuAccountMap,setAkahuAccountMap]=useState(()=>loadLS('ft_akahuAccountMap',{}));
 const[syncing,setSyncing]=useState(false);
+const[showResync,setShowResync]=useState(false);
+const[resyncDate,setResyncDate]=useState('');
 const[syncError,setSyncError]=useState(null);
 const[categoryRules,setCategoryRules]=useState(()=>loadLS('ft_categoryRules',[]));
 const[txSearch,setTxSearch]=useState('');
@@ -2401,14 +2403,14 @@ localStorage.setItem('ft_migration_unlinkmortgage','1');
 setLiabilities(prev=>prev.map(l=>{if(!l.linkMortgage)return l;const{linkMortgage,...rest}=l;return rest;}));
 },[]);
 
-async function handleSync(){
+async function handleSync(forceStartDate){
 if(!AKAHU_ENABLED)return;
 setSyncing(true);
 const syncStart=Date.now();
 try{
 const mostRecent=syncedTransactions.length?syncedTransactions.reduce((latest,t)=>t.date>latest?t.date:latest,'2000-01-01'):null;
-const startDate=mostRecent?new Date(mostRecent):null;
-if(startDate)startDate.setDate(startDate.getDate()-1);
+const startDate=forceStartDate?new Date(forceStartDate):(mostRecent?new Date(mostRecent):null);
+if(startDate&&!forceStartDate)startDate.setDate(startDate.getDate()-1);
 const startParam=startDate?`?start=${dateKey(startDate)}`:'';
 const[txRes,balRes]=await Promise.all([
 fetch(`/.netlify/functions/akahu-transactions${startParam}`),
@@ -2734,11 +2736,18 @@ return <>
 </div>
 </div>
 <div style={{display:"flex",alignItems:"center"}}>
-<button onClick={handleSync} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
+<button onClick={()=>handleSync()} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
 {syncing?"↻ Syncing...":"↻ Sync"}
 </button>
+<button onClick={()=>setShowResync(v=>!v)} className={`rb ${showResync?'oo':''}`} style={{marginLeft:6}}>↻ Resync from date</button>
 </div>
 </div>
+{showResync&&(
+<div style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
+<input className="fi" type="date" value={resyncDate} onChange={e=>setResyncDate(e.target.value)} style={{padding:'8px 12px',flex:1}}/>
+<button onClick={()=>{if(resyncDate){handleSync(resyncDate);setShowResync(false);}}} className="rb on" disabled={!resyncDate}>Resync</button>
+</div>
+)}
 </div>
 {syncError&&(
 <div style={{background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.3)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:C.amber}}>
