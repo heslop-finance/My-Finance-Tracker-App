@@ -134,10 +134,10 @@ return '';
 function debtGlow(rate){
 const r=Number(rate)||0;
 if(r<=6)return null;
-const intensity=Math.min(1,(r-6)/9);
-const blur=4+intensity*14;
-const opacity=0.4+intensity*0.5;
-return `0 0 ${blur.toFixed(0)}px rgba(251,113,133,${opacity.toFixed(2)})`;
+const intensity=Math.min(1,(r-6)/6);
+const blur=3+intensity*7;
+const opacity=0.35+intensity*0.55;
+return{boxShadow:`0 0 ${blur.toFixed(0)}px rgba(251,113,133,${opacity.toFixed(2)})`,background:`rgba(251,113,133,${(0.04+intensity*0.08).toFixed(3)})`};
 }
 function buildSchedule(principal,annualRate,termYears,startDateStr,rateChanges,lumpSums){
 if(!principal||!annualRate||!termYears)return[];
@@ -1775,9 +1775,9 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 {sortedLiabilities.map(l=>{
 const glow=debtGlow(l.interestRate);
 return(
-<div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
-<span style={{fontSize:11,color:C.t3,textShadow:glow}}>{l.label}</span>
-<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red,textShadow:glow}}>{fmtS(l.value)}</span>
+<div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6,borderRadius:6,padding:"3px 6px",margin:"3px -6px 0",...(glow?{boxShadow:glow.boxShadow,background:glow.background}:{})}}>
+<span style={{fontSize:11,color:glow?C.red:C.t3,fontWeight:glow?600:400}}>{l.label}</span>
+<span style={{fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",fontSize:11,color:C.red}}>{fmtS(l.value)}</span>
 </div>
 );
 })}
