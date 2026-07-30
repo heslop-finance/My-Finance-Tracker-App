@@ -58,6 +58,13 @@ const AKAHU_ACCOUNT_RULES={
 'House Insurance':{treat:'sinking',depositCategory:'Insurance'},
 'Mortgage':{treat:'sinking',depositCategory:'Mortgage'},
 };
+const TREAT_OPTIONS=[
+{key:'transactions',label:'Everyday account',desc:'Normal spending account. Transfers between your own accounts are hidden automatically.'},
+{key:'savings',label:'Savings',desc:'Deposits show as a visible savings contribution.'},
+{key:'sinking',label:'Sinking fund',desc:'Money set aside for a known future bill. Deposits count as spending; the eventual bill payment does not.'},
+{key:'loan',label:'Loan / debt',desc:'Payments into this account are debt repayments. Interest charged is ignored.'},
+{key:'balance_only',label:'Balance only',desc:'Track the balance, ignore all transactions.'},
+];
 
 // ── HELPERS ────────────────────────────────────────────────────
 const today=new Date();
@@ -2201,12 +2208,15 @@ const AKAHU_ENABLED=localStorage.getItem('ft_akahu_enabled')==='true';
 // ── AKAHU SYNC PROCESSING ─────────────────────────────────────
 const CATEGORY_MAP={'Food':'Groceries','Supermarkets and grocery stores':'Groceries','Restaurants and cafes':'Eating & Drinking Out','Fast food':'Eating & Drinking Out','Transport':'Transport','Fuel stations':'Transport','Public transport':'Transport','Parking':'Transport','Utilities':'Utilities','Insurance':'Insurance','Health':'Health','Medical':'Health','Hair and beauty':'Personal Care','Pharmacy':'Personal Care','Department stores':'Shopping','General merchandise':'Shopping','Home and garden retail':'Shopping','Gyms and fitness':'Sports & Leisure','Sport and recreation':'Sports & Leisure','Entertainment':'Entertainment','Pet stores':'Pet Care','Veterinary':'Pet Care','Hardware and garden':'Garden & Home','Charities and donations':'Gifts & Donations','Gifts':'Gifts & Donations','Clothing':'Clothing','Education':'Other','Government':'Other','Rates':'Rates','Subscriptions':'Subscriptions','Travel':'Travel','Airlines':'Travel','Hotels and accommodation':'Travel','Car rental':'Travel','Vehicle maintenance':'Car & Maintenance','Automotive':'Car & Maintenance','Fines and penalties':'Fines','Government charges':'Fines'};
 const INCOME_CATEGORY_MAP={'Salary':'Salary','Income':'Salary','Government':'Government Benefits','Tax refund':'Government Benefits','Investment':'Investment Returns'};
-function buildUpdatedAccountMap(currentMap,balanceItems,liabilities){
+function buildUpdatedAccountMap(currentMap,balanceItems,liabilities,accountSettings){
 const updated={...currentMap};
 (balanceItems||[]).forEach(item=>{
+const userSetting=(accountSettings||{})[item.id];
 const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCase().trim()===(item.name||'').toLowerCase().trim());
 const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
-updated[item.id]={name:item.name,treat:rule?rule.treat:'transactions',depositCategory:rule?rule.depositCategory:undefined,hasRule:!!rule};
+const treat=userSetting?.treat||rule?.treat||'transactions';
+const depositCategory=userSetting?.depositCategory!==undefined?userSetting.depositCategory:rule?.depositCategory;
+updated[item.id]={name:item.name,treat,depositCategory,hasRule:!!(userSetting?.treat||rule),configured:!!userSetting};
 });
 liabilities.forEach(l=>{
 if(l.akahuAccountId&&!updated[l.akahuAccountId]){
@@ -2228,6 +2238,10 @@ if(t.amount>0){
 return{...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSinkingFundDeposit:true,needsReview:false};
 }
 return{...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSinkingFundPayout:true,needsReview:false};
+}
+if(treat==='loan'){
+if(t.amount>0)return{...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false};
+return null;
 }
 if(liabilityAccountIds.has(t.account)){
 if(t.amount>0)return{...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expense',isDebtRepayment:true,needsReview:false};
@@ -2294,6 +2308,8 @@ const[syncedTransactions,setSyncedTransactions]=useState(()=>AKAHU_ENABLED?loadL
 const[lastSynced,setLastSynced]=useState(()=>loadLS('ft_lastSynced',null));
 const[akahuBalances,setAkahuBalances]=useState(()=>AKAHU_ENABLED?loadLS('ft_akahuBalances',[]):[]);
 const[akahuAccountMap,setAkahuAccountMap]=useState(()=>loadLS('ft_akahuAccountMap',{}));
+const[accountSettings,setAccountSettings]=useState(()=>loadLS('ft_accountSettings',{}));
+const[showAccountMap,setShowAccountMap]=useState(false);
 const[syncing,setSyncing]=useState(false);
 const[showResync,setShowResync]=useState(false);
 const[resyncDate,setResyncDate]=useState('');
@@ -2345,6 +2361,7 @@ useEffect(()=>{localStorage.setItem('ft_transactions',JSON.stringify(syncedTrans
 useEffect(()=>{localStorage.setItem('ft_lastSynced',JSON.stringify(lastSynced));},[lastSynced]);
 useEffect(()=>{localStorage.setItem('ft_akahuBalances',JSON.stringify(akahuBalances));},[akahuBalances]);
 useEffect(()=>{localStorage.setItem('ft_akahuAccountMap',JSON.stringify(akahuAccountMap));},[akahuAccountMap]);
+useEffect(()=>{localStorage.setItem('ft_accountSettings',JSON.stringify(accountSettings));},[accountSettings]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{window.scrollTo(0,0);},[view]);
 useEffect(()=>{const params=new URLSearchParams(window.location.search);if(params.get('akahu')==='enable'){localStorage.setItem('ft_akahu_enabled','true');window.location.href=window.location.pathname;}if(params.get('akahu')==='disable'){localStorage.removeItem('ft_akahu_enabled');window.location.href=window.location.pathname;}},[]);
@@ -2431,7 +2448,7 @@ setSyncError(null);
 const txData=await txRes.json();
 const balData=await balRes.json();
 setAkahuBalances(balData.items||[]);
-const updatedAccountMap=buildUpdatedAccountMap(akahuAccountMap,balData.items,liabilities);
+const updatedAccountMap=buildUpdatedAccountMap(akahuAccountMap,balData.items,liabilities,accountSettings);
 setAkahuAccountMap(updatedAccountMap);
 setGoals(prev=>prev.map(g=>{if(!g.akahuAccountId)return g;const bal=(balData.items||[]).find(a=>a.id===g.akahuAccountId);if(!bal||bal.balance==null)return g;return{...g,saved:Math.max(0,bal.balance)};}));
 setUpcomingPayments(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,saved:Math.max(0,bal.balance)};}));
@@ -2801,6 +2818,54 @@ return <>
 <button onClick={()=>setCategoryRules(prev=>prev.filter(x=>x.id!==r.id))} style={{background:"none",border:"none",color:C.t5,cursor:"pointer",fontSize:16}}>×</button>
 </div>
 ))}
+</div>
+)}
+{Object.keys(akahuAccountMap).length>0&&(
+<div style={{marginTop:16}}>
+<div onClick={()=>setShowAccountMap(v=>!v)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:8}}>
+<div>
+<div style={{fontSize:11,color:C.t4,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Account Mapping<span style={{background:C.border,color:C.t3,borderRadius:10,padding:"1px 8px",marginLeft:6,fontSize:10}}>{Object.keys(akahuAccountMap).length}</span></div>
+<div style={{fontSize:10,color:C.t5,marginTop:4}}>Changes apply on your next sync.</div>
+</div>
+<span style={{color:C.t4,fontSize:13,display:"inline-block",transform:showAccountMap?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▾</span>
+</div>
+{showAccountMap&&(
+<div>
+<div style={{fontSize:11,color:C.t4,marginBottom:10,lineHeight:1.5}}>Set how each connected account is treated. New accounts default to Everyday until you change them.</div>
+{Object.entries(akahuAccountMap).map(([id,cfg])=>{
+const setting=accountSettings[id]||{};
+const effectiveTreat=setting.treat||cfg.treat||'transactions';
+const opt=TREAT_OPTIONS.find(o=>o.key===effectiveTreat);
+const linkedLiabilities=liabilities.filter(l=>l.akahuAccountId===id);
+return(
+<div key={id} style={{padding:"10px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,marginBottom:6}}>
+<div style={{fontSize:12,fontWeight:700,color:C.t1,marginBottom:6}}>{cfg.name}</div>
+<select className="fi" value={effectiveTreat} onChange={e=>setAccountSettings(prev=>({...prev,[id]:{...prev[id],treat:e.target.value}}))} style={{padding:'7px 10px',fontSize:13,marginBottom:6}}>
+{TREAT_OPTIONS.map(o=><option key={o.key} value={o.key}>{o.label}</option>)}
+</select>
+{opt&&<div style={{fontSize:10,color:C.t5,marginBottom:6,lineHeight:1.4}}>{opt.desc}</div>}
+{(effectiveTreat==='sinking'||effectiveTreat==='savings')&&(
+<div>
+<label style={{fontSize:10,color:C.t3,display:'block',marginBottom:3}}>{effectiveTreat==='sinking'?'What is this money for?':'Category for deposits'}</label>
+<select className="fi" value={setting.depositCategory||cfg.depositCategory||(effectiveTreat==='savings'?'Savings Goal':'')} onChange={e=>setAccountSettings(prev=>({...prev,[id]:{...prev[id],depositCategory:e.target.value}}))} style={{padding:'7px 10px',fontSize:13}}>
+{effectiveTreat==='sinking'&&<option value=''>— choose a category —</option>}
+{EXPENSE_CATS.map(c=><option key={c} value={c}>{c}</option>)}
+</select>
+</div>
+)}
+{linkedLiabilities.length>0&&<div style={{fontSize:10,color:C.cyan,marginTop:6}}>Linked liability: {linkedLiabilities.map(l=>l.label).join(", ")}</div>}
+<div style={{fontSize:9,color:C.t5,marginTop:6}}>{id}</div>
+</div>
+);
+})}
+{liabilities.filter(l=>l.akahuAccountId&&!akahuAccountMap[l.akahuAccountId]).map(l=>(
+<div key={l.id} style={{padding:"7px 10px",background:"rgba(251,113,133,.06)",border:`1px solid rgba(251,113,133,.3)`,borderRadius:8,marginBottom:4}}>
+<span style={{fontSize:12,fontWeight:600,color:C.red}}>⚠ {l.label}</span>
+<div style={{fontSize:10,color:C.t4,marginTop:2}}>Linked to an account that no longer appears in synced data — this link is likely stale.</div>
+</div>
+))}
+</div>
+)}
 </div>
 )}
 </>
