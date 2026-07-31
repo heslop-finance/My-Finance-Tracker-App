@@ -2216,7 +2216,7 @@ const matchedRuleKey=Object.keys(AKAHU_ACCOUNT_RULES).find(name=>name.toLowerCas
 const rule=matchedRuleKey?AKAHU_ACCOUNT_RULES[matchedRuleKey]:null;
 const treat=userSetting?.treat||rule?.treat||'transactions';
 const depositCategory=userSetting?.depositCategory!==undefined?userSetting.depositCategory:rule?.depositCategory;
-updated[item.id]={name:item.name,treat,depositCategory,hasRule:!!(userSetting?.treat||rule),configured:!!userSetting};
+updated[item.id]={name:item.name,treat,depositCategory,hasRule:!!(userSetting?.treat||rule),configured:!!userSetting,isLive:true};
 });
 liabilities.forEach(l=>{
 if(l.akahuAccountId&&!updated[l.akahuAccountId]){
@@ -2279,8 +2279,14 @@ best=b;bestDiff=timeDiff;
 if(best){
 const aSpecial=a.isDebtRepayment||a.isSavingsDeposit||a.isSinkingFundDeposit;
 const bSpecial=best.isDebtRepayment||best.isSavingsDeposit||best.isSinkingFundDeposit;
-if(aSpecial&&!bSpecial){transferIds.add(best.id);}
-else if(bSpecial&&!aSpecial){transferIds.add(a.id);}
+if(aSpecial&&!bSpecial){
+if(a.isDebtRepayment)a.fundedFromTreat=(updatedAccountMap[best.account]||{}).treat||'transactions';
+transferIds.add(best.id);
+}
+else if(bSpecial&&!aSpecial){
+if(best.isDebtRepayment)best.fundedFromTreat=(updatedAccountMap[a.account]||{}).treat||'transactions';
+transferIds.add(a.id);
+}
 else{transferIds.add(a.id);transferIds.add(best.id);}
 }
 });
@@ -2520,11 +2526,11 @@ const incByCategory=useMemo(()=>{const map={};entries.filter(e=>e.type==="income
 const savingsRate=useMemo(()=>{if(totalIncome<=0)return 0;const sv=entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,pDays),0);return Math.min(100,(sv/totalIncome)*100);},[entries,totalIncome,pDays]);
 const periodTransactions=useMemo(()=>actualsMode?getTransactionsForPeriod(syncedTransactions,displayPeriod):[],[actualsMode,syncedTransactions,displayPeriod]);
 const actualIncome=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='income').reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
-const actualTrueExp=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundPayout&&!SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
+const actualTrueExp=useMemo(()=>periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&!t.isSinkingFundPayout&&!(t.isDebtRepayment&&t.fundedFromTreat==='sinking')&&!SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
 const actualSavingsRatioAmt=useMemo(()=>periodTransactions.filter(t=>t.isSavingsDeposit||SAVINGS_CATS.has(t.ledgerlyCategory)).reduce((s,t)=>s+Math.abs(t.amount),0),[periodTransactions]);
 const actualExpenses=actualTrueExp+actualSavingsRatioAmt;
 const actualSavingsRate=actualIncome>0?Math.min(100,(actualSavingsRatioAmt/actualIncome)*100):0;
-const actualByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSinkingFundPayout).forEach(t=>{const c=t.ledgerlyCategory||'Other';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
+const actualByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSinkingFundPayout&&!(t.isDebtRepayment&&t.fundedFromTreat==='sinking')).forEach(t=>{const c=t.ledgerlyCategory||'Other';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
 const actualIncByCategory=useMemo(()=>{const map={};periodTransactions.filter(t=>t.ledgerlyType==='income').forEach(t=>{const c=t.ledgerlyCategory||'Other Income';map[c]=(map[c]||0)+Math.abs(t.amount);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[periodTransactions]);
 const hasActualData=periodTransactions.length>0;
 const isEstimate=actualsMode&&!hasActualData;
@@ -2832,7 +2838,7 @@ return <>
 {showAccountMap&&(
 <div>
 <div style={{fontSize:11,color:C.t4,marginBottom:10,lineHeight:1.5}}>Set how each connected account is treated. New accounts default to Everyday until you change them.</div>
-{Object.entries(akahuAccountMap).map(([id,cfg])=>{
+{Object.entries(akahuAccountMap).filter(([,cfg])=>cfg.isLive).map(([id,cfg])=>{
 const setting=accountSettings[id]||{};
 const effectiveTreat=setting.treat||cfg.treat||'transactions';
 const opt=TREAT_OPTIONS.find(o=>o.key===effectiveTreat);
