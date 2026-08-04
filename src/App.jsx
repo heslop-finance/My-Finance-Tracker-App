@@ -23,10 +23,10 @@ const SPLIT_CATS=[
 {key:'debt',label:'💳 Debt',color:C.red},
 ];
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
-const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Yearly","Variable"];
+const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Quarterly","Yearly","Variable"];
 const DAYS_SHORT=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MON_SHORT=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const RECURDAYS={Weekly:7,Fortnightly:14,Monthly:30.44,Yearly:365};
+const RECURDAYS={Weekly:7,Fortnightly:14,Monthly:30.44,Quarterly:91.31,Yearly:365};
 const PWORD={weekly:"week",fortnightly:"fortnight",monthly:"month",yearly:"year"};
 // LEGACY — id-keyed seed data only, used once to bootstrap akahuAccountMap. Do not add new accounts here; add them to AKAHU_ACCOUNT_RULES by name instead.
 const AKAHU_ACCOUNTS={
@@ -114,6 +114,11 @@ const diff=Math.round((d-start)/86400000);
 if(e.recur==="Weekly")return diff%7===0;
 if(e.recur==="Fortnightly")return diff%14===0;
 if(e.recur==="Monthly"||e.recur==="Variable")return d.getDate()===start.getDate();
+if(e.recur==="Quarterly"){
+if(d.getDate()!==start.getDate())return false;
+const monthDiff=(d.getFullYear()-start.getFullYear())*12+(d.getMonth()-start.getMonth());
+return monthDiff>=0&&monthDiff%3===0;
+}
 if(e.recur==="Yearly")return d.getDate()===start.getDate()&&d.getMonth()===start.getMonth();
 return false;
 }
