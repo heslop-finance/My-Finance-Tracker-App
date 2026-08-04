@@ -2188,6 +2188,12 @@ style={{background:t.needsReview?"rgba(251,191,36,.06)":C.bg,border:`1px solid $
 <button onClick={()=>setTxEditingId(null)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 12px",color:C.t4,fontSize:11,cursor:"pointer"}}>Cancel</button>
 </div>
 <div style={{fontSize:10,color:C.t4,marginTop:6}}>"Save as rule" will automatically categorise all future {t.merchant||t.description} transactions</div>
+{t.isDebtRepayment&&(
+<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
+<div style={{fontSize:11,color:C.t3,maxWidth:'75%'}}>Funded from a sinking fund? (excludes from Outgoings/Expense Ratio, stays visible in charts and calendar)</div>
+<button onClick={()=>setSyncedTransactions(prev=>prev.map(x=>x.id===t.id?{...x,fundedFromTreat:x.fundedFromTreat==='sinking'?undefined:'sinking'}:x))} style={{background:t.fundedFromTreat==='sinking'?'rgba(110,231,183,.15)':'none',border:`1px solid ${t.fundedFromTreat==='sinking'?C.green:C.t5}`,borderRadius:6,padding:'4px 10px',color:t.fundedFromTreat==='sinking'?C.green:C.t4,fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0}}>{t.fundedFromTreat==='sinking'?'Yes':'No'}</button>
+</div>
+)}
 </div>
 )}
 </div>
