@@ -282,6 +282,7 @@ const[showStacked,setShowStacked]=useState(false);
 const[showAvg,setShowAvg]=useState(false);
 const[showCumul,setShowCumul]=useState(false);
 const[showProj,setShowProj]=useState(false);
+const[showBudget,setShowBudget]=useState(false);
 const[showAllTimeAvg,setShowAllTimeAvg]=useState(false);
 const[showAllTimeTrend,setShowAllTimeTrend]=useState(false);
 const[openCat,setOpenCat]=useState(false);
@@ -388,6 +389,17 @@ filteredEntries.filter(e=>occursOn(e,d)).forEach(e=>{total+=e.amount;});
 return total*(pDays/365);
 },[filteredEntries,displayPeriod,actualsMode,syncedTransactions,catFilter]);
 
+const budgetTotal=useMemo(()=>{
+if(isAllYears||!actualsMode)return 0;
+const pDays=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
+return entries.filter(e=>
+e.type==='expense'&&
+e.recur!=='One-off'&&
+!SAVINGS_CATS.has(e.category)&&
+(catFilter==='All Expenses'||e.category===catFilter)
+).reduce((s,e)=>s+periodAmt(e,pDays),0);
+},[entries,displayPeriod,catFilter,isAllYears,actualsMode]);
+
 const cumulativeData=useMemo(()=>{let sum=0;return bars.map(b=>{sum+=b.val;return sum;});},[bars]);
 const projection=useMemo(()=>{
 if(!showProj||isAllYears||displayPeriod==='weekly')return null;
@@ -471,7 +483,7 @@ return val;
 },[showProj,entries,displayPeriod,catFilter,isYearly,isAllYears,actualsMode,syncedTransactions,bars]);
 
 const maxCumul=showCumul&&!isAllYears?Math.max(...cumulativeData,0):0;
-const maxVal=Math.max(...bars.map(b=>b.val),showAvg&&!isAllYears?rollingAvg:0,projection||0,maxCumul,1);
+const maxVal=Math.max(...bars.map(b=>b.val),showAvg&&!isAllYears?rollingAvg:0,projection||0,showBudget&&!isAllYears?budgetTotal:0,maxCumul,1);
 const mostVal=Math.max(...bars.map(b=>b.val));
 const mostBar=bars.find(b=>b.val===mostVal&&b.val>0);
 const leastBar=bars.filter(b=>b.val>0).sort((a,b)=>a.val-b.val)[0];
@@ -511,11 +523,13 @@ const toggles=isAllYears?[
 {label:"Stack",active:showStacked,set:setShowStacked},
 {label:"Avg",active:showAvg,set:setShowAvg},
 {label:"Cumul.",active:showCumul,set:setShowCumul},
+...(actualsMode?[{label:"Budget",active:showBudget,set:setShowBudget}]:[]),
 ]:[
 {label:"Stack",active:showStacked,set:setShowStacked},
 {label:"Avg",active:showAvg,set:setShowAvg},
 {label:"Cumul.",active:showCumul,set:setShowCumul},
 {label:"Proj.",active:showProj,set:setShowProj},
+...(actualsMode?[{label:"Budget",active:showBudget,set:setShowBudget}]:[]),
 ];
 
 return(
@@ -548,6 +562,7 @@ return(
 {leastBar&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>↓ </span><Mono color={C.green} size={11}>{fmtS(leastBar.val)}</Mono><span style={{color:C.t4,marginLeft:4}}>{leastBar.label}</span></div>}
 {showAvg&&rollingAvg>0&&<div style={{background:C.border,borderRadius:8,padding:"4px 9px",fontSize:11}}><span style={{color:C.t3}}>1-yr avg </span><Mono color={C.green} size={11}>{fmtS(rollingAvg)}</Mono></div>}
 {showProj&&projection!=null&&!isAllYears&&<div style={{background:C.border,borderRadius:8,padding:'4px 9px',fontSize:11}}><span style={{color:C.t3}}>Proj. </span><Mono color={C.amber} size={11}>{fmtS(projection)}</Mono></div>}
+{showBudget&&budgetTotal>0&&!isAllYears&&<div style={{background:C.border,borderRadius:8,padding:'4px 9px',fontSize:11}}><span style={{color:C.t3}}>Budget </span><Mono color={C.purple} size={11}>{fmtS(budgetTotal)}</Mono></div>}
 </div>
 )}
 <div style={{overflowX:"auto",paddingBottom:6}}>
@@ -562,6 +577,11 @@ return(
 <line x1={PAD} y1={yOf(projection)} x2={W-PAD} y2={yOf(projection)} stroke={C.amber} strokeWidth={1} strokeDasharray="4 2"/>
 <rect x={W-PAD-32} y={yOf(projection)-8} width={30} height={16} rx={3} fill={C.card}/>
 <text x={W-PAD-4} y={yOf(projection)} fill={C.amber} fontSize={8} fontWeight="700" textAnchor="end" dominantBaseline="middle">proj</text>
+</>}
+{showBudget&&budgetTotal>0&&!isAllYears&&<>
+<line x1={PAD} y1={yOf(budgetTotal)} x2={W-PAD} y2={yOf(budgetTotal)} stroke={C.purple} strokeWidth={1} strokeDasharray="6 3"/>
+<rect x={PAD+34} y={yOf(budgetTotal)-8} width={44} height={16} rx={3} fill={C.card}/>
+<text x={PAD+38} y={yOf(budgetTotal)} fill={C.purple} fontSize={8} fontWeight="700" dominantBaseline="middle" textAnchor="start">budget</text>
 </>}
 {showCumul&&!isAllYears&&cumulativePts.length>1&&<polyline points={cumulativePts.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={C.cyan} strokeWidth={1.5} opacity={.7}/>}
 {bars.map((b,i)=>{
