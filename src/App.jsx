@@ -73,6 +73,7 @@ const fmtS=n=>`$${Math.abs(n).toLocaleString("en-NZ",{minimumFractionDigits:0,ma
 const fmtN=n=>n%1===0?n.toFixed(0):n.toFixed(1);
 const pad=n=>String(n).padStart(2,"0");
 const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const localDateFromTimestamp=ts=>{if(!ts)return null;const d=new Date(ts);return isNaN(d)?null:dateKey(d);};
 const todayStr=dateKey(today);
 const PAY_CYCLE_ANCHOR=new Date(2026,4,5);
 function getPeriodStart(periodKey){
@@ -2239,6 +2240,10 @@ return updated;
 function categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules}){
 const treat=(updatedAccountMap[t.account]||{treat:'transactions'}).treat;
 if(treat==='balance_only')return null;
+const descUpper=(t.description||'').toUpperCase();
+if(['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'].some(p=>descUpper.includes(p))){
+return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};
+}
 if(treat==='savings'&&t.amount>0){
 const depositCat=(updatedAccountMap[t.account]||{}).depositCategory||'Savings Goal';
 return{...t,ledgerlyCategory:depositCat,ledgerlyType:'expense',isSavingsDeposit:true,needsReview:false};
@@ -2259,10 +2264,6 @@ if(t.amount>0)return{...t,ledgerlyCategory:'Debt Repayment',ledgerlyType:'expens
 return null;
 }
 const ledgerlyType=t.amount>=0?'income':'expense';
-const descUpper=(t.description||'').toUpperCase();
-if(['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'].some(p=>descUpper.includes(p))){
-return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};
-}
 const merchant=t.merchant||null;
 const rule=categoryRules.find(r=>{const rMatchField=r.matchField||'merchant';const rMatchValue=(r.matchValue||r.merchant||'').toLowerCase();if(!rMatchValue)return false;if(rMatchField==='merchant'){return merchant&&merchant.toLowerCase()===rMatchValue;}return(t.description||'').toLowerCase()===rMatchValue;});
 if(rule)return{...t,ledgerlyType:rule.ledgerlyType,ledgerlyCategory:rule.ledgerlyCategory,needsReview:false};
@@ -2328,8 +2329,6 @@ const[akahuAccountMap,setAkahuAccountMap]=useState(()=>loadLS('ft_akahuAccountMa
 const[accountSettings,setAccountSettings]=useState(()=>loadLS('ft_accountSettings',{}));
 const[showAccountMap,setShowAccountMap]=useState(false);
 const[syncing,setSyncing]=useState(false);
-const[showResync,setShowResync]=useState(false);
-const[resyncDate,setResyncDate]=useState('');
 const[syncError,setSyncError]=useState(null);
 const[categoryRules,setCategoryRules]=useState(()=>loadLS('ft_categoryRules',[]));
 const[txSearch,setTxSearch]=useState('');
@@ -2442,14 +2441,14 @@ localStorage.setItem('ft_migration_unlinkmortgage','1');
 setLiabilities(prev=>prev.map(l=>{if(!l.linkMortgage)return l;const{linkMortgage,...rest}=l;return rest;}));
 },[]);
 
-async function handleSync(forceStartDate){
+async function handleSync(){
 if(!AKAHU_ENABLED)return;
 setSyncing(true);
 const syncStart=Date.now();
 try{
 const mostRecent=syncedTransactions.length?syncedTransactions.reduce((latest,t)=>t.date>latest?t.date:latest,'2000-01-01'):null;
-const startDate=forceStartDate?new Date(forceStartDate):(mostRecent?new Date(mostRecent):null);
-if(startDate&&!forceStartDate)startDate.setDate(startDate.getDate()-1);
+const startDate=mostRecent?new Date(mostRecent):null;
+if(startDate)startDate.setDate(startDate.getDate()-1);
 const startParam=startDate?`?start=${dateKey(startDate)}`:'';
 const[txRes,balRes]=await Promise.all([
 fetch(`/.netlify/functions/akahu-transactions${startParam}`),
@@ -2473,7 +2472,7 @@ setAssets(prev=>prev.map(a=>{if(!a.akahuAccountId)return a;const bal=(balData.it
 setLiabilities(prev=>prev.map(l=>{if(!l.akahuAccountId)return l;const bal=(balData.items||[]).find(b=>b.id===l.akahuAccountId);if(!bal||bal.balance==null)return l;return{...l,value:Math.abs(bal.balance)};}));
 setMortgagePortions(prev=>prev.map(p=>{if(!p.akahuAccountId)return p;const bal=(balData.items||[]).find(a=>a.id===p.akahuAccountId);if(!bal||bal.balance==null)return p;return{...p,liveBalance:Math.abs(bal.balance)};}));
 const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!updatedAccountMap[l.akahuAccountId]?.hasRule).map(l=>l.akahuAccountId));
-const incoming=txData.items||[];
+const incoming=(txData.items||[]).map(t=>{const localDate=localDateFromTimestamp(t.timestamp||t.date);return localDate?{...t,date:localDate}:t;});
 const processed=incoming.map(t=>categorizeTransaction(t,{updatedAccountMap,liabilityAccountIds,categoryRules})).filter(Boolean);
 const fingerprintDeduped=dedupeAndMatchTransfers(processed,updatedAccountMap);
 const newTxsForPmt=[];
@@ -2775,18 +2774,11 @@ return <>
 </div>
 </div>
 <div style={{display:"flex",alignItems:"center"}}>
-<button onClick={()=>handleSync()} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
+<button onClick={handleSync} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
 {syncing?"↻ Syncing...":"↻ Sync"}
 </button>
-<button onClick={()=>setShowResync(v=>!v)} className={`rb ${showResync?'oo':''}`} style={{marginLeft:6}}>↻ Resync from date</button>
 </div>
 </div>
-{showResync&&(
-<div style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
-<input className="fi" type="date" value={resyncDate} onChange={e=>setResyncDate(e.target.value)} style={{padding:'8px 12px',flex:1}}/>
-<button onClick={()=>{if(resyncDate){handleSync(resyncDate);setShowResync(false);}}} className="rb on" disabled={!resyncDate}>Resync</button>
-</div>
-)}
 </div>
 {syncError&&(
 <div style={{background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.3)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:C.amber}}>
