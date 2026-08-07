@@ -17,10 +17,10 @@ const SAVINGS_CATS=new Set(["Savings Goal","Investments","Sinking Fund"]);
 const FIXED_CATS=new Set(["Mortgage","Rent","Rates","Insurance","Subscriptions"]);
 const CAT_COLORS={"Mortgage":"#fb7185","Rent":"#f97316","Utilities":"#fbbf24","Groceries":"#6ee7b7","Transport":"#67e8f9","Insurance":"#a78bfa","Rates":"#f472b6","Subscriptions":"#818cf8","Health":"#34d399","Entertainment":"#e879f9","Clothing":"#38bdf8","House Maintenance":"#fb923c","Personal Care":"#f0abfc","Shopping":"#fdba74","Sports & Leisure":"#86efac","Eating & Drinking Out":"#fca5a5","Pet Care":"#6ee7b7","Garden & Home":"#a3e635","Gifts & Donations":"#f9a8d4","Kids":"#93c5fd","Savings Goal":"#4ade80","Investments":"#06b6d4","Travel":"#818cf8","Car & Maintenance":"#94a3b8","Fines":"#ef4444","Debt Repayment":"#fb923c","Sinking Fund":"#38bdf8","Other":"#94a3b8","Salary":"#6ee7b7","Freelance":"#67e8f9","Rental Income":"#a78bfa","Utilities Reimbursement":"#2dd4bf","Investment Returns":"#06b6d4","Benefits":"#fbbf24","Government Benefits":"#fbbf24","Other Income":"#f472b6"};
 const SPLIT_CATS=[
-{key:'freedom_fund',label:'🕊 Freedom Fund',color:C.green},
-{key:'valuable_liability',label:'🏠 Valuable Liability',color:C.cyan},
-{key:'cash',label:'💵 Cash & Planned Spending',color:C.amber},
-{key:'debt',label:'💳 Debt',color:C.red},
+{key:'freedom_fund',label:'Freedom Fund',color:C.green},
+{key:'valuable_liability',label:'Valuable Liability',color:C.cyan},
+{key:'cash',label:'Cash & Planned Spending',color:C.amber},
+{key:'debt',label:'Debt',color:C.red},
 ];
 const PERIODS=[{key:"weekly",label:"Weekly",days:7},{key:"fortnightly",label:"Fortnightly",days:14},{key:"monthly",label:"Monthly",days:30.44},{key:"yearly",label:"Yearly",days:365}];
 const RECUR_OPT=["One-off","Weekly","Fortnightly","Monthly","Quarterly","Yearly","Variable"];
@@ -223,6 +223,7 @@ return sc;
 const CSS=`
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:#0a0f1e;overscroll-behavior:none;}
 input,select,textarea{outline:none;font-size:16px!important;}
 .fi,.fi-16{font-size:16px;}
 input[type="date"]{-webkit-appearance:none;appearance:none;max-width:100%;min-width:0;}
@@ -491,7 +492,7 @@ const W=320,H=120,PAD=20,barW=Math.max(1,(W-PAD*2)/bars.length-1);
 const xOf=i=>PAD+i*(W-PAD*2)/bars.length;
 const yOf=v=>H-PAD-(v/maxVal)*(H-PAD*2);
 const avgY=yOf(rollingAvg);
-const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData,showCumul,showProj,projection]);
+const cumulativePts=useMemo(()=>bars.map((b,i)=>({x:xOf(i)+barW/2,y:yOf(cumulativeData[i])})),[bars,cumulativeData,showCumul,showProj,projection,showAvg,rollingAvg,showBudget,budgetTotal]);
 
 const allYearsAvg=useMemo(()=>{
 if(!isAllYears)return 0;
@@ -521,15 +522,15 @@ const toggles=isAllYears?[
 {label:"Trend",active:showAllTimeTrend,set:setShowAllTimeTrend},
 ]:displayPeriod==='weekly'?[
 {label:"Stack",active:showStacked,set:setShowStacked},
-{label:"Avg",active:showAvg,set:setShowAvg},
 {label:"Cumul.",active:showCumul,set:setShowCumul},
-...(actualsMode?[{label:"Budget",active:showBudget,set:setShowBudget}]:[]),
+{label:"Avg",active:showAvg,set:setShowAvg},
+...(actualsMode?[{label:"Bdg",active:showBudget,set:setShowBudget}]:[]),
 ]:[
 {label:"Stack",active:showStacked,set:setShowStacked},
-{label:"Avg",active:showAvg,set:setShowAvg},
 {label:"Cumul.",active:showCumul,set:setShowCumul},
+{label:"Avg",active:showAvg,set:setShowAvg},
+...(actualsMode?[{label:"Bdg",active:showBudget,set:setShowBudget}]:[]),
 {label:"Proj.",active:showProj,set:setShowProj},
-...(actualsMode?[{label:"Budget",active:showBudget,set:setShowBudget}]:[]),
 ];
 
 return(
@@ -1692,6 +1693,14 @@ const range=maxV-minV||1;
 const xS=i=>PAD+i*(W-PAD-RPAD)/(Math.max(chartSnaps.length-1,1));
 const yS=v=>H-PAD-((v-minV)/range)*(H-PAD*2);
 const linePts=chartSnaps.map((s,i)=>`${xS(i)},${yS(s.netWorth)}`).join(" ");
+const snapFirst=snapshots.length?snapshots[0]:null;
+const snapLast=snapshots.length?snapshots[snapshots.length-1]:null;
+const snapPrev=snapshots.length>=2?snapshots[snapshots.length-2]:null;
+const changeAll=snapFirst&&snapLast?snapLast.netWorth-snapFirst.netWorth:0;
+const pctAll=snapFirst&&snapFirst.netWorth!==0?(changeAll/Math.abs(snapFirst.netWorth))*100:0;
+const changeLast=snapPrev&&snapLast?snapLast.netWorth-snapPrev.netWorth:0;
+const pctLast=snapPrev&&snapPrev.netWorth!==0?(changeLast/Math.abs(snapPrev.netWorth))*100:0;
+const nwColor=changeAll>=0?C.green:C.red;
 return(
 <div>
 <div className="card">
@@ -1832,41 +1841,43 @@ return(
 {snapshots.length>=2&&<>
 <div style={{position:"relative"}} onMouseLeave={()=>setHoverSnap(null)}>
 <svg width={W} height={H} style={{display:"block",width:"100%"}}>
-<defs><linearGradient id="nwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.green} stopOpacity=".2"/><stop offset="100%" stopColor={C.green} stopOpacity=".01"/></linearGradient></defs>
+<defs><linearGradient id="nwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={nwColor} stopOpacity=".2"/><stop offset="100%" stopColor={nwColor} stopOpacity=".01"/></linearGradient></defs>
 {minV<0&&<line x1={PAD} y1={yS(0)} x2={W-RPAD} y2={yS(0)} stroke={C.t5} strokeWidth={1} strokeDasharray="3 2"/>}
 <path d={`${chartSnaps.map((s,i)=>`${i===0?"M":"L"}${xS(i)},${yS(s.netWorth)}`).join(" ")} L${xS(chartSnaps.length-1)},${H-PAD} L${xS(0)},${H-PAD} Z`} fill="url(#nwg)"/>
-<polyline points={linePts} fill="none" stroke={C.green} strokeWidth={2}/>
-{showFILine&&fiTarget>0&&(()=>{const fiY=yS(fiTarget);return(<><line x1={PAD} y1={fiY} x2={W-RPAD} y2={fiY} stroke={C.amber} strokeWidth={1} strokeDasharray="4 3" opacity={.7}/><rect x={W-RPAD-42} y={fiY-8} width={40} height={16} rx={3} fill={C.card}/><text x={W-RPAD-4} y={fiY} fill={C.amber} fontSize={7} fontWeight="700" textAnchor="end" dominantBaseline="middle" opacity={.9}>FI target</text></>);})()}
+<polyline points={linePts} fill="none" stroke={nwColor} strokeWidth={2}/>
+{showFILine&&fiTarget>0&&(()=>{const fiY=yS(fiTarget);return(<>
+<line x1={PAD} y1={fiY} x2={W-RPAD} y2={fiY} stroke={C.amber} strokeWidth={1} strokeDasharray="4 3" opacity={.7}/>
+<rect x={PAD+2} y={fiY-8} width={44} height={16} rx={3} fill={C.card}/>
+<text x={PAD+5} y={fiY} fill={C.amber} fontSize={7} fontWeight="700" textAnchor="start" dominantBaseline="middle" opacity={.9}>FI target</text>
+</>);})()}
 {chartSnaps.map((s,i)=>(
 <text key={i} x={xS(i)} y={H-2} fill={C.t5} fontSize={7} textAnchor={i===0?"start":i===chartSnaps.length-1?"end":"middle"}>{s.date.slice(0,7)}</text>
 ))}
 {chartSnaps.map((s,i)=>(
-<circle key={i} cx={xS(i)} cy={yS(s.netWorth)} r={hoverSnap===i?5:3} fill={hoverSnap===i?C.green:C.bg} stroke={C.green} strokeWidth={1.5} style={{cursor:"pointer"}} onClick={()=>setHoverSnap(hoverSnap===i?null:i)}/>
+<circle key={i} cx={xS(i)} cy={yS(s.netWorth)} r={hoverSnap===i?5:3} fill={hoverSnap===i?nwColor:C.bg} stroke={nwColor} strokeWidth={1.5} style={{cursor:"pointer"}} onClick={()=>setHoverSnap(hoverSnap===i?null:i)}/>
 ))}
 {hoverSnap!==null&&chartSnaps[hoverSnap]&&(()=>{
 const s=chartSnaps[hoverSnap],cx=xS(hoverSnap),cy=yS(s.netWorth);
 const tx=cx>W*.7?cx-108:cx+8,ty=cy<40?cy+8:cy-52;
-return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} stroke={C.border}/><text x={tx+8} y={ty+14} fill={C.t3} fontSize={9}>{s.date}</text><text x={tx+8} y={ty+30} fill={C.green} fontSize={12} fontWeight="700" fontFamily="DM Sans" letterSpacing="-0.02em">{fmt(s.netWorth)}</text></g>;
+return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} stroke={C.border}/><text x={tx+8} y={ty+14} fill={C.t3} fontSize={9}>{s.date}</text><text x={tx+8} y={ty+30} fill={nwColor} fontSize={12} fontWeight="700" fontFamily="DM Sans" letterSpacing="-0.02em">{fmt(s.netWorth)}</text></g>;
 })()}
 </svg>
 </div>
 {fiTarget>0&&<div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,marginBottom:4}}><button onClick={()=>setShowFILine(v=>!v)} className={`rb ${showFILine?'on':''}`} style={{fontSize:10}}>FI target</button>{showFILine&&<div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:C.amber}}><span style={{width:16,height:2,background:C.amber,display:'inline-block',borderRadius:1,opacity:.7}}/>FI: {fmtS(fiTarget)}</div>}</div>}
-{(()=>{
-const first=snapshots[0],last=snapshots[snapshots.length-1];
-const change=last.netWorth-first.netWorth,pct=first.netWorth!==0?(change/Math.abs(first.netWorth))*100:0;
-return <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
-<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Change</div><Mono color={change>=0?C.green:C.red} size={12}>{change>=0?"+":"−"}{fmt(Math.abs(change))}</Mono></div>
-<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>% Change</div><Mono color={pct>=0?C.green:C.red} size={12}>{pct>=0?"+":""}{fmtN(pct)}%</Mono></div>
-</div>;
-})()}
+<div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
+<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>All time</div><Mono color={changeAll>=0?C.green:C.red} size={12}>{changeAll>=0?"+":"−"}{fmt(Math.abs(changeAll))}</Mono></div>
+<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>All time %</div><Mono color={pctAll>=0?C.green:C.red} size={12}>{pctAll>=0?"+":""}{fmtN(pctAll)}%</Mono></div>
+{snapPrev&&<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Since last</div><Mono color={changeLast>=0?C.green:C.red} size={12}>{changeLast>=0?"+":"−"}{fmt(Math.abs(changeLast))}</Mono></div>}
+{snapPrev&&<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Since last %</div><Mono color={pctLast>=0?C.green:C.red} size={12}>{pctLast>=0?"+":""}{fmtN(pctLast)}%</Mono></div>}
+</div>
 <div style={{marginTop:14}}>
 <div style={{fontSize:11,color:C.t4,marginBottom:8}}>All snapshots</div>
 <div style={{maxHeight:160,overflowY:"auto"}}>
 {[...snapshots].reverse().map((s,i)=>(
 <div key={s.id||i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
-<div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:11,color:C.t3}}>{s.date}</span>{s.auto&&<span style={{fontSize:9,color:C.t5,background:C.border,borderRadius:4,padding:"1px 5px"}}>auto</span>}</div>
-<Mono color={s.netWorth>=0?C.green:C.red} size={12}>{s.netWorth>=0?"":"-"}{fmt(Math.abs(s.netWorth))}</Mono>
-<button onClick={()=>setSnapshots(prev=>prev.filter(x=>(x.id||x.date)!==(s.id||s.date)))} style={{background:"none",border:"none",color:C.t5,cursor:"pointer",fontSize:14}}>×</button>
+<div style={{display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}><span style={{fontSize:11,color:C.t3}}>{s.date}</span>{s.auto&&<span style={{fontSize:9,color:C.t5,background:C.border,borderRadius:4,padding:"1px 5px"}}>auto</span>}</div>
+<div style={{width:96,textAlign:'right',flexShrink:0}}><Mono color={s.netWorth>=0?C.green:C.red} size={12}>{s.netWorth>=0?"":"-"}{fmt(Math.abs(s.netWorth))}</Mono></div>
+<button onClick={()=>setSnapshots(prev=>prev.filter(x=>(x.id||x.date)!==(s.id||s.date)))} style={{background:"none",border:"none",color:C.t5,cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
 </div>
 ))}
 </div>
