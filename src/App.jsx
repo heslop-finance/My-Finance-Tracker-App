@@ -1624,6 +1624,7 @@ const sortedAssets=useMemo(()=>[...assets].sort((a,b)=>(Number(b.value)||0)-(Num
 const sortedLiabilities=useMemo(()=>[...liabilities].sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)),[liabilities]);
 const netWorth=totalAssets-totalLiabs;
 const equityPct=totalAssets>0?(totalAssets-totalLiabs)/totalAssets*100:0;
+const freedomFundTotal=useMemo(()=>assets.filter(a=>a.splitCategory==='freedom_fund').reduce((s,a)=>s+(Number(a.value)||0),0),[assets]);
 const splitBuckets=useMemo(()=>{
 const buckets={freedom_fund:0,valuable_liability:0,cash:0,debt:0,uncategorised:0};
 assets.forEach(a=>{
@@ -1866,9 +1867,9 @@ return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} strok
 {fiTarget>0&&<div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,marginBottom:4}}><button onClick={()=>setShowFILine(v=>!v)} className={`rb ${showFILine?'on':''}`} style={{fontSize:10}}>FI target</button>{showFILine&&<div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:C.amber}}><span style={{width:16,height:2,background:C.amber,display:'inline-block',borderRadius:1,opacity:.7}}/>FI: {fmtS(fiTarget)}</div>}</div>}
 <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>All time</div><Mono color={changeAll>=0?C.green:C.red} size={12}>{changeAll>=0?"+":"−"}{fmt(Math.abs(changeAll))}</Mono></div>
-<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>All time %</div><Mono color={pctAll>=0?C.green:C.red} size={12}>{pctAll>=0?"+":""}{fmtN(pctAll)}%</Mono></div>
+<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>%</div><Mono color={pctAll>=0?C.green:C.red} size={12}>{pctAll>=0?"+":""}{fmtN(pctAll)}%</Mono></div>
 {snapPrev&&<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Since last</div><Mono color={changeLast>=0?C.green:C.red} size={12}>{changeLast>=0?"+":"−"}{fmt(Math.abs(changeLast))}</Mono></div>}
-{snapPrev&&<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Since last %</div><Mono color={pctLast>=0?C.green:C.red} size={12}>{pctLast>=0?"+":""}{fmtN(pctLast)}%</Mono></div>}
+{snapPrev&&<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>%</div><Mono color={pctLast>=0?C.green:C.red} size={12}>{pctLast>=0?"+":""}{fmtN(pctLast)}%</Mono></div>}
 </div>
 <div style={{marginTop:14}}>
 <div style={{fontSize:11,color:C.t4,marginBottom:8}}>All snapshots</div>
@@ -1972,6 +1973,23 @@ return(
 </div>
 ))}
 </div>
+</div>
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+<div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>Safe annual withdrawal <span style={{color:C.t5,textTransform:'none',letterSpacing:'normal'}}>({fmtN(withdrawalRate*100)}% rule)</span></div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
+<div style={{fontSize:9,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>From Freedom Fund</div>
+<Mono color={C.green} size={14}>{fmtS(freedomFundTotal*withdrawalRate)}</Mono>
+<div style={{fontSize:10,color:C.t4,marginTop:2}}>per year, on {fmtS(freedomFundTotal)}</div>
+</div>
+<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
+<div style={{fontSize:9,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>From total net worth</div>
+<Mono color={C.t2} size={14}>{fmtS(Math.max(0,netWorth)*withdrawalRate)}</Mono>
+<div style={{fontSize:10,color:C.t4,marginTop:2}}>per year, on {fmtS(Math.max(0,netWorth))}</div>
+</div>
+</div>
+{freedomFundTotal===0&&<div style={{fontSize:10,color:C.amber,marginTop:8,fontStyle:'italic'}}>Tag assets as Freedom Fund in edit mode to see this figure.</div>}
+<div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>Freedom Fund is the honest basis — you can't draw an income from the home you live in. Net worth is shown for context only.</div>
 </div>
 {snapshots.length<12&&(
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
@@ -2368,6 +2386,8 @@ const[txLimit,setTxLimit]=useState(90);
 const[txEditingId,setTxEditingId]=useState(null);
 const[showRules,setShowRules]=useState(false);
 const[actualsMode,setActualsMode]=useState(false);
+const chartsRef=useRef(null);
+const chartsAnchor=useRef(null);
 const[showAddForm,setShowAddForm]=useState(false);
 const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],amount:"",recur:"Monthly",startDate:todayStr});
 const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
@@ -2411,6 +2431,23 @@ useEffect(()=>{localStorage.setItem('ft_akahuAccountMap',JSON.stringify(akahuAcc
 useEffect(()=>{localStorage.setItem('ft_accountSettings',JSON.stringify(accountSettings));},[accountSettings]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{window.scrollTo(0,0);},[view]);
+useEffect(()=>{
+if(view!=='dashboard'||!chartsRef.current)return;
+const rect=chartsRef.current.getBoundingClientRect();
+if(rect.top>window.innerHeight||rect.bottom<0){chartsAnchor.current=null;return;}
+chartsAnchor.current=rect.top;
+},[displayPeriod,allTime,actualsMode]);
+useEffect(()=>{
+if(chartsAnchor.current==null||!chartsRef.current)return;
+const id=requestAnimationFrame(()=>{
+if(!chartsRef.current)return;
+const newTop=chartsRef.current.getBoundingClientRect().top;
+const delta=newTop-chartsAnchor.current;
+if(Math.abs(delta)>1)window.scrollBy({top:delta,behavior:'instant'});
+chartsAnchor.current=null;
+});
+return()=>cancelAnimationFrame(id);
+},[displayPeriod,allTime,actualsMode]);
 useEffect(()=>{const params=new URLSearchParams(window.location.search);if(params.get('akahu')==='enable'){localStorage.setItem('ft_akahu_enabled','true');window.location.href=window.location.pathname;}if(params.get('akahu')==='disable'){localStorage.removeItem('ft_akahu_enabled');window.location.href=window.location.pathname;}},[]);
 useEffect(()=>{if(!AKAHU_ENABLED)return;if(!lastSynced){handleSync();return;}const hoursSinceSync=(Date.now()-new Date(lastSynced).getTime())/(1000*60*60);if(hoursSinceSync>=6){handleSync();}},[]);
 useEffect(()=>{const patterns=['GROSS CR INTEREST','INTEREST CREDIT','CR INTEREST'];setSyncedTransactions(prev=>prev.map(t=>{const desc=(t.description||'').toUpperCase();if(patterns.some(p=>desc.includes(p))){return{...t,amount:Math.abs(t.amount),ledgerlyType:'income',ledgerlyCategory:'Investment Returns',needsReview:false};}return t;}));},[]);
@@ -2762,8 +2799,10 @@ return(
 <div style={{fontSize:11,color:C.t4,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{allTime?"All Time Charts":displayPeriod==="yearly"?"Monthly Charts":"Daily Charts"}</div>
 <button onClick={()=>setAllTime(v=>!v)} style={{border:`1px solid ${allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:allTime?"rgba(110,231,183,.1)":"none",color:allTime?C.green:C.t3,whiteSpace:"nowrap"}}>All time</button>
 </div>
+<div ref={chartsRef}>
 <Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
 <CalendarWidget entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
+</div>
 <UpcomingPayments payments={upcomingPayments} setPayments={setUpcomingPayments} entries={entries} displayPeriod={displayPeriod} akahuBalances={akahuBalances}/>
 </>}
 
