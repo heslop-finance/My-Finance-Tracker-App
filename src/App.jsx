@@ -1,4 +1,4 @@
-import{useState,useMemo,useRef,useEffect}from"react";
+import{useState,useMemo,useRef,useEffect,useLayoutEffect}from"react";
 
 // ── CONSTANTS ──────────────────────────────────────────────────
 const C={
@@ -2388,6 +2388,12 @@ const[showRules,setShowRules]=useState(false);
 const[actualsMode,setActualsMode]=useState(false);
 const chartsRef=useRef(null);
 const chartsAnchor=useRef(null);
+function captureChartsAnchor(){
+if(!chartsRef.current)return;
+const rect=chartsRef.current.getBoundingClientRect();
+if(rect.top>window.innerHeight||rect.bottom<0){chartsAnchor.current=null;return;}
+chartsAnchor.current=rect.top;
+}
 const[showAddForm,setShowAddForm]=useState(false);
 const[form,setForm]=useState({type:"expense",label:"",category:EXPENSE_CATS[0],amount:"",recur:"Monthly",startDate:todayStr});
 const[mortgageCfg,setMortgageCfg]=useState(()=>loadLS('ft_mortgageCfg',DEFAULT_MORT));
@@ -2431,22 +2437,12 @@ useEffect(()=>{localStorage.setItem('ft_akahuAccountMap',JSON.stringify(akahuAcc
 useEffect(()=>{localStorage.setItem('ft_accountSettings',JSON.stringify(accountSettings));},[accountSettings]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{window.scrollTo(0,0);},[view]);
-useEffect(()=>{
-if(view!=='dashboard'||!chartsRef.current)return;
-const rect=chartsRef.current.getBoundingClientRect();
-if(rect.top>window.innerHeight||rect.bottom<0){chartsAnchor.current=null;return;}
-chartsAnchor.current=rect.top;
-},[displayPeriod,allTime,actualsMode]);
-useEffect(()=>{
+useLayoutEffect(()=>{
 if(chartsAnchor.current==null||!chartsRef.current)return;
-const id=requestAnimationFrame(()=>{
-if(!chartsRef.current)return;
 const newTop=chartsRef.current.getBoundingClientRect().top;
 const delta=newTop-chartsAnchor.current;
 if(Math.abs(delta)>1)window.scrollBy({top:delta,behavior:'instant'});
 chartsAnchor.current=null;
-});
-return()=>cancelAnimationFrame(id);
 },[displayPeriod,allTime,actualsMode]);
 useEffect(()=>{const params=new URLSearchParams(window.location.search);if(params.get('akahu')==='enable'){localStorage.setItem('ft_akahu_enabled','true');window.location.href=window.location.pathname;}if(params.get('akahu')==='disable'){localStorage.removeItem('ft_akahu_enabled');window.location.href=window.location.pathname;}},[]);
 useEffect(()=>{if(!AKAHU_ENABLED)return;if(!lastSynced){handleSync();return;}const hoursSinceSync=(Date.now()-new Date(lastSynced).getTime())/(1000*60*60);if(hoursSinceSync>=6){handleSync();}},[]);
@@ -2637,7 +2633,7 @@ return(
 <div style={{maxWidth:720,margin:"0 auto"}}>
 <div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}} onClick={()=>{setHeaderTapCount(prev=>{const next=prev+1;clearTimeout(headerTapTimer.current);if(next>=5){const enabled=localStorage.getItem('ft_akahu_enabled')==='true';if(enabled){localStorage.removeItem('ft_akahu_enabled');alert('Akahu sync disabled. Reloading...');}else{localStorage.setItem('ft_akahu_enabled','true');alert('Akahu sync enabled. Reloading...');}window.location.reload();return 0;}headerTapTimer.current=setTimeout(()=>setHeaderTapCount(0),1500);return next;});}}>Ledgerly</div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
-{[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>{setDisplayPeriod(p.key);setAllTime(false);}} style={{border:`1px solid ${displayPeriod===p.key&&!allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key&&!allTime?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key&&!allTime?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
+{[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>{captureChartsAnchor();setDisplayPeriod(p.key);setAllTime(false);}} style={{border:`1px solid ${displayPeriod===p.key&&!allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key&&!allTime?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key&&!allTime?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
 </div>
 </div>
 </div>
@@ -2646,7 +2642,7 @@ return(
 
 {view==="dashboard"&&<>
 <div style={{marginBottom:16}}>
-{AKAHU_ENABLED&&<button onClick={()=>{setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+{AKAHU_ENABLED&&<button onClick={()=>{captureChartsAnchor();setActualsMode(v=>!v);setScenarioMode(false);}} style={{width:"100%",background:actualsMode?"rgba(6,182,212,.15)":C.card,border:`1px solid ${actualsMode?C.cyan:C.border}`,borderRadius:10,padding:"9px 16px",color:actualsMode?C.cyan:C.t3,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
 <span style={{whiteSpace:'nowrap',flexShrink:0}}>🔍 Actuals Mode</span>
 <span style={{fontSize:11,color:C.t3}}>Show real bank transaction data</span>
 </button>}
@@ -2686,7 +2682,7 @@ labelColor={c.scenario?C.purple:C.t3}/>
 <div style={{fontSize:13,fontWeight:600,color:C.t2,marginBottom:14}}>Net balance across all periods <span style={{fontSize:11,color:C.t4}}>· tap to switch</span></div>
 <div className="hscroll">
 {PERIODS.map(p=>{let inc=0,exp=0;entries.filter(e=>e.recur!=="One-off").forEach(e=>{const a=periodAmt(e,p.days);if(e.type==="income")inc+=a;else exp+=a;});let bal=inc-exp;if(actualsMode&&hasActualData&&p.key===displayPeriod){bal=actualIncome-actualExpenses;}return(
-<div key={p.key} className={`cc ${displayPeriod===p.key?"active":""}`} onClick={()=>setDisplayPeriod(p.key)} style={{minWidth:110,width:"calc(25% - 9px)"}}>
+<div key={p.key} className={`cc ${displayPeriod===p.key?"active":""}`} onClick={()=>{captureChartsAnchor();setDisplayPeriod(p.key);}} style={{minWidth:110,width:"calc(25% - 9px)"}}>
 <div style={{fontSize:10,color:displayPeriod===p.key?C.green:C.t3,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:".07em"}}>{p.label}</div>
 <Mono color={bal>=0?C.green:C.red} size={13}>{bal>=0?"+":"−"}{fmt(bal)}</Mono>
 </div>
@@ -2797,7 +2793,7 @@ return(
 )}
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,marginTop:4}}>
 <div style={{fontSize:11,color:C.t4,textTransform:"uppercase",letterSpacing:".08em",fontWeight:700}}>{allTime?"All Time Charts":displayPeriod==="yearly"?"Monthly Charts":"Daily Charts"}</div>
-<button onClick={()=>setAllTime(v=>!v)} style={{border:`1px solid ${allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:allTime?"rgba(110,231,183,.1)":"none",color:allTime?C.green:C.t3,whiteSpace:"nowrap"}}>All time</button>
+<button onClick={()=>{captureChartsAnchor();setAllTime(v=>!v);}} style={{border:`1px solid ${allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:allTime?"rgba(110,231,183,.1)":"none",color:allTime?C.green:C.t3,whiteSpace:"nowrap"}}>All time</button>
 </div>
 <div ref={chartsRef}>
 <Histogram entries={entries} displayPeriod={allTime?"allyears":displayPeriod} actualsMode={actualsMode} syncedTransactions={syncedTransactions}/>
