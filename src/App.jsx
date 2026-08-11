@@ -145,10 +145,11 @@ if(l.includes('kiwisaver')||l.includes('etf')||l.includes('sharesies'))return 'f
 if(l.includes('emergency fund'))return 'cash';
 return '';
 }
-function debtGlow(rate){
+function debtGlow(rate,threshold=6){
 const r=Number(rate)||0;
-if(r<=6)return null;
-const intensity=Math.min(1,(r-6)/6);
+const th=Number(threshold)||6;
+if(r<=th)return null;
+const intensity=Math.min(1,(r-th)/6);
 const blur=3+intensity*7;
 const opacity=0.35+intensity*0.55;
 return{boxShadow:`0 0 ${blur.toFixed(0)}px rgba(251,113,133,${opacity.toFixed(2)})`,background:`rgba(251,113,133,${(0.04+intensity*0.08).toFixed(3)})`};
@@ -1616,6 +1617,7 @@ const[withdrawalRate,setWithdrawalRate]=useState(0.04);
 const[includeNzSuper,setIncludeNzSuper]=useState(false);
 const[nzSuperAmount,setNzSuperAmount]=useState('');
 const[showFILine,setShowFILine]=useState(false);
+const[showRealNW,setShowRealNW]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
 const[nominalReturn,setNominalReturn]=useState('7.0');
 const[inflationRate,setInflationRate]=useState('2.5');
@@ -1630,14 +1632,15 @@ const emergencyFundTotal=useMemo(()=>assets.filter(a=>a.isEmergencyFund).reduce(
 const monthlyNoFrills=useMemo(()=>entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&!SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,30.44),0),[entries]);
 const monthlyIncome=useMemo(()=>entries.filter(e=>e.type==='income'&&e.recur!=='One-off').reduce((s,e)=>s+periodAmt(e,30.44),0),[entries]);
 const monthlyGap=monthlyIncome-monthlyNoFrills;
-const expensiveDebts=useMemo(()=>liabilities.filter(l=>(Number(l.interestRate)||0)>5&&(Number(l.value)||0)>0),[liabilities]);
+const debtThreshold=Number(freedomMapCfg.debtThreshold)||6;
+const expensiveDebts=useMemo(()=>liabilities.filter(l=>(Number(l.interestRate)||0)>debtThreshold&&(Number(l.value)||0)>0),[liabilities,debtThreshold]);
 const starterBuffer=Number(freedomMapCfg.starterBuffer)||0;
 const bufferMonths=Number(freedomMapCfg.bufferMonths)||3;
 const fullBufferTarget=monthlyNoFrills*bufferMonths;
 const freedomStages=[
 {key:'gap',label:'Gap',done:monthlyGap>0,detail:monthlyGap>0?`+${fmt(monthlyGap)}/mo spare`:`${fmt(Math.abs(monthlyGap))}/mo short — spending exceeds income`},
 {key:'starter',label:'Starter',done:emergencyFundTotal>=starterBuffer&&starterBuffer>0,detail:`${fmt(emergencyFundTotal)} of ${fmt(starterBuffer)} starter buffer`},
-{key:'debt',label:'Debt',done:expensiveDebts.length===0,detail:expensiveDebts.length===0?'No debt above 5%':`${expensiveDebts.length} debt${expensiveDebts.length>1?'s':''} above 5%: ${expensiveDebts.map(l=>l.label).join(', ')}`},
+{key:'debt',label:'Debt',done:expensiveDebts.length===0,detail:expensiveDebts.length===0?`No debt above ${debtThreshold}%`:`${expensiveDebts.length} debt${expensiveDebts.length>1?'s':''} above ${debtThreshold}%: ${expensiveDebts.map(l=>l.label).join(', ')}`},
 {key:'buffer',label:'Buffer',done:fullBufferTarget>0&&emergencyFundTotal>=fullBufferTarget,detail:fullBufferTarget>0?`${fmt(emergencyFundTotal)} of ${fmt(fullBufferTarget)} (${bufferMonths} months)`:'Add recurring expense entries to set this target'},
 {key:'invest',label:'Invest',done:freedomFundTotal>0,detail:freedomFundTotal>0?`${fmt(freedomFundTotal)} invested`:'Nothing tagged as Freedom Fund yet'},
 ];
@@ -1674,6 +1677,36 @@ return 0;
 },[useCustomTarget,customTarget,suggestedAnnualExpenses,withdrawalRate,includeNzSuper,nzSuperAmount]);
 const fiPct=fiTarget>0?Math.min(100,(netWorth/fiTarget)*100):0;
 const fiGap=Math.max(0,fiTarget-netWorth);
+const realAnnualReturn=Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0))/100;
+const coast=useMemo(()=>{
+const cur=Number(freedomMapCfg.currentAge)||0;
+const tgt=Number(freedomMapCfg.targetAge)||0;
+if(!cur||!tgt||tgt<=cur||fiTarget<=0||realAnnualReturn<=0)return null;
+const years=tgt-cur;
+const coastNumber=fiTarget/Math.pow(1+realAnnualReturn,years);
+const pct=coastNumber>0?Math.min(100,(freedomFundTotal/coastNumber)*100):0;
+const reached=freedomFundTotal>=coastNumber;
+let coastAge=null;
+if(freedomFundTotal>0){
+const yrs=Math.log(fiTarget/freedomFundTotal)/Math.log(1+realAnnualReturn);
+if(isFinite(yrs)&&yrs>0)coastAge=cur+yrs;
+}
+return{years,coastNumber,pct,reached,coastAge,gap:Math.max(0,coastNumber-freedomFundTotal)};
+},[freedomMapCfg,fiTarget,freedomFundTotal,realAnnualReturn]);
+const feeStats=useMemo(()=>{
+const ff=assets.filter(a=>a.splitCategory==='freedom_fund');
+const withFee=ff.filter(a=>a.feeOcf!=null&&a.feeOcf!==''&&(Number(a.value)||0)>0);
+const untagged=ff.length-withFee.length;
+const base=withFee.reduce((s,a)=>s+(Number(a.value)||0),0);
+if(base<=0)return{hasData:false,untagged,ffCount:ff.length};
+const weighted=withFee.reduce((s,a)=>s+(Number(a.value)||0)*(Number(a.feeOcf)||0),0)/base;
+const annualCost=base*(weighted/100);
+const BENCH=0.20,YEARS=30;
+const nom=(parseFloat(nominalReturn)||0)/100;
+const grossAt=f=>base*Math.pow(1+Math.max(0,nom-(f/100)),YEARS);
+const drag=Math.max(0,grossAt(BENCH)-grossAt(weighted));
+return{hasData:true,weighted,annualCost,base,drag,untagged,ffCount:ff.length,years:YEARS,bench:BENCH};
+},[assets,nominalReturn]);
 const realMonthlyReturn=useMemo(()=>{
 const real=Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0))/100;
 return Math.pow(1+real,1/12)-1;
@@ -1702,7 +1735,16 @@ return{avgMonthlyGrowth,yearsToFI,targetYear,realReturnPct:((Math.pow(1+realMont
 },[snapshots,fiGap,fiTarget,netWorth,realMonthlyReturn]);
 const updateAsset=(id,field,val)=>setAssets(as=>as.map(a=>a.id===id?{...a,[field]:val}:a));
 const updateLiab=(id,field,val)=>setLiabilities(ls=>ls.map(l=>l.id===id?{...l,[field]:val}:l));
-const chartSnaps=snapshots.length>=2?snapshots:[...snapshots];
+const inflPct=(parseFloat(inflationRate)||0)/100;
+const displaySnaps=useMemo(()=>{
+if(!showRealNW||inflPct<=0)return snapshots;
+const now=parseDt(todayStr);
+return snapshots.map(s=>{
+const yearsAgo=Math.max(0,(now-parseDt(s.date))/(365.25*86400000));
+return{...s,netWorth:s.netWorth*Math.pow(1+inflPct,yearsAgo)};
+});
+},[snapshots,showRealNW,inflPct]);
+const chartSnaps=displaySnaps.length>=2?displaySnaps:[...displaySnaps];
 const W=360,H=120,PAD=28,RPAD=10;
 const allVals=chartSnaps.map(s=>s.netWorth);
 const minV=Math.min(...allVals,0);
@@ -1711,9 +1753,9 @@ const range=maxV-minV||1;
 const xS=i=>PAD+i*(W-PAD-RPAD)/(Math.max(chartSnaps.length-1,1));
 const yS=v=>H-PAD-((v-minV)/range)*(H-PAD*2);
 const linePts=chartSnaps.map((s,i)=>`${xS(i)},${yS(s.netWorth)}`).join(" ");
-const snapFirst=snapshots.length?snapshots[0]:null;
-const snapLast=snapshots.length?snapshots[snapshots.length-1]:null;
-const snapPrev=snapshots.length>=2?snapshots[snapshots.length-2]:null;
+const snapFirst=displaySnaps.length?displaySnaps[0]:null;
+const snapLast=displaySnaps.length?displaySnaps[displaySnaps.length-1]:null;
+const snapPrev=displaySnaps.length>=2?displaySnaps[displaySnaps.length-2]:null;
 const changeAll=snapFirst&&snapLast?snapLast.netWorth-snapFirst.netWorth:0;
 const pctAll=snapFirst&&snapFirst.netWorth!==0?(changeAll/Math.abs(snapFirst.netWorth))*100:0;
 const changeLast=snapPrev&&snapLast?snapLast.netWorth-snapPrev.netWorth:0;
@@ -1789,6 +1831,9 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 <option value=''>— uncategorised —</option>
 {SPLIT_CATS.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
 </select>
+{(a.splitCategory||inferSplitCategory(a.label,false))==='freedom_fund'&&(
+<input type="text" inputMode="decimal" placeholder="Fund fee / OCF % (e.g. 0.20)" value={a.feeOcf==null?'':a.feeOcf} onFocus={e=>e.target.select()} onChange={e=>updateAsset(a.id,'feeOcf',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}/>
+)}
 <div onClick={()=>updateAsset(a.id,'isEmergencyFund',!a.isEmergencyFund)} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginTop:4,padding:'2px 0'}}>
 <div style={{width:14,height:14,borderRadius:3,border:`1px solid ${a.isEmergencyFund?C.green:C.t5}`,background:a.isEmergencyFund?'rgba(110,231,183,.15)':'none',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:10,color:C.green}}>{a.isEmergencyFund?'✓':''}</div>
 <span style={{fontSize:10,color:C.t4}}>This is my emergency fund</span>
@@ -1837,7 +1882,7 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 <Mono color={C.red} size={16}>{fmt(totalLiabs)}</Mono>
 <div style={{marginTop:8}}>
 {sortedLiabilities.map(l=>{
-const glow=debtGlow(l.interestRate);
+const glow=debtGlow(l.interestRate,debtThreshold);
 return(
 <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6,borderRadius:6,padding:"3px 6px",margin:"3px -6px 0",...(glow?{boxShadow:glow.boxShadow,background:glow.background}:{})}}>
 <span style={{fontSize:11,color:glow?C.red:C.t3,fontWeight:glow?600:400}}>{l.label}</span>
@@ -1885,7 +1930,12 @@ return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} strok
 })()}
 </svg>
 </div>
-{fiTarget>0&&<div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,marginBottom:4}}><button onClick={()=>setShowFILine(v=>!v)} className={`rb ${showFILine?'on':''}`} style={{fontSize:10}}>FI target</button>{showFILine&&<div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:C.amber}}><span style={{width:16,height:2,background:C.amber,display:'inline-block',borderRadius:1,opacity:.7}}/>FI: {fmtS(fiTarget)}</div>}</div>}
+<div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,marginBottom:4,flexWrap:'wrap'}}>
+{fiTarget>0&&<button onClick={()=>setShowFILine(v=>!v)} className={`rb ${showFILine?'on':''}`} style={{fontSize:10}}>FI target</button>}
+<button onClick={()=>setShowRealNW(v=>!v)} className={`rb ${showRealNW?'on':''}`} style={{fontSize:10}}>Today's $</button>
+{showFILine&&fiTarget>0&&<div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:C.amber}}><span style={{width:16,height:2,background:C.amber,display:'inline-block',borderRadius:1,opacity:.7}}/>FI: {fmtS(fiTarget)}</div>}
+{showRealNW&&<span style={{fontSize:10,color:C.cyan}}>Adjusted for {inflationRate}% inflation</span>}
+</div>
 <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>All time</div><Mono color={changeAll>=0?C.green:C.red} size={12}>{changeAll>=0?"+":"−"}{fmt(Math.abs(changeAll))}</Mono></div>
 <div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>%</div><Mono color={pctAll>=0?C.green:C.red} size={12}>{pctAll>=0?"+":""}{fmtN(pctAll)}%</Mono></div>
@@ -2012,6 +2062,31 @@ return(
 {freedomFundTotal===0&&<div style={{fontSize:10,color:C.amber,marginTop:8,fontStyle:'italic'}}>Tag assets as Freedom Fund in edit mode to see this figure.</div>}
 <div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>Freedom Fund is the honest basis — you can't draw an income from the home you live in. Net worth is shown for context only.</div>
 </div>
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+<div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>Coast FI</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Current age</label><input className="fi" type="text" inputMode="decimal" placeholder="e.g. 32" value={freedomMapCfg.currentAge??''} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,currentAge:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Retire at</label><input className="fi" type="text" inputMode="decimal" value={freedomMapCfg.targetAge??65} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,targetAge:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
+</div>
+{!coast?(
+<div style={{fontSize:11,color:C.t5,fontStyle:'italic'}}>Enter your ages above to see your Coast FI number.</div>
+):(<>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:6}}>
+<div style={{fontSize:11,color:C.t3}}>Coast number at age {Number(freedomMapCfg.targetAge)||0}</div>
+<Mono color={coast.reached?C.green:C.amber} size={16}>{fmtS(coast.coastNumber)}</Mono>
+</div>
+<div style={{height:8,background:C.border,borderRadius:4,overflow:'hidden',marginBottom:8}}>
+<div style={{height:'100%',width:`${coast.pct}%`,background:coast.reached?C.green:`linear-gradient(90deg,${C.green},${C.amber})`,borderRadius:4,transition:'width .6s ease'}}/>
+</div>
+<div style={{fontSize:11,color:coast.reached?C.green:C.t4,fontWeight:coast.reached?700:400,lineHeight:1.5}}>
+{coast.reached
+?`You've reached Coast FI. If you never invested another dollar, your Freedom Fund alone should reach ${fmtS(fiTarget)} by age ${Number(freedomMapCfg.targetAge)||0}.`
+:`${fmtN(coast.pct)}% there — ${fmtS(coast.gap)} more invested and you could stop contributing entirely.`}
+</div>
+{coast.coastAge&&<div style={{fontSize:10,color:C.t5,marginTop:6}}>At your current Freedom Fund and {fmtN(realAnnualReturn*100)}% real return, it would reach your FI target around age {fmtN(coast.coastAge)} with no further contributions.</div>}
+<div style={{fontSize:10,color:C.t5,marginTop:6,fontStyle:'italic'}}>Coast FI is the point where compounding alone finishes the job — you'd still need to cover your living costs, but you'd no longer need to invest.</div>
+</>)}
+</div>
 {snapshots.length<12&&(
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
 <div style={{fontSize:12,color:C.t4,marginBottom:4}}>Trajectory available after 12 monthly snapshots</div>
@@ -2057,11 +2132,39 @@ return(
 </div>
 </div>
 ))}
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:12,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:12,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
 <div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Starter buffer ($)</label><input className="fi" type="text" inputMode="decimal" value={freedomMapCfg.starterBuffer} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,starterBuffer:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
 <div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Full buffer (months)</label><input className="fi" type="text" inputMode="decimal" value={freedomMapCfg.bufferMonths} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,bufferMonths:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Debt alert (%)</label><input className="fi" type="text" inputMode="decimal" value={freedomMapCfg.debtThreshold??6} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,debtThreshold:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
 </div>
 {emergencyFundTotal===0&&<div style={{fontSize:10,color:C.amber,marginTop:8,fontStyle:'italic'}}>Tick "This is my emergency fund" on an asset in edit mode so the buffer stages can track it.</div>}
+</div>
+<div className="card" style={{marginTop:-12}}>
+<div style={{fontSize:13,fontWeight:700,color:C.t1}}>Investment Fees</div>
+<div style={{fontSize:11,color:C.t4,marginTop:2,marginBottom:14}}>Fees compound against you the same way returns compound for you</div>
+{!feeStats.hasData?(
+<div style={{fontSize:11,color:C.t5,fontStyle:'italic'}}>{feeStats.ffCount===0?'Tag assets as Freedom Fund in edit mode, then add each fund\'s fee to track this.':'Add a fee % to your Freedom Fund assets in edit mode to see this.'}</div>
+):(<>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
+<div style={{fontSize:9,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>Weighted avg fee</div>
+<Mono color={feeStats.weighted<=0.2?C.green:feeStats.weighted<=0.3?C.amber:C.red} size={16}>{feeStats.weighted.toFixed(2)}%</Mono>
+<div style={{fontSize:10,color:C.t4,marginTop:2}}>{feeStats.weighted<=0.2?'Excellent':feeStats.weighted<=0.3?'Good':'Worth reviewing'}</div>
+</div>
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
+<div style={{fontSize:9,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>Costing you</div>
+<Mono color={C.t2} size={16}>{fmtS(feeStats.annualCost)}</Mono>
+<div style={{fontSize:10,color:C.t4,marginTop:2}}>per year, on {fmtS(feeStats.base)}</div>
+</div>
+</div>
+{feeStats.drag>0&&(
+<div style={{background:'rgba(251,113,133,.06)',border:`1px solid rgba(251,113,133,.2)`,borderRadius:8,padding:'10px 12px',marginBottom:8}}>
+<div style={{fontSize:11,color:C.t2,lineHeight:1.5}}>Versus a {feeStats.bench.toFixed(2)}% fund, these fees would cost you about <Mono color={C.red} size={12}>{fmtS(feeStats.drag)}</Mono> over {feeStats.years} years on your current balance alone — before counting anything you add from here.</div>
+</div>
+)}
+{feeStats.untagged>0&&<div style={{fontSize:10,color:C.amber,fontStyle:'italic'}}>{feeStats.untagged} Freedom Fund asset{feeStats.untagged>1?'s have':' has'} no fee recorded, so {feeStats.untagged>1?'they\'re':'it\'s'} excluded from the average.</div>}
+<div style={{fontSize:10,color:C.t5,marginTop:8,fontStyle:'italic'}}>Under 0.30% is good, under 0.20% is ideal. Most broad global index funds sit around 0.14–0.23%.</div>
+</>)}
 </div>
 </div>
 );
@@ -2477,7 +2580,7 @@ const[mortgageLoanCfg,setMortgageLoanCfg]=useState(()=>loadLS('ft_mortgageLoanCf
 const[mortgagePortions,setMortgagePortions]=useState(()=>loadLS('ft_mortgagePortions',[]));
 const[assets,setAssets]=useState(()=>loadLS('ft_assets',[{id:1,label:"Home Value",value:650000},{id:2,label:"KiwiSaver",value:42000},{id:3,label:"Savings",value:15000},{id:4,label:"Investments",value:8000}]));
 const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000},{id:2,label:"Car Loan",value:12000}]));
-const[freedomMapCfg,setFreedomMapCfg]=useState(()=>loadLS('ft_freedomMapCfg',{starterBuffer:8000,bufferMonths:3}));
+const[freedomMapCfg,setFreedomMapCfg]=useState(()=>loadLS('ft_freedomMapCfg',{starterBuffer:8000,bufferMonths:3,debtThreshold:6,currentAge:'',targetAge:65}));
 const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
 const[budgetLimits,setBudgetLimits]=useState(()=>loadLS('ft_budgetLimits',{}));
 const[budgetEditing,setBudgetEditing]=useState(false);
