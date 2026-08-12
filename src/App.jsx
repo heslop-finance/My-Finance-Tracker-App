@@ -107,6 +107,10 @@ if(e.recur==="One-off")return e.amount;
 if(e.recur==="Variable")return varRecent(e)*(pDays/30.44);
 return e.amount*(pDays/(RECURDAYS[e.recur]||30.44));
 };
+const dayMatchesClamped=(d,start)=>{
+const lastDay=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+return d.getDate()===Math.min(start.getDate(),lastDay);
+};
 function occursOn(e,date){
 const start=parseDt(e.startDate);start.setHours(0,0,0,0);
 const d=new Date(date);d.setHours(0,0,0,0);
@@ -115,13 +119,13 @@ if(e.recur==="One-off")return dateKey(d)===e.startDate;
 const diff=Math.round((d-start)/86400000);
 if(e.recur==="Weekly")return diff%7===0;
 if(e.recur==="Fortnightly")return diff%14===0;
-if(e.recur==="Monthly"||e.recur==="Variable")return d.getDate()===start.getDate();
+if(e.recur==="Monthly"||e.recur==="Variable")return dayMatchesClamped(d,start);
 if(e.recur==="Quarterly"){
-if(d.getDate()!==start.getDate())return false;
+if(!dayMatchesClamped(d,start))return false;
 const monthDiff=(d.getFullYear()-start.getFullYear())*12+(d.getMonth()-start.getMonth());
 return monthDiff>=0&&monthDiff%3===0;
 }
-if(e.recur==="Yearly")return d.getDate()===start.getDate()&&d.getMonth()===start.getMonth();
+if(e.recur==="Yearly")return dayMatchesClamped(d,start)&&d.getMonth()===start.getMonth();
 return false;
 }
 function datesInRange(from,to){
@@ -1103,7 +1107,7 @@ return null;
 }
 const perPeriod=p=>{
 const pDays=PERIODS.find(x=>x.key===displayPeriod).days;
-const daysUntilDue=Math.max(0,Math.round((parseDt(p._next||p.dueDate)-new Date(todayStr))/86400000));
+const daysUntilDue=Math.max(0,Math.round((parseDt(p._next||p.dueDate)-parseDt(todayStr))/86400000));
 const periodsLeft=Math.max(1,daysUntilDue/pDays);
 const remaining=Math.max(0,p.amount-(p.saved||0));
 return remaining/periodsLeft;
@@ -1148,7 +1152,7 @@ return(
 {showAdd&&<PaymentForm value={form} onChange={setForm} onSubmit={handleAdd} onCancel={()=>setShowAdd(false)} submitLabel="Add Payment" akahuBalances={akahuBalances}/>}
 {sorted.length===0&&!showAdd&&!showImport&&<div style={{fontSize:13,color:C.t5,fontStyle:'italic',textAlign:'center',padding:'12px 0'}}>No upcoming payments tracked. Add one to stay ahead of bills.</div>}
 {sorted.map(p=>{
-const daysUntil=Math.round((new Date(p._next)-new Date(todayStr))/(1000*60*60*24));
+const daysUntil=Math.round((parseDt(p._next)-parseDt(todayStr))/86400000);
 const saved=p.saved||0;
 const pct=p.amount>0?Math.min(100,(saved/p.amount)*100):0;
 const linkedBal=AKAHU_ENABLED&&p.akahuAccountId?akahuBalances.find(a=>a.id===p.akahuAccountId):null;
@@ -1606,21 +1610,28 @@ return(
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg}){
+function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg,retirementCfg,setRetirementCfg}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
 const[showCompositionLegend,setShowCompositionLegend]=useState(false);
-const[useCustomTarget,setUseCustomTarget]=useState(false);
-const[customTarget,setCustomTarget]=useState('');
-const[withdrawalRate,setWithdrawalRate]=useState(0.04);
-const[includeNzSuper,setIncludeNzSuper]=useState(false);
-const[nzSuperAmount,setNzSuperAmount]=useState('');
 const[showFILine,setShowFILine]=useState(false);
 const[showRealNW,setShowRealNW]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
-const[nominalReturn,setNominalReturn]=useState('7.0');
-const[inflationRate,setInflationRate]=useState('2.5');
+const withdrawalRate=retirementCfg.withdrawalRate??0.04;
+const includeNzSuper=retirementCfg.includeNzSuper??false;
+const nzSuperAmount=retirementCfg.nzSuperAmount??'';
+const nominalReturn=retirementCfg.nominalReturn??'7.0';
+const inflationRate=retirementCfg.inflationRate??'2.5';
+const useCustomTarget=retirementCfg.useCustomTarget??false;
+const customTarget=retirementCfg.customTarget??'';
+const setWithdrawalRate=v=>setRetirementCfg(c=>({...c,withdrawalRate:v}));
+const setIncludeNzSuper=v=>setRetirementCfg(c=>({...c,includeNzSuper:typeof v==='function'?v(c.includeNzSuper??false):v}));
+const setNzSuperAmount=v=>setRetirementCfg(c=>({...c,nzSuperAmount:v}));
+const setNominalReturn=v=>setRetirementCfg(c=>({...c,nominalReturn:v}));
+const setInflationRate=v=>setRetirementCfg(c=>({...c,inflationRate:v}));
+const setUseCustomTarget=v=>setRetirementCfg(c=>({...c,useCustomTarget:typeof v==='function'?v(c.useCustomTarget??false):v}));
+const setCustomTarget=v=>setRetirementCfg(c=>({...c,customTarget:v}));
 const totalAssets=assets.reduce((s,a)=>s+Number(a.value),0);
 const totalLiabs=liabilities.reduce((s,l)=>s+(Number(l.value)||0),0);
 const sortedAssets=useMemo(()=>[...assets].sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)),[assets]);
@@ -1647,13 +1658,26 @@ const freedomStages=[
 const currentStageIdx=freedomStages.findIndex(s=>!s.done);
 const splitBuckets=useMemo(()=>{
 const buckets={freedom_fund:0,valuable_liability:0,cash:0,debt:0,uncategorised:0};
-assets.forEach(a=>{
-const key=a.splitCategory&&buckets.hasOwnProperty(a.splitCategory)?a.splitCategory:'uncategorised';
-buckets[key]+=Number(a.value)||0;
-});
+const offsetByAsset={};
 liabilities.forEach(l=>{
 const val=Number(l.value)||0;
+const target=l.offsetsAssetId?String(l.offsetsAssetId):null;
+if(target&&assets.some(a=>String(a.id)===target)){
+offsetByAsset[target]=(offsetByAsset[target]||0)+val;
+}else{
 buckets.debt+=val;
+}
+});
+assets.forEach(a=>{
+const gross=Number(a.value)||0;
+const offset=offsetByAsset[String(a.id)]||0;
+const equity=gross-offset;
+const key=a.splitCategory&&buckets.hasOwnProperty(a.splitCategory)?a.splitCategory:'uncategorised';
+if(equity>=0){
+buckets[key]+=equity;
+}else{
+buckets.debt+=Math.abs(equity);
+}
 });
 return buckets;
 },[assets,liabilities]);
@@ -1662,7 +1686,14 @@ const suggestedAnnualExpenses=useMemo(()=>{
 if(syncedTransactions.length>0){
 const oneYearAgo=new Date();oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
 const oneYearAgoStr=dateKey(oneYearAgo);
-const total=syncedTransactions.filter(t=>t.ledgerlyType==='expense'&&!t.isSavingsDeposit&&t.date>oneYearAgoStr&&t.date<=todayStr).reduce((s,t)=>s+Math.abs(t.amount),0);
+const total=syncedTransactions.filter(t=>
+t.ledgerlyType==='expense'&&
+!t.isSavingsDeposit&&
+!t.isSinkingFundPayout&&
+!(t.isDebtRepayment&&t.fundedFromTreat==='sinking')&&
+!SAVINGS_CATS.has(t.ledgerlyCategory)&&
+t.date>oneYearAgoStr&&t.date<=todayStr
+).reduce((s,t)=>s+Math.abs(t.amount),0);
 if(total>0)return total;
 }
 const annualFromEntries=entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&!SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,365),0);
@@ -1675,8 +1706,8 @@ const adjustedExpenses=Math.max(0,suggestedAnnualExpenses-superDeduction);
 if(adjustedExpenses>0)return Math.round(adjustedExpenses/withdrawalRate);
 return 0;
 },[useCustomTarget,customTarget,suggestedAnnualExpenses,withdrawalRate,includeNzSuper,nzSuperAmount]);
-const fiPct=fiTarget>0?Math.min(100,(netWorth/fiTarget)*100):0;
-const fiGap=Math.max(0,fiTarget-netWorth);
+const fiPct=fiTarget>0?Math.min(100,(freedomFundTotal/fiTarget)*100):0;
+const fiGap=Math.max(0,fiTarget-freedomFundTotal);
 const realAnnualReturn=Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0))/100;
 const coast=useMemo(()=>{
 const cur=Number(freedomMapCfg.currentAge)||0;
@@ -1720,8 +1751,8 @@ for(let i=1;i<recent.length;i++)monthlyGrowths.push(recent[i].netWorth-recent[i-
 const avgMonthlyGrowth=monthlyGrowths.reduce((s,v)=>s+v,0)/monthlyGrowths.length;
 if(avgMonthlyGrowth<=0)return null;
 let monthsToFI;
-if(realMonthlyReturn>0&&netWorth>0){
-let balance=netWorth,months=0;
+if(realMonthlyReturn>0&&freedomFundTotal>0){
+let balance=freedomFundTotal,months=0;
 const maxMonths=12*100;
 while(balance<fiTarget&&months<maxMonths){balance=balance*(1+realMonthlyReturn)+avgMonthlyGrowth;months++;}
 monthsToFI=months<maxMonths?months:null;
@@ -1732,7 +1763,7 @@ if(!monthsToFI)return null;
 const yearsToFI=monthsToFI/12;
 const targetYear=new Date().getFullYear()+Math.ceil(yearsToFI);
 return{avgMonthlyGrowth,yearsToFI,targetYear,realReturnPct:((Math.pow(1+realMonthlyReturn,12)-1)*100)};
-},[snapshots,fiGap,fiTarget,netWorth,realMonthlyReturn]);
+},[snapshots,fiGap,fiTarget,freedomFundTotal,realMonthlyReturn]);
 const updateAsset=(id,field,val)=>setAssets(as=>as.map(a=>a.id===id?{...a,[field]:val}:a));
 const updateLiab=(id,field,val)=>setLiabilities(ls=>ls.map(l=>l.id===id?{...l,[field]:val}:l));
 const inflPct=(parseFloat(inflationRate)||0)/100;
@@ -1792,6 +1823,7 @@ return(
 <span style={{fontSize:10,color:C.t4,fontWeight:600}}>Key</span>
 <span style={{color:C.t4,fontSize:10,display:'inline-block',transform:showCompositionLegend?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
 </div>
+<div style={{fontSize:10,color:C.t5,marginTop:6,fontStyle:'italic'}}>Assets with a loan secured against them (like your home) are shown at equity — value minus what's still owed. Link a liability to its asset in edit mode.</div>
 {showCompositionLegend&&(
 <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:6,fontSize:10,color:C.t3}}>
 {SPLIT_CATS.map(s=>splitBuckets[s.key]>0&&(
@@ -1858,6 +1890,10 @@ Uncategorised <Mono color={C.t4} size={10}>{fmtS(splitBuckets.uncategorised)}</M
 ))}
 </select>}
 <input type="text" inputMode="decimal" placeholder="Interest rate % (optional)" value={l.interestRate==null?'':l.interestRate} onFocus={e=>e.target.select()} onChange={e=>updateLiab(l.id,'interestRate',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}/>
+<select value={l.offsetsAssetId||''} onChange={e=>updateLiab(l.id,'offsetsAssetId',e.target.value)} style={{width:'100%',marginTop:4,background:C.bg,border:`1px solid ${C.t5}`,borderRadius:6,padding:'4px 8px',color:C.t3,fontSize:12,boxSizing:'border-box'}}>
+<option value=''>— not secured against an asset —</option>
+{assets.map(a=><option key={a.id} value={a.id}>Secured against: {a.label}</option>)}
+</select>
 </div>
 ))}
 <button onClick={()=>setLiabilities(ls=>[...ls,{id:Date.now(),label:"New Liability",value:0}])} style={{marginTop:10,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 10px",color:C.t3,fontSize:11,cursor:"pointer",width:"100%"}}>+ Add Liability</button>
@@ -2037,13 +2073,14 @@ return(
 <div style={{height:'100%',width:`${fiPct}%`,background:fiPct>=100?C.green:`linear-gradient(90deg,${C.green},${C.amber})`,borderRadius:6,transition:'width .6s ease'}}/>
 </div>
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-{[{label:'Current',val:fmtS(netWorth),color:netWorth>=0?C.green:C.red},{label:'Target',val:fmtS(fiTarget),color:C.amber},{label:'Gap',val:fmtS(fiGap),color:C.t2}].map(s=>(
+{[{label:'Current',val:fmtS(freedomFundTotal),color:freedomFundTotal>=0?C.green:C.red},{label:'Target',val:fmtS(fiTarget),color:C.amber},{label:'Gap',val:fmtS(fiGap),color:C.t2}].map(s=>(
 <div key={s.label} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
 <div style={{fontSize:9,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>{s.label}</div>
 <Mono color={s.color} size={12}>{s.val}</Mono>
 </div>
 ))}
 </div>
+<div style={{fontSize:10,color:C.t5,marginTop:6,fontStyle:'italic'}}>Progress is measured against your Freedom Fund ({fmtS(freedomFundTotal)}), not total net worth ({fmtS(netWorth)}) — you can't draw an income from the home you live in or your emergency cash.</div>
 </div>
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
 <div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>Safe annual withdrawal <span style={{color:C.t5,textTransform:'none',letterSpacing:'normal'}}>({fmtN(withdrawalRate*100)}% rule)</span></div>
@@ -2581,6 +2618,7 @@ const[mortgagePortions,setMortgagePortions]=useState(()=>loadLS('ft_mortgagePort
 const[assets,setAssets]=useState(()=>loadLS('ft_assets',[{id:1,label:"Home Value",value:650000},{id:2,label:"KiwiSaver",value:42000},{id:3,label:"Savings",value:15000},{id:4,label:"Investments",value:8000}]));
 const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000},{id:2,label:"Car Loan",value:12000}]));
 const[freedomMapCfg,setFreedomMapCfg]=useState(()=>loadLS('ft_freedomMapCfg',{starterBuffer:8000,bufferMonths:3,debtThreshold:6,currentAge:'',targetAge:65}));
+const[retirementCfg,setRetirementCfg]=useState(()=>loadLS('ft_retirementCfg',{withdrawalRate:0.04,includeNzSuper:false,nzSuperAmount:'',nominalReturn:'7.0',inflationRate:'2.5',useCustomTarget:false,customTarget:''}));
 const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
 const[budgetLimits,setBudgetLimits]=useState(()=>loadLS('ft_budgetLimits',{}));
 const[budgetEditing,setBudgetEditing]=useState(false);
@@ -2604,6 +2642,7 @@ useEffect(()=>{localStorage.setItem('ft_mortgagePortions',JSON.stringify(mortgag
 useEffect(()=>{localStorage.setItem('ft_assets',JSON.stringify(assets));},[assets]);
 useEffect(()=>{localStorage.setItem('ft_liabilities',JSON.stringify(liabilities));},[liabilities]);
 useEffect(()=>{localStorage.setItem('ft_freedomMapCfg',JSON.stringify(freedomMapCfg));},[freedomMapCfg]);
+useEffect(()=>{localStorage.setItem('ft_retirementCfg',JSON.stringify(retirementCfg));},[retirementCfg]);
 useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networthSnapshots));},[networthSnapshots]);
 useEffect(()=>{localStorage.setItem('ft_budgetLimits',JSON.stringify(budgetLimits));},[budgetLimits]);
 useEffect(()=>{localStorage.setItem('ft_goals',JSON.stringify(goals));},[goals]);
@@ -2616,6 +2655,12 @@ useEffect(()=>{localStorage.setItem('ft_akahuAccountMap',JSON.stringify(akahuAcc
 useEffect(()=>{localStorage.setItem('ft_accountSettings',JSON.stringify(accountSettings));},[accountSettings]);
 useEffect(()=>{localStorage.setItem('ft_categoryRules',JSON.stringify(categoryRules));},[categoryRules]);
 useEffect(()=>{window.scrollTo(0,0);},[view]);
+useEffect(()=>{
+const check=()=>{if(document.visibilityState==='visible'&&dateKey(new Date())!==todayStr)window.location.reload();};
+document.addEventListener('visibilitychange',check);
+const id=setInterval(check,60000);
+return()=>{document.removeEventListener('visibilitychange',check);clearInterval(id);};
+},[]);
 useLayoutEffect(()=>{
 if(chartsAnchor.current==null||!chartsRef.current)return;
 const newTop=chartsRef.current.getBoundingClientRect().top;
@@ -3190,7 +3235,7 @@ return(
 </>}
 
 {view==="mortgage"&&<MortgageWidget loanCfg={mortgageLoanCfg} setLoanCfg={setMortgageLoanCfg} portions={mortgagePortions} setPortions={setMortgagePortions} displayPeriod={displayPeriod} akahuBalances={akahuBalances}/>}
-{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg}/>}
+{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg} retirementCfg={retirementCfg} setRetirementCfg={setRetirementCfg}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
