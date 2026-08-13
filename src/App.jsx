@@ -157,6 +157,23 @@ const blur=3+intensity*7;
 const opacity=0.35+intensity*0.55;
 return{boxShadow:`0 0 ${blur.toFixed(0)}px rgba(251,113,133,${opacity.toFixed(2)})`,background:`rgba(251,113,133,${(0.04+intensity*0.08).toFixed(3)})`};
 }
+function inflationMultiplier(fromDate,toDate,inflationHistory,fallbackPct){
+let multiplier=1;
+let cursor=new Date(fromDate);
+while(cursor<toDate){
+const year=cursor.getFullYear();
+const yearEnd=new Date(year+1,0,1);
+const segmentEnd=yearEnd<toDate?yearEnd:toDate;
+const daysInSegment=(segmentEnd-cursor)/86400000;
+const daysInYear=(new Date(year+1,0,1)-new Date(year,0,1))/86400000;
+const yearFraction=daysInSegment/daysInYear;
+const override=inflationHistory[year];
+const rate=(override!=null&&override!==''?Number(override):fallbackPct)/100;
+multiplier*=Math.pow(1+rate,yearFraction);
+cursor=segmentEnd;
+}
+return multiplier;
+}
 function buildSchedule(principal,annualRate,termYears,startDateStr,rateChanges,lumpSums){
 if(!principal||!annualRate||!termYears)return[];
 const totalMonths=Math.round(termYears*12);
@@ -1609,13 +1626,14 @@ return(
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg,retirementCfg,setRetirementCfg,displayPeriod,actualsMode}){
+function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg,retirementCfg,setRetirementCfg,displayPeriod,actualsMode,inflationHistory,setInflationHistory}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
 const[showCompositionLegend,setShowCompositionLegend]=useState(false);
 const[showFILine,setShowFILine]=useState(false);
 const[showRealNW,setShowRealNW]=useState(false);
+const[showInflationHistory,setShowInflationHistory]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
 const withdrawalRate=retirementCfg.withdrawalRate??0.04;
 const includeNzSuper=retirementCfg.includeNzSuper??false;
@@ -1773,15 +1791,23 @@ return{avgMonthlyGrowth,yearsToFI,targetYear,realReturnPct:((Math.pow(1+realMont
 },[snapshots,fiGap,fiTarget,freedomFundTotal,realMonthlyReturn]);
 const updateAsset=(id,field,val)=>setAssets(as=>as.map(a=>a.id===id?{...a,[field]:val}:a));
 const updateLiab=(id,field,val)=>setLiabilities(ls=>ls.map(l=>l.id===id?{...l,[field]:val}:l));
-const inflPct=(parseFloat(inflationRate)||0)/100;
 const displaySnaps=useMemo(()=>{
-if(!showRealNW||inflPct<=0)return snapshots;
-const now=parseDt(todayStr);
+if(!showRealNW)return snapshots;
+const today=parseDt(todayStr);
+const fallbackPct=parseFloat(inflationRate)||0;
 return snapshots.map(s=>{
-const yearsAgo=Math.max(0,(now-parseDt(s.date))/(365.25*86400000));
-return{...s,netWorth:s.netWorth*Math.pow(1+inflPct,yearsAgo)};
+const mult=inflationMultiplier(parseDt(s.date),today,inflationHistory,fallbackPct);
+return{...s,netWorth:s.netWorth*mult};
 });
-},[snapshots,showRealNW,inflPct]);
+},[snapshots,showRealNW,inflationHistory,inflationRate]);
+const inflationYears=useMemo(()=>{
+const nowYear=new Date().getFullYear();
+const earliestSnapYear=snapshots.length?Math.min(...snapshots.map(s=>parseDt(s.date).getFullYear())):nowYear-4;
+const startYear=Math.min(earliestSnapYear,nowYear-4);
+const years=[];
+for(let y=nowYear;y>=startYear;y--)years.push(y);
+return years;
+},[snapshots]);
 const chartSnaps=displaySnaps;
 const W=360,H=120,PAD=28,RPAD=10;
 const allVals=chartSnaps.map(s=>s.netWorth);
@@ -1978,6 +2004,25 @@ return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} strok
 <button onClick={()=>setShowRealNW(v=>!v)} className={`rb ${showRealNW?'on':''}`} style={{fontSize:10}}>Today's $</button>
 {showFILine&&fiTarget>0&&<div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:C.amber}}><span style={{width:16,height:2,background:C.amber,display:'inline-block',borderRadius:1,opacity:.7}}/>FI: {fmtS(fiTarget)}</div>}
 {showRealNW&&<span style={{fontSize:10,color:C.cyan}}>Adjusted for {inflationRate}% inflation</span>}
+</div>
+<div style={{marginTop:8}}>
+<div onClick={()=>setShowInflationHistory(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
+<span style={{fontSize:10,color:C.t4,fontWeight:600}}>Historical inflation rates</span>
+<span style={{color:C.t4,fontSize:10,display:'inline-block',transform:showInflationHistory?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
+</div>
+{showInflationHistory&&(
+<div style={{marginTop:8,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 12px'}}>
+<div style={{fontSize:10,color:C.t5,marginBottom:8,lineHeight:1.5}}>Enter the real rate for any year to override the flat {inflationRate}% assumption for "Today's $" in that year specifically. Leave a year blank to use the flat assumption.</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+{inflationYears.map(y=>(
+<div key={y} style={{display:'flex',alignItems:'center',gap:6}}>
+<span style={{fontSize:11,color:C.t3,width:36,flexShrink:0}}>{y}</span>
+<input className="fi" type="text" inputMode="decimal" placeholder={`${inflationRate}%`} value={inflationHistory[y]??''} onFocus={e=>e.target.select()} onChange={e=>setInflationHistory(prev=>{const next={...prev};if(e.target.value==='')delete next[y];else next[y]=e.target.value;return next;})} style={{padding:'6px 8px',fontSize:12}}/>
+</div>
+))}
+</div>
+</div>
+)}
 </div>
 <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
 <div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>All time</div><Mono color={changeAll>=0?C.green:C.red} size={12}>{changeAll>=0?"+":"−"}{fmt(Math.abs(changeAll))}</Mono></div>
@@ -2624,6 +2669,7 @@ const[assets,setAssets]=useState(()=>loadLS('ft_assets',[{id:1,label:"Home Value
 const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000},{id:2,label:"Car Loan",value:12000}]));
 const[freedomMapCfg,setFreedomMapCfg]=useState(()=>loadLS('ft_freedomMapCfg',{starterBuffer:8000,bufferMonths:3,debtThreshold:6,currentAge:'',targetAge:''}));
 const[retirementCfg,setRetirementCfg]=useState(()=>loadLS('ft_retirementCfg',{withdrawalRate:0.04,includeNzSuper:false,nzSuperAmount:'',nominalReturn:'7.0',inflationRate:'2.5',useCustomTarget:false,customTarget:''}));
+const[inflationHistory,setInflationHistory]=useState(()=>loadLS('ft_inflationHistory',{}));
 const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
 const[budgetLimits,setBudgetLimits]=useState(()=>loadLS('ft_budgetLimits',{}));
 const[budgetEditing,setBudgetEditing]=useState(false);
@@ -2648,6 +2694,7 @@ useEffect(()=>{localStorage.setItem('ft_assets',JSON.stringify(assets));},[asset
 useEffect(()=>{localStorage.setItem('ft_liabilities',JSON.stringify(liabilities));},[liabilities]);
 useEffect(()=>{localStorage.setItem('ft_freedomMapCfg',JSON.stringify(freedomMapCfg));},[freedomMapCfg]);
 useEffect(()=>{localStorage.setItem('ft_retirementCfg',JSON.stringify(retirementCfg));},[retirementCfg]);
+useEffect(()=>{localStorage.setItem('ft_inflationHistory',JSON.stringify(inflationHistory));},[inflationHistory]);
 useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networthSnapshots));},[networthSnapshots]);
 useEffect(()=>{localStorage.setItem('ft_budgetLimits',JSON.stringify(budgetLimits));},[budgetLimits]);
 useEffect(()=>{localStorage.setItem('ft_goals',JSON.stringify(goals));},[goals]);
@@ -3241,7 +3288,7 @@ return(
 </>}
 
 {view==="mortgage"&&<MortgageWidget loanCfg={mortgageLoanCfg} setLoanCfg={setMortgageLoanCfg} portions={mortgagePortions} setPortions={setMortgagePortions} displayPeriod={displayPeriod} akahuBalances={akahuBalances}/>}
-{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg} retirementCfg={retirementCfg} setRetirementCfg={setRetirementCfg} displayPeriod={displayPeriod} actualsMode={actualsMode}/>}
+{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg} retirementCfg={retirementCfg} setRetirementCfg={setRetirementCfg} displayPeriod={displayPeriod} actualsMode={actualsMode} inflationHistory={inflationHistory} setInflationHistory={setInflationHistory}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
