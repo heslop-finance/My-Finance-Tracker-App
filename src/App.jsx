@@ -9,7 +9,6 @@ inc:"rgba(110,231,183,.08)",exp:"rgba(251,113,133,.08)",
 incDk:"#0d2420",expDk:"#1f0d12",
 };
 const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
-const s=(extra={})=>({...extra});
 
 const INCOME_CATS=["Salary","Freelance","Rental Income","Utilities Reimbursement","Investment Returns","Benefits","Government Benefits","Other Income"];
 const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Sinking Fund","Investments","Travel","Car & Maintenance","Fines","Debt Repayment","Other"];
@@ -1610,7 +1609,7 @@ return(
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg,retirementCfg,setRetirementCfg}){
+function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg,retirementCfg,setRetirementCfg,displayPeriod,actualsMode}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
@@ -1648,12 +1647,20 @@ const expensiveDebts=useMemo(()=>liabilities.filter(l=>(Number(l.interestRate)||
 const starterBuffer=Number(freedomMapCfg.starterBuffer)||0;
 const bufferMonths=Number(freedomMapCfg.bufferMonths)||3;
 const fullBufferTarget=monthlyNoFrills*bufferMonths;
+const investedThisPeriod=useMemo(()=>{
+if(actualsMode&&syncedTransactions.length>0){
+const start=dateKey(getPeriodStart(displayPeriod));
+return syncedTransactions.filter(t=>INVEST_CATS.has(t.ledgerlyCategory)&&t.date>=start&&t.date<=todayStr).reduce((s,t)=>s+Math.abs(t.amount),0);
+}
+const days=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
+return entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&INVEST_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,days),0);
+},[actualsMode,syncedTransactions,displayPeriod,entries]);
 const freedomStages=[
 {key:'gap',label:'Gap',done:monthlyGap>0,detail:monthlyGap>0?`+${fmt(monthlyGap)}/mo spare`:`${fmt(Math.abs(monthlyGap))}/mo short — spending exceeds income`},
 {key:'starter',label:'Starter',done:emergencyFundTotal>=starterBuffer&&starterBuffer>0,detail:`${fmt(emergencyFundTotal)} of ${fmt(starterBuffer)} starter buffer`},
 {key:'debt',label:'Debt',done:expensiveDebts.length===0,detail:expensiveDebts.length===0?`No debt above ${debtThreshold}%`:`${expensiveDebts.length} debt${expensiveDebts.length>1?'s':''} above ${debtThreshold}%: ${expensiveDebts.map(l=>l.label).join(', ')}`},
 {key:'buffer',label:'Buffer',done:fullBufferTarget>0&&emergencyFundTotal>=fullBufferTarget,detail:fullBufferTarget>0?`${fmt(emergencyFundTotal)} of ${fmt(fullBufferTarget)} (${bufferMonths} months)`:'Add recurring expense entries to set this target'},
-{key:'invest',label:'Invest',done:freedomFundTotal>0,detail:freedomFundTotal>0?`${fmt(freedomFundTotal)} invested`:'Nothing tagged as Freedom Fund yet'},
+{key:'invest',label:'Invest',done:investedThisPeriod>0,detail:investedThisPeriod>0?`${fmt(investedThisPeriod)} invested this ${PWORD[displayPeriod]} · ${fmt(freedomFundTotal)} total`:`Nothing invested this ${PWORD[displayPeriod]}${freedomFundTotal>0?` · ${fmt(freedomFundTotal)} total`:''}`},
 ];
 const currentStageIdx=freedomStages.findIndex(s=>!s.done);
 const splitBuckets=useMemo(()=>{
@@ -1775,7 +1782,7 @@ const yearsAgo=Math.max(0,(now-parseDt(s.date))/(365.25*86400000));
 return{...s,netWorth:s.netWorth*Math.pow(1+inflPct,yearsAgo)};
 });
 },[snapshots,showRealNW,inflPct]);
-const chartSnaps=displaySnaps.length>=2?displaySnaps:[...displaySnaps];
+const chartSnaps=displaySnaps;
 const W=360,H=120,PAD=28,RPAD=10;
 const allVals=chartSnaps.map(s=>s.netWorth);
 const minV=Math.min(...allVals,0);
@@ -2103,7 +2110,7 @@ return(
 <div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>Coast FI</div>
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
 <div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Current age</label><input className="fi" type="text" inputMode="decimal" placeholder="e.g. 32" value={freedomMapCfg.currentAge??''} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,currentAge:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
-<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Retire at</label><input className="fi" type="text" inputMode="decimal" value={freedomMapCfg.targetAge??65} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,targetAge:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Retire at</label><input className="fi" type="text" inputMode="decimal" placeholder="e.g. 65" value={freedomMapCfg.targetAge??''} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,targetAge:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
 </div>
 {!coast?(
 <div style={{fontSize:11,color:C.t5,fontStyle:'italic'}}>Enter your ages above to see your Coast FI number.</div>
@@ -2154,8 +2161,8 @@ return(
 <div style={{display:'flex',alignItems:'flex-start',marginBottom:16}}>
 {freedomStages.map((s,i)=>(
 <div key={s.key} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',position:'relative'}}>
-{i>0&&<div style={{position:'absolute',left:'-50%',top:9,width:'100%',height:2,background:freedomStages[i-1].done?C.green:C.border}}/>}
-<div style={{width:20,height:20,borderRadius:10,flexShrink:0,zIndex:1,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,background:s.done?C.green:i===currentStageIdx?'rgba(251,191,36,.15)':C.bg,border:`1px solid ${s.done?C.green:i===currentStageIdx?C.amber:C.t5}`,color:s.done?C.bg:C.t4}}>{s.done?'✓':''}</div>
+{i>0&&<div style={{position:'absolute',left:'-50%',top:9,width:'100%',height:2,background:(currentStageIdx===-1||i<=currentStageIdx)?C.green:C.border,zIndex:0}}/>}
+<div style={{width:20,height:20,borderRadius:10,flexShrink:0,zIndex:1,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,background:s.done?C.green:i===currentStageIdx?C.card:C.bg,border:`1px solid ${s.done?C.green:i===currentStageIdx?C.amber:C.t5}`,color:s.done?C.bg:C.t4,boxShadow:`0 0 0 3px ${C.card}`}}>{s.done?'✓':!s.done&&i===currentStageIdx&&<span style={{width:6,height:6,borderRadius:3,background:C.amber,display:'inline-block'}}/>}</div>
 <div style={{fontSize:9,marginTop:5,color:s.done?C.green:i===currentStageIdx?C.amber:C.t5,fontWeight:s.done||i===currentStageIdx?700:400,textAlign:'center'}}>{s.label}</div>
 </div>
 ))}
@@ -2226,11 +2233,9 @@ return(
 <div style={{marginTop:6}}>
 <div style={{display:'flex',gap:8,alignItems:'center'}}>
 <input className="fi" type="text" inputMode="decimal" value={value.autoTargetCount??3} onFocus={e=>e.target.select()} onChange={e=>onChange(d=>({...d,autoTargetCount:e.target.value}))} style={{padding:'8px 12px',width:70,flexShrink:0}}/>
-<select className="fi" value={value.autoTargetPeriod||'monthly'} onChange={e=>onChange(d=>({...d,autoTargetPeriod:e.target.value}))} style={{padding:'8px 12px',flex:1}}>
-{PERIODS.map(p=><option key={p.key} value={p.key}>{PWORD[p.key]}s of spending</option>)}
-</select>
+<span style={{fontSize:12,color:C.t3}}>months of spending</span>
 </div>
-<div style={{fontSize:10,color:C.green,marginTop:5}}>Target: {fmt(autoTargetFor(value.autoTargetPeriod||'monthly',value.autoTargetCount??3))}</div>
+<div style={{fontSize:10,color:C.green,marginTop:5}}>Target: {fmt(autoTargetFor('monthly',value.autoTargetCount??3))}</div>
 <div style={{fontSize:10,color:C.t5,marginTop:3,fontStyle:'italic'}}>Based on your recurring expense entries, excluding savings and investments. Updates automatically as your expenses change, and overrides the target above.</div>
 </div>
 )}
@@ -2261,7 +2266,7 @@ const days=PERIODS.find(p=>p.key===period)?.days||30.44;
 const spend=entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&!SAVINGS_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,days),0);
 return Math.round(spend*(Number(count)||0));
 };
-const effTarget=g=>g.autoTarget?autoTargetFor(g.autoTargetPeriod||'monthly',g.autoTargetCount||3):(Number(g.target)||0);
+const effTarget=g=>g.autoTarget?autoTargetFor('monthly',g.autoTargetCount||3):(Number(g.target)||0);
 const fundEntries=useMemo(()=>entries.filter(e=>e.type==="expense"&&e.recur!=="One-off"&&(e.category==="Savings Goal"||e.category==="Investments"||e.category==="House Maintenance")),[entries]);
 const savingsContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Savings Goal").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
 const investContrib=useMemo(()=>fundEntries.filter(e=>e.category==="Investments").reduce((s,e)=>s+periodAmt(e,pDays),0),[fundEntries,pDays]);
@@ -2286,7 +2291,7 @@ return(
 <div key={g.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
 <Row mb={10}>
 <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{g.emoji}</span><div><div style={{fontSize:13,fontWeight:700,color:C.t1}}>{g.name}</div>{ttrLabel&&<div style={{fontSize:11,color:C.t4,marginTop:1}}>{ttrLabel}</div>}{!linked&&<div style={{fontSize:10,color:C.t5,marginTop:1}}>No entry linked</div>}</div></div>
-<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(t)}</div>{g.autoTarget&&<div style={{fontSize:9,color:C.cyan,marginTop:1}}>auto · {g.autoTargetCount||3} {PWORD[g.autoTargetPeriod||'monthly']}s</div>}{AKAHU_ENABLED&&linkedBalance&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>Live · {linkedBalance.name}</div>}</div>
+<div style={{textAlign:"right"}}><Mono color={g.color||C.green} size={13}>{fmtS(g.saved)}</Mono><div style={{fontSize:10,color:C.t4}}>of {fmtS(t)}</div>{g.autoTarget&&<div style={{fontSize:9,color:C.cyan,marginTop:1}}>auto · {g.autoTargetCount||3} months</div>}{AKAHU_ENABLED&&linkedBalance&&<div style={{fontSize:10,color:C.cyan,marginTop:2}}>Live · {linkedBalance.name}</div>}</div>
 </Row>
 <div style={{height:8,background:C.border,borderRadius:4,overflow:"hidden",marginBottom:8}}><div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${g.color||C.green},${g.color||C.green}88)`,borderRadius:4,transition:"width .6s ease"}}/></div>
 {linked&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,padding:"6px 10px",background:"rgba(110,231,183,.05)",borderRadius:8,border:`1px solid rgba(110,231,183,.1)`}}><span style={{fontSize:10,color:C.t4}}>Contributing</span><Mono color={C.green} size={11}>{fmt(contrib)}</Mono><span style={{fontSize:10,color:C.t4}}>per {pWord} via</span><span style={{fontSize:10,color:C.t2,fontWeight:600}}>{linked.label}</span></div>}
@@ -2617,7 +2622,7 @@ const[mortgageLoanCfg,setMortgageLoanCfg]=useState(()=>loadLS('ft_mortgageLoanCf
 const[mortgagePortions,setMortgagePortions]=useState(()=>loadLS('ft_mortgagePortions',[]));
 const[assets,setAssets]=useState(()=>loadLS('ft_assets',[{id:1,label:"Home Value",value:650000},{id:2,label:"KiwiSaver",value:42000},{id:3,label:"Savings",value:15000},{id:4,label:"Investments",value:8000}]));
 const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,label:"Mortgage",value:500000},{id:2,label:"Car Loan",value:12000}]));
-const[freedomMapCfg,setFreedomMapCfg]=useState(()=>loadLS('ft_freedomMapCfg',{starterBuffer:8000,bufferMonths:3,debtThreshold:6,currentAge:'',targetAge:65}));
+const[freedomMapCfg,setFreedomMapCfg]=useState(()=>loadLS('ft_freedomMapCfg',{starterBuffer:8000,bufferMonths:3,debtThreshold:6,currentAge:'',targetAge:''}));
 const[retirementCfg,setRetirementCfg]=useState(()=>loadLS('ft_retirementCfg',{withdrawalRate:0.04,includeNzSuper:false,nzSuperAmount:'',nominalReturn:'7.0',inflationRate:'2.5',useCustomTarget:false,customTarget:''}));
 const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
 const[budgetLimits,setBudgetLimits]=useState(()=>loadLS('ft_budgetLimits',{}));
@@ -2675,7 +2680,6 @@ useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Foo
 useEffect(()=>{setEntries(prev=>prev.map(e=>e.category==='Food'?{...e,category:'Groceries'}:e));},[]);
 useEffect(()=>{setSyncedTransactions(prev=>prev.map(t=>t.ledgerlyCategory==='Dining Out'?{...t,ledgerlyCategory:'Eating & Drinking Out'}:t));setEntries(prev=>prev.map(e=>e.category==='Dining Out'?{...e,category:'Eating & Drinking Out'}:e));},[]);
 useEffect(()=>{const ID_MAP={'acc_cmp10amt5000002jy6g9lbdzw':'acc_cmp6ij34i002i02jp6ym1f040','acc_cmp10amtq000102jyg87s1g5v':'acc_cmp6ij356002o02jpfo8jee7t','acc_cmp10amut000202jy57yv6lxu':'acc_cmp6ij34p002k02jp28m57k9k','acc_cmp10amvb000302jyeonj9pi4':'acc_cmp6ij35b002q02jp3a0qgbs3','acc_cmp10amvd000402jyhyhsb873':'acc_cmp6ij34y002m02jpa4g4expy'};setSyncedTransactions(prev=>prev.map(t=>ID_MAP[t.account]?{...t,account:ID_MAP[t.account]}:t));},[]);
-useEffect(()=>{setSyncedTransactions(prev=>{const ids=new Set();prev.forEach((a,ai)=>{if(ids.has(a.id))return;prev.forEach((b,bi)=>{if(ai===bi||ids.has(b.id))return;const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);const bothOwnAccounts=AKAHU_ACCOUNTS[a.account]&&AKAHU_ACCOUNTS[b.account];const timeDiff=Math.abs(new Date(a.timestamp||a.date)-new Date(b.timestamp||b.date));const withinTimeWindow=timeDiff<=5*60*1000;if(absAmountMatch&&oppositeSign&&bothOwnAccounts&&withinTimeWindow){ids.add(a.id);ids.add(b.id);}});});return prev.filter(t=>!ids.has(t.id));});},[]);
 useEffect(()=>{
 if(localStorage.getItem('ft_migration_debtrepay'))return;
 const liabilityAccountIds=new Set(liabilities.filter(l=>l.akahuAccountId&&!AKAHU_ACCOUNTS[l.akahuAccountId]).map(l=>l.akahuAccountId));
@@ -2818,8 +2822,6 @@ const scenarioBalance=scenarioIncome-scenarioExpenses;
 const scenarioPWord=PWORD[displayPeriod];
 const displayIncome=scenarioMode?scenarioIncome:totalIncome;
 const displayTrueExp=scenarioMode?trueExpenses+(scenarioDelta.expenses||0)*scenarioDelta.expensesSign:trueExpenses;
-const ratio=displayIncome>0?(displayTrueExp/displayIncome)*100:0;
-const savingsRatio=displayIncome>0?(savingsTotal/displayIncome)*100:0;
 const expByCategory=useMemo(()=>{const map={};entries.filter(e=>e.type==="expense"&&e.recur!=="One-off").forEach(e=>{map[e.category]=(map[e.category]||0)+periodAmt(e,pDays);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[entries,pDays]);
 const incByCategory=useMemo(()=>{const map={};entries.filter(e=>e.type==="income"&&e.recur!=="One-off").forEach(e=>{map[e.category]=(map[e.category]||0)+periodAmt(e,pDays);});return Object.entries(map).sort((a,b)=>b[1]-a[1]);},[entries,pDays]);
 const savingsRate=useMemo(()=>totalIncome<=0?0:Math.min(100,(savingsTotal/totalIncome)*100),[savingsTotal,totalIncome]);
@@ -2849,8 +2851,6 @@ const displaySavingsRatio=displayRatioIncome>0?(actualsMode&&hasActualData?actua
 const displayFreedomRatio=displayRatioIncome>0?(actualsMode&&hasActualData?actualFreedomAmt:freedomTotal)/displayRatioIncome*100:0;
 const displayStatusColor=displayRatio<60?C.green:displayRatio<85?C.amber:C.red;
 const displayStatusLabel=displayRatio<60?"Healthy":displayRatio<85?"Moderate":"Over-stretched";
-const statusColor=ratio<60?C.green:ratio<85?C.amber:C.red;
-const statusLabel=ratio<60?"Healthy":ratio<85?"Moderate":"Over-stretched";
 const periodLabel=PERIODS.find(p=>p.key===displayPeriod).label;
 const handleDelete=id=>setEntries(prev=>prev.filter(e=>e.id!==id));
 const handleEdit=updated=>setEntries(prev=>prev.map(e=>e.id===updated.id?updated:e));
@@ -3212,9 +3212,15 @@ return(
 <div style={{fontSize:11,color:C.t4,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>Backup</div>
 <div style={{fontSize:10,color:C.t5,marginBottom:10,lineHeight:1.5}}>All your data lives on this device only. Export a copy regularly — if you clear your browser data or lose this phone, there is no other copy.</div>
 <div style={{display:'flex',gap:8}}>
-<button onClick={exportData} className="rb" style={{flex:1,padding:'9px 12px',fontSize:12}}>⬇ Export backup</button>
+<button onClick={exportData} className="rb" style={{flex:1,padding:'9px 12px',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+Export backup
+</button>
 <input ref={importFileRef} type="file" accept="application/json,.json" onChange={handleImportFile} style={{display:'none'}}/>
-<button onClick={()=>importFileRef.current&&importFileRef.current.click()} className="rb" style={{flex:1,padding:'9px 12px',fontSize:12}}>⬆ Import backup</button>
+<button onClick={()=>importFileRef.current&&importFileRef.current.click()} className="rb" style={{flex:1,padding:'9px 12px',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+Import backup
+</button>
 </div>
 </div>
 {(()=>{
@@ -3235,7 +3241,7 @@ return(
 </>}
 
 {view==="mortgage"&&<MortgageWidget loanCfg={mortgageLoanCfg} setLoanCfg={setMortgageLoanCfg} portions={mortgagePortions} setPortions={setMortgagePortions} displayPeriod={displayPeriod} akahuBalances={akahuBalances}/>}
-{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg} retirementCfg={retirementCfg} setRetirementCfg={setRetirementCfg}/>}
+{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg} retirementCfg={retirementCfg} setRetirementCfg={setRetirementCfg} displayPeriod={displayPeriod} actualsMode={actualsMode}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
