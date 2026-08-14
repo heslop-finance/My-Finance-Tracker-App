@@ -1626,7 +1626,7 @@ return(
 }
 
 // ── NET WORTH ─────────────────────────────────────────────────
-function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg,retirementCfg,setRetirementCfg,displayPeriod,actualsMode,inflationHistory,setInflationHistory}){
+function NetWorthWidget({assets,setAssets,liabilities,setLiabilities,snapshots,setSnapshots,akahuBalances=[],syncedTransactions=[],entries=[],freedomMapCfg,setFreedomMapCfg,retirementCfg,setRetirementCfg,displayPeriod,actualsMode,inflationHistory,setInflationHistory,investmentMilestones,setInvestmentMilestones}){
 const[editMode,setEditMode]=useState(false);
 const[hoverSnap,setHoverSnap]=useState(null);
 const[showRetirement,setShowRetirement]=useState(false);
@@ -1635,6 +1635,8 @@ const[showFILine,setShowFILine]=useState(false);
 const[showRealNW,setShowRealNW]=useState(false);
 const[showInflationHistory,setShowInflationHistory]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
+const[showAddMilestone,setShowAddMilestone]=useState(false);
+const[newMilestone,setNewMilestone]=useState({amount:'',label:''});
 const withdrawalRate=retirementCfg.withdrawalRate??0.04;
 const includeNzSuper=retirementCfg.includeNzSuper??false;
 const nzSuperAmount=retirementCfg.nzSuperAmount??'';
@@ -1673,14 +1675,6 @@ return syncedTransactions.filter(t=>INVEST_CATS.has(t.ledgerlyCategory)&&t.date>
 const days=PERIODS.find(p=>p.key===displayPeriod)?.days||30.44;
 return entries.filter(e=>e.type==='expense'&&e.recur!=='One-off'&&INVEST_CATS.has(e.category)).reduce((s,e)=>s+periodAmt(e,days),0);
 },[actualsMode,syncedTransactions,displayPeriod,entries]);
-const freedomStages=[
-{key:'gap',label:'Gap',done:monthlyGap>0,detail:monthlyGap>0?`+${fmt(monthlyGap)}/mo spare`:`${fmt(Math.abs(monthlyGap))}/mo short — spending exceeds income`},
-{key:'starter',label:'Starter',done:emergencyFundTotal>=starterBuffer&&starterBuffer>0,detail:`${fmt(emergencyFundTotal)} of ${fmt(starterBuffer)} starter buffer`},
-{key:'debt',label:'Debt',done:expensiveDebts.length===0,detail:expensiveDebts.length===0?`No debt above ${debtThreshold}%`:`${expensiveDebts.length} debt${expensiveDebts.length>1?'s':''} above ${debtThreshold}%: ${expensiveDebts.map(l=>l.label).join(', ')}`},
-{key:'buffer',label:'Buffer',done:fullBufferTarget>0&&emergencyFundTotal>=fullBufferTarget,detail:fullBufferTarget>0?`${fmt(emergencyFundTotal)} of ${fmt(fullBufferTarget)} (${bufferMonths} months)`:'Add recurring expense entries to set this target'},
-{key:'invest',label:'Invest',done:investedThisPeriod>0,detail:investedThisPeriod>0?`${fmt(investedThisPeriod)} invested this ${PWORD[displayPeriod]} · ${fmt(freedomFundTotal)} total`:`Nothing invested this ${PWORD[displayPeriod]}${freedomFundTotal>0?` · ${fmt(freedomFundTotal)} total`:''}`},
-];
-const currentStageIdx=freedomStages.findIndex(s=>!s.done);
 const splitBuckets=useMemo(()=>{
 const buckets={freedom_fund:0,valuable_liability:0,cash:0,debt:0,uncategorised:0};
 const offsetByAsset={};
@@ -1731,6 +1725,32 @@ const adjustedExpenses=Math.max(0,suggestedAnnualExpenses-superDeduction);
 if(adjustedExpenses>0)return Math.round(adjustedExpenses/withdrawalRate);
 return 0;
 },[useCustomTarget,customTarget,suggestedAnnualExpenses,withdrawalRate,includeNzSuper,nzSuperAmount]);
+const sortedMilestones=useMemo(()=>[...investmentMilestones].sort((a,b)=>(Number(a.amount)||0)-(Number(b.amount)||0)),[investmentMilestones]);
+const milestoneStages=sortedMilestones.map(m=>{
+const amt=Number(m.amount)||0;
+return{
+key:`milestone-${m.id}`,
+label:m.label&&m.label.trim()?m.label.trim():fmtS(amt),
+done:freedomFundTotal>=amt,
+detail:`${fmt(freedomFundTotal)} of ${fmt(amt)} invested`,
+};
+});
+const freedomFreedomStage=fiTarget>0?[{
+key:'freedom',
+label:'Financial Freedom',
+done:freedomFundTotal>=fiTarget,
+detail:`${fmt(freedomFundTotal)} of ${fmt(fiTarget)} FI target`,
+}]:[];
+const freedomStages=[
+{key:'gap',label:'Gap',done:monthlyGap>0,detail:monthlyGap>0?`+${fmt(monthlyGap)}/mo spare`:`${fmt(Math.abs(monthlyGap))}/mo short — spending exceeds income`},
+{key:'starter',label:'Starter',done:emergencyFundTotal>=starterBuffer&&starterBuffer>0,detail:`${fmt(emergencyFundTotal)} of ${fmt(starterBuffer)} starter buffer`},
+{key:'debt',label:'Debt',done:expensiveDebts.length===0,detail:expensiveDebts.length===0?`No debt above ${debtThreshold}%`:`${expensiveDebts.length} debt${expensiveDebts.length>1?'s':''} above ${debtThreshold}%: ${expensiveDebts.map(l=>l.label).join(', ')}`},
+{key:'buffer',label:'Buffer',done:fullBufferTarget>0&&emergencyFundTotal>=fullBufferTarget,detail:fullBufferTarget>0?`${fmt(emergencyFundTotal)} of ${fmt(fullBufferTarget)} (${bufferMonths} months)`:'Add recurring expense entries to set this target'},
+{key:'invest',label:'Invest',done:investedThisPeriod>0,detail:investedThisPeriod>0?`${fmt(investedThisPeriod)} invested this ${PWORD[displayPeriod]} · ${fmt(freedomFundTotal)} total`:`Nothing invested this ${PWORD[displayPeriod]}${freedomFundTotal>0?` · ${fmt(freedomFundTotal)} total`:''}`},
+...milestoneStages,
+...freedomFreedomStage,
+];
+const currentStageIdx=freedomStages.findIndex(s=>!s.done);
 const fiPct=fiTarget>0?Math.min(100,(freedomFundTotal/fiTarget)*100):0;
 const fiGap=Math.max(0,fiTarget-freedomFundTotal);
 const realAnnualReturn=Math.max(0,(parseFloat(nominalReturn)||0)-(parseFloat(inflationRate)||0))/100;
@@ -2203,12 +2223,12 @@ return(
 <div className="card" style={{marginTop:-12}}>
 <div style={{fontSize:13,fontWeight:700,color:C.t1}}>Freedom Map</div>
 <div style={{fontSize:11,color:C.t4,marginTop:2,marginBottom:16}}>The order that builds financial security</div>
-<div style={{display:'flex',alignItems:'flex-start',marginBottom:16}}>
+<div style={{display:'flex',alignItems:'flex-start',marginBottom:16,overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
 {freedomStages.map((s,i)=>(
-<div key={s.key} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',position:'relative'}}>
+<div key={s.key} style={{width:64,flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',position:'relative'}}>
 {i>0&&<div style={{position:'absolute',left:'-50%',top:9,width:'100%',height:2,background:(currentStageIdx===-1||i<=currentStageIdx)?C.green:C.border,zIndex:0}}/>}
 <div style={{width:20,height:20,borderRadius:10,flexShrink:0,zIndex:1,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,background:s.done?C.green:i===currentStageIdx?C.card:C.bg,border:`1px solid ${s.done?C.green:i===currentStageIdx?C.amber:C.t5}`,color:s.done?C.bg:C.t4,boxShadow:`0 0 0 3px ${C.card}`}}>{s.done?'✓':!s.done&&i===currentStageIdx&&<span style={{width:6,height:6,borderRadius:3,background:C.amber,display:'inline-block'}}/>}</div>
-<div style={{fontSize:9,marginTop:5,color:s.done?C.green:i===currentStageIdx?C.amber:C.t5,fontWeight:s.done||i===currentStageIdx?700:400,textAlign:'center'}}>{s.label}</div>
+<div style={{fontSize:9,marginTop:5,color:s.done?C.green:i===currentStageIdx?C.amber:C.t5,fontWeight:s.done||i===currentStageIdx?700:400,textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:60}}>{s.label}</div>
 </div>
 ))}
 </div>
@@ -2227,6 +2247,25 @@ return(
 <div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Debt alert (%)</label><input className="fi" type="text" inputMode="decimal" value={freedomMapCfg.debtThreshold??6} onFocus={e=>e.target.select()} onChange={e=>setFreedomMapCfg(c=>({...c,debtThreshold:e.target.value}))} style={{padding:'6px 10px',fontSize:13}}/></div>
 </div>
 {emergencyFundTotal===0&&<div style={{fontSize:10,color:C.amber,marginTop:8,fontStyle:'italic'}}>Tick "This is my emergency fund" on an asset in edit mode so the buffer stages can track it.</div>}
+<div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
+<Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Investment Milestones</div><button onClick={()=>setShowAddMilestone(v=>!v)} className={`rb ${showAddMilestone?'on':''}`}>+ Add</button></Row>
+{showAddMilestone&&(
+<div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:12,marginBottom:10}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Target amount ($)</label><input className="fi" type="text" inputMode="decimal" value={newMilestone.amount} onFocus={e=>e.target.select()} onChange={e=>setNewMilestone(m=>({...m,amount:e.target.value}))} style={{padding:'7px 10px',fontSize:13}}/></div>
+<div><label style={{fontSize:10,color:C.t3,display:'block',marginBottom:4}}>Label (optional)</label><input className="fi" placeholder={newMilestone.amount?fmtS(Number(newMilestone.amount)||0):'e.g. House deposit'} value={newMilestone.label} onChange={e=>setNewMilestone(m=>({...m,label:e.target.value}))} style={{padding:'7px 10px',fontSize:13}}/></div>
+</div>
+<GradBtn onClick={()=>{if(!Number(newMilestone.amount))return;setInvestmentMilestones(prev=>[...prev,{id:Date.now(),amount:Number(newMilestone.amount),label:newMilestone.label.trim()}]);setNewMilestone({amount:'',label:''});setShowAddMilestone(false);}}>Add Milestone</GradBtn>
+</div>
+)}
+{sortedMilestones.length===0&&!showAddMilestone&&<div style={{fontSize:11,color:C.t5,fontStyle:'italic'}}>No milestones yet — add a target like $10,000 invested to track progress between Invest and Financial Freedom.</div>}
+{sortedMilestones.map(m=>(
+<div key={m.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'7px 10px',marginBottom:6}}>
+<div><Mono color={freedomFundTotal>=(Number(m.amount)||0)?C.green:C.t2} size={12}>{fmtS(Number(m.amount)||0)}</Mono>{m.label&&<span style={{fontSize:11,color:C.t4,marginLeft:8}}>{m.label}</span>}</div>
+<button onClick={()=>setInvestmentMilestones(prev=>prev.filter(x=>x.id!==m.id))} style={{background:'none',border:'none',color:C.t4,cursor:'pointer',fontSize:16}}>×</button>
+</div>
+))}
+</div>
 </div>
 <div className="card" style={{marginTop:-12}}>
 <div style={{fontSize:13,fontWeight:700,color:C.t1}}>Investment Fees</div>
@@ -2670,6 +2709,7 @@ const[liabilities,setLiabilities]=useState(()=>loadLS('ft_liabilities',[{id:1,la
 const[freedomMapCfg,setFreedomMapCfg]=useState(()=>loadLS('ft_freedomMapCfg',{starterBuffer:8000,bufferMonths:3,debtThreshold:6,currentAge:'',targetAge:''}));
 const[retirementCfg,setRetirementCfg]=useState(()=>loadLS('ft_retirementCfg',{withdrawalRate:0.04,includeNzSuper:false,nzSuperAmount:'',nominalReturn:'7.0',inflationRate:'2.5',useCustomTarget:false,customTarget:''}));
 const[inflationHistory,setInflationHistory]=useState(()=>loadLS('ft_inflationHistory',{}));
+const[investmentMilestones,setInvestmentMilestones]=useState(()=>loadLS('ft_investmentMilestones',[]));
 const[networthSnapshots,setNetworthSnapshots]=useState(()=>loadLS('ft_networthSnapshots',[]));
 const[budgetLimits,setBudgetLimits]=useState(()=>loadLS('ft_budgetLimits',{}));
 const[budgetEditing,setBudgetEditing]=useState(false);
@@ -2695,6 +2735,7 @@ useEffect(()=>{localStorage.setItem('ft_liabilities',JSON.stringify(liabilities)
 useEffect(()=>{localStorage.setItem('ft_freedomMapCfg',JSON.stringify(freedomMapCfg));},[freedomMapCfg]);
 useEffect(()=>{localStorage.setItem('ft_retirementCfg',JSON.stringify(retirementCfg));},[retirementCfg]);
 useEffect(()=>{localStorage.setItem('ft_inflationHistory',JSON.stringify(inflationHistory));},[inflationHistory]);
+useEffect(()=>{localStorage.setItem('ft_investmentMilestones',JSON.stringify(investmentMilestones));},[investmentMilestones]);
 useEffect(()=>{localStorage.setItem('ft_networthSnapshots',JSON.stringify(networthSnapshots));},[networthSnapshots]);
 useEffect(()=>{localStorage.setItem('ft_budgetLimits',JSON.stringify(budgetLimits));},[budgetLimits]);
 useEffect(()=>{localStorage.setItem('ft_goals',JSON.stringify(goals));},[goals]);
@@ -3288,7 +3329,7 @@ return(
 </>}
 
 {view==="mortgage"&&<MortgageWidget loanCfg={mortgageLoanCfg} setLoanCfg={setMortgageLoanCfg} portions={mortgagePortions} setPortions={setMortgagePortions} displayPeriod={displayPeriod} akahuBalances={akahuBalances}/>}
-{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg} retirementCfg={retirementCfg} setRetirementCfg={setRetirementCfg} displayPeriod={displayPeriod} actualsMode={actualsMode} inflationHistory={inflationHistory} setInflationHistory={setInflationHistory}/>}
+{view==="networth"&&<NetWorthWidget assets={assets} setAssets={setAssets} liabilities={liabilities} setLiabilities={setLiabilities} snapshots={networthSnapshots} setSnapshots={setNetworthSnapshots} akahuBalances={akahuBalances} syncedTransactions={syncedTransactions} entries={entries} freedomMapCfg={freedomMapCfg} setFreedomMapCfg={setFreedomMapCfg} retirementCfg={retirementCfg} setRetirementCfg={setRetirementCfg} displayPeriod={displayPeriod} actualsMode={actualsMode} inflationHistory={inflationHistory} setInflationHistory={setInflationHistory} investmentMilestones={investmentMilestones} setInvestmentMilestones={setInvestmentMilestones}/>}
 {view==="goals"&&<GoalsWidget entries={entries} displayPeriod={displayPeriod} goals={goals} setGoals={setGoals} akahuBalances={akahuBalances}/>}
 
 </div>
