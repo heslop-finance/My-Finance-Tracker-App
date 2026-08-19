@@ -258,6 +258,8 @@ input[type="range"]{accent-color:#6ee7b7;}
 .hscroll{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:12px;padding-bottom:8px;scrollbar-width:none;}
 .hscroll::-webkit-scrollbar{display:none;}
 .hscroll>*{flex-shrink:0;}
+.no-scrollbar{scrollbar-width:none;}
+.no-scrollbar::-webkit-scrollbar{display:none;}
 .card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:20px;margin-bottom:20px;}
 .fi{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#f1f5f9;font-family:'DM Sans',sans-serif;font-size:16px;width:100%;box-sizing:border-box;}
 .fi:focus{border-color:#6ee7b7;}
@@ -1637,6 +1639,9 @@ const[showInflationHistory,setShowInflationHistory]=useState(false);
 const[showAssumptions,setShowAssumptions]=useState(false);
 const[showAddMilestone,setShowAddMilestone]=useState(false);
 const[newMilestone,setNewMilestone]=useState({amount:'',label:''});
+const[showAllSnapshots,setShowAllSnapshots]=useState(false);
+const[showFreedomMapDetails,setShowFreedomMapDetails]=useState(false);
+const[showMilestonesSection,setShowMilestonesSection]=useState(false);
 const withdrawalRate=retirementCfg.withdrawalRate??0.04;
 const includeNzSuper=retirementCfg.includeNzSuper??false;
 const nzSuperAmount=retirementCfg.nzSuperAmount??'';
@@ -2051,16 +2056,26 @@ return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} strok
 {snapPrev&&<div style={{background:C.bg,borderRadius:8,padding:"6px 12px"}}><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>%</div><Mono color={pctLast>=0?C.green:C.red} size={12}>{pctLast>=0?"+":""}{fmtN(pctLast)}%</Mono></div>}
 </div>
 <div style={{marginTop:14}}>
-<div style={{fontSize:11,color:C.t4,marginBottom:8}}>All snapshots</div>
-<div style={{maxHeight:160,overflowY:"auto"}}>
+<div onClick={()=>setShowAllSnapshots(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:showAllSnapshots?8:0}}>
+<span style={{fontSize:11,color:C.t4}}>All snapshots</span>
+<span style={{color:C.t4,fontSize:10,display:'inline-block',transform:showAllSnapshots?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
+</div>
+{showAllSnapshots&&(
+<div style={{maxHeight:160,overflowY:'auto'}}>
 {[...snapshots].reverse().map((s,i)=>(
-<div key={s.id||i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
-<div style={{display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}><span style={{fontSize:11,color:C.t3}}>{s.date}</span>{s.auto&&<span style={{fontSize:9,color:C.t5,background:C.border,borderRadius:4,padding:"1px 5px"}}>auto</span>}</div>
-<div style={{width:96,textAlign:'right',flexShrink:0}}><Mono color={s.netWorth>=0?C.green:C.red} size={12}>{s.netWorth>=0?"":"-"}{fmt(Math.abs(s.netWorth))}</Mono></div>
-<button onClick={()=>setSnapshots(prev=>prev.filter(x=>(x.id||x.date)!==(s.id||s.date)))} style={{background:"none",border:"none",color:C.t5,cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
+<div key={s.id||i} style={{display:'grid',gridTemplateColumns:'1fr 90px 20px',alignItems:'center',gap:10,padding:'6px 0',borderBottom:`1px solid ${C.border}`}}>
+<div style={{display:'flex',alignItems:'center',gap:6,minWidth:0}}>
+<span style={{fontSize:11,color:C.t3}}>{s.date}</span>
+{s.auto&&<span style={{fontSize:9,color:C.t5,background:C.border,borderRadius:4,padding:'1px 5px',flexShrink:0}}>auto</span>}
+</div>
+<div style={{textAlign:'right'}}>
+<Mono color={s.netWorth>=0?C.green:C.red} size={12}>{s.netWorth>=0?'':'-'}{fmt(Math.abs(s.netWorth))}</Mono>
+</div>
+<button onClick={()=>{if(window.confirm(`Delete the snapshot from ${s.date}? This can't be undone.`))setSnapshots(prev=>prev.filter(x=>(x.id||x.date)!==(s.id||s.date)));}} style={{background:'none',border:'none',color:C.t5,cursor:'pointer',fontSize:14,justifySelf:'end'}}>×</button>
 </div>
 ))}
 </div>
+)}
 </div>
 </>}
 </div>
@@ -2223,7 +2238,7 @@ return(
 <div className="card" style={{marginTop:-12}}>
 <div style={{fontSize:13,fontWeight:700,color:C.t1}}>Freedom Map</div>
 <div style={{fontSize:11,color:C.t4,marginTop:2,marginBottom:16}}>The order that builds financial security</div>
-<div style={{display:'flex',alignItems:'flex-start',marginBottom:16,overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+<div className="no-scrollbar" style={{display:'flex',alignItems:'flex-start',marginBottom:16,overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
 {freedomStages.map((s,i)=>(
 <div key={s.key} style={{width:64,flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',position:'relative'}}>
 {i>0&&<div style={{position:'absolute',left:'-50%',top:9,width:'100%',height:2,background:(currentStageIdx===-1||i<=currentStageIdx)?C.green:C.border,zIndex:0}}/>}
@@ -2232,6 +2247,12 @@ return(
 </div>
 ))}
 </div>
+<div onClick={()=>setShowFreedomMapDetails(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:showFreedomMapDetails?12:0}}>
+<span style={{fontSize:11,color:C.t4,fontWeight:600}}>Details</span>
+<span style={{color:C.t4,fontSize:10,display:'inline-block',transform:showFreedomMapDetails?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
+</div>
+{showFreedomMapDetails&&(
+<>
 {freedomStages.map((s,i)=>(
 <div key={s.key} style={{display:'flex',gap:8,alignItems:'flex-start',padding:'7px 10px',background:i===currentStageIdx?'rgba(251,191,36,.06)':'transparent',border:`1px solid ${i===currentStageIdx?'rgba(251,191,36,.25)':'transparent'}`,borderRadius:8,marginBottom:3}}>
 <span style={{fontSize:11,color:s.done?C.green:C.t5,flexShrink:0,width:12}}>{s.done?'✓':'○'}</span>
@@ -2248,7 +2269,15 @@ return(
 </div>
 {emergencyFundTotal===0&&<div style={{fontSize:10,color:C.amber,marginTop:8,fontStyle:'italic'}}>Tick "This is my emergency fund" on an asset in edit mode so the buffer stages can track it.</div>}
 <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
-<Row mb={10}><div style={{fontSize:12,fontWeight:700,color:C.t2}}>Investment Milestones</div><button onClick={()=>setShowAddMilestone(v=>!v)} className={`rb ${showAddMilestone?'on':''}`}>+ Add</button></Row>
+<div onClick={()=>setShowMilestonesSection(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:showMilestonesSection?10:0}}>
+<span style={{fontSize:12,fontWeight:700,color:C.t2}}>Investment Milestones</span>
+<span style={{color:C.t4,fontSize:10,display:'inline-block',transform:showMilestonesSection?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</span>
+</div>
+{showMilestonesSection&&(
+<>
+<div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
+<button onClick={()=>setShowAddMilestone(v=>!v)} className={`rb ${showAddMilestone?'on':''}`}>+ Add</button>
+</div>
 {showAddMilestone&&(
 <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:12,marginBottom:10}}>
 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
@@ -2265,7 +2294,11 @@ return(
 <button onClick={()=>setInvestmentMilestones(prev=>prev.filter(x=>x.id!==m.id))} style={{background:'none',border:'none',color:C.t4,cursor:'pointer',fontSize:16}}>×</button>
 </div>
 ))}
+</>
+)}
 </div>
+</>
+)}
 </div>
 <div className="card" style={{marginTop:-12}}>
 <div style={{fontSize:13,fontWeight:700,color:C.t1}}>Investment Fees</div>
