@@ -2655,14 +2655,20 @@ const map=ledgerlyType==='income'?INCOME_CATEGORY_MAP:CATEGORY_MAP;
 const mapped=t.akahuCategory?map[t.akahuCategory]:undefined;
 return{...t,ledgerlyType,ledgerlyCategory:mapped||'Other',needsReview:!mapped};
 }
+const NEVER_TRANSFER_TYPES=new Set(['EFTPOS','DIRECT DEBIT','PAYMENT','ATM','CREDIT CARD']);
+function canBeTransferLeg(t){
+return !NEVER_TRANSFER_TYPES.has((t.type||'').toUpperCase());
+}
 function dedupeAndMatchTransfers(txns,updatedAccountMap){
 const transferIds=new Set();
 txns.forEach((a,ai)=>{
 if(transferIds.has(a.id))return;
+if(!canBeTransferLeg(a))return;
 let best=null,bestDiff=Infinity;
 txns.forEach((b,bi)=>{
 if(ai===bi||transferIds.has(b.id))return;
 if(a.account===b.account)return;
+if(!canBeTransferLeg(b))return;
 const absAmountMatch=Math.abs(a.amount)===Math.abs(b.amount);
 const oppositeSign=(a.amount>0&&b.amount<0)||(a.amount<0&&b.amount>0);
 const bothOwnAccounts=updatedAccountMap[a.account]&&updatedAccountMap[b.account];
@@ -2722,6 +2728,8 @@ const[txEditingId,setTxEditingId]=useState(null);
 const[showRules,setShowRules]=useState(false);
 const[actualsMode,setActualsMode]=useState(false);
 const importFileRef=useRef(null);
+const[showResync,setShowResync]=useState(false);
+const[resyncDate,setResyncDate]=useState('');
 const chartsRef=useRef(null);
 const chartsAnchor=useRef(null);
 function captureChartsAnchor(){
@@ -2854,14 +2862,14 @@ localStorage.setItem('ft_migration_unlinkmortgage','1');
 setLiabilities(prev=>prev.map(l=>{if(!l.linkMortgage)return l;const{linkMortgage,...rest}=l;return rest;}));
 },[]);
 
-async function handleSync(){
+async function handleSync(forceStartDate){
 if(!AKAHU_ENABLED)return;
 setSyncing(true);
 const syncStart=Date.now();
 try{
 const mostRecent=syncedTransactions.length?syncedTransactions.reduce((latest,t)=>t.date>latest?t.date:latest,'2000-01-01'):null;
-const startDate=mostRecent?new Date(mostRecent):null;
-if(startDate)startDate.setDate(startDate.getDate()-1);
+const startDate=forceStartDate?new Date(forceStartDate):(mostRecent?new Date(mostRecent):null);
+if(startDate&&!forceStartDate)startDate.setDate(startDate.getDate()-1);
 const startParam=startDate?`?start=${dateKey(startDate)}`:'';
 const[txRes,balRes]=await Promise.all([
 fetch(`/.netlify/functions/akahu-transactions${startParam}`),
@@ -3224,12 +3232,19 @@ return <>
 </div>
 </div>
 <div style={{display:"flex",alignItems:"center"}}>
-<button onClick={handleSync} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
+<button onClick={()=>handleSync()} disabled={syncing} style={{background:syncing?C.border:"rgba(110,231,183,.1)",border:`1px solid ${syncing?C.t5:C.green}`,borderRadius:8,padding:"7px 14px",color:syncing?C.t4:C.green,fontSize:12,fontWeight:700,cursor:syncing?"default":"pointer"}}>
 {syncing?"↻ Syncing...":"↻ Sync"}
 </button>
+<button onClick={()=>setShowResync(v=>!v)} className={`rb ${showResync?'oo':''}`} style={{marginLeft:6}}>↻ Resync from date</button>
 </div>
 </div>
 </div>
+{showResync&&(
+<div style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
+<input className="fi" type="date" value={resyncDate} onChange={e=>setResyncDate(e.target.value)} style={{padding:'8px 12px',flex:1}}/>
+<button onClick={()=>{if(resyncDate){handleSync(resyncDate);setShowResync(false);}}} className="rb on" disabled={!resyncDate}>Resync</button>
+</div>
+)}
 {syncError&&(
 <div style={{background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.3)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:C.amber}}>
 ⏱ {syncError}
