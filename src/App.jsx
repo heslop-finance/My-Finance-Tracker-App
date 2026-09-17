@@ -2,13 +2,13 @@ import{useState,useMemo,useRef,useEffect,useLayoutEffect}from"react";
 
 // ── CONSTANTS ──────────────────────────────────────────────────
 const C={
-bg:"#0a0f1e",card:"#0f172a",border:"#1e293b",
-green:"#6ee7b7",red:"#fb7185",amber:"#fbbf24",purple:"#a78bfa",cyan:"#06b6d4",
-t1:"#f1f5f9",t2:"#94a3b8",t3:"#64748b",t4:"#475569",t5:"#334155",
-inc:"rgba(110,231,183,.08)",exp:"rgba(251,113,133,.08)",
-incDk:"#0d2420",expDk:"#1f0d12",
+bg:"#100d1a",card:"#1a1528",border:"#241d38",
+green:"#8fe0b8",red:"#ff8f9c",amber:"#ffc46b",purple:"#7dd3fc",cyan:"#7dd3fc",
+t1:"#f2eefb",t2:"#a79fc0",t3:"#8d84a8",t4:"#6e6688",t5:"#453f5c",
+inc:"rgba(143,224,184,.08)",exp:"rgba(255,143,156,.08)",
+incDk:"#16241d",expDk:"#2a1620",
 };
-const F={mono:"'JetBrains Mono',monospace",sans:"'DM Sans',sans-serif"};
+const F={mono:"'Outfit',sans-serif",sans:"'Plus Jakarta Sans',sans-serif"};
 
 const INCOME_CATS=["Salary","Freelance","Rental Income","Utilities Reimbursement","Investment Returns","Benefits","Government Benefits","Other Income"];
 const EXPENSE_CATS=["Mortgage","Rent","Utilities","Groceries","Transport","Insurance","Rates","Subscriptions","Health","Entertainment","Clothing","House Maintenance","Personal Care","Shopping","Sports & Leisure","Eating & Drinking Out","Pet Care","Garden & Home","Gifts & Donations","Kids","Savings Goal","Sinking Fund","Investments","Travel","Car & Maintenance","Fines","Debt Repayment","Other"];
@@ -243,15 +243,15 @@ return sc;
 
 // ── CSS ────────────────────────────────────────────────────────
 const CSS=`
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body{background:#0a0f1e;overscroll-behavior:none;}
+html,body{background:#100d1a;overscroll-behavior:none;}
 input,select,textarea{outline:none;font-size:16px!important;}
 .fi,.fi-16{font-size:16px;}
 input[type="date"]{-webkit-appearance:none;appearance:none;max-width:100%;min-width:0;}
 input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.5);}
 input[type="range"]{accent-color:#6ee7b7;}
-.bnav{position:fixed;bottom:0;left:0;right:0;background:#0f172a;border-top:1px solid #1e293b;display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom);}
+.bnav{position:fixed;bottom:0;left:0;right:0;background:#1a1528;border-top:none;display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom);}
 .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;border:none;background:none;cursor:pointer;gap:3px;}
 .bnav-btn span{font-size:18px;line-height:1;}
 .bnav-btn div{font-size:10px;font-weight:600;font-family:'DM Sans',sans-serif;}
@@ -260,35 +260,35 @@ input[type="range"]{accent-color:#6ee7b7;}
 .hscroll>*{flex-shrink:0;}
 .no-scrollbar{scrollbar-width:none;}
 .no-scrollbar::-webkit-scrollbar{display:none;}
-.card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:20px;margin-bottom:20px;}
-.fi{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#f1f5f9;font-family:'DM Sans',sans-serif;font-size:16px;width:100%;box-sizing:border-box;}
-.fi:focus{border-color:#6ee7b7;}
+.card{background:#1a1528;border:none;border-radius:24px;padding:22px;margin-bottom:16px;}
+.fi{background:#241d38;border:1px solid #453f5c;border-radius:12px;padding:11px 14px;color:#f2eefb;font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;width:100%;box-sizing:border-box;}
+.fi:focus{border-color:#7dd3fc;}
 .tab-btn{background:none;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .2s;white-space:nowrap;color:#64748b;}
 .tab-btn.active{background:#1e293b;color:#f1f5f9;}
 .period-btn{border:1px solid #1e293b;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:#64748b;background:none;white-space:nowrap;}
 .period-btn.active{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;}
-.add-btn{background:linear-gradient(135deg,#6ee7b7,#3b82f6);border:none;border-radius:10px;padding:13px 28px;color:#0a0f1e;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;}
-.tt{display:flex;background:#1e293b;border-radius:10px;padding:4px;gap:4px;}
+.add-btn{background:linear-gradient(135deg,#7dd3fc,#38bdf8);border:none;border-radius:14px;padding:13px 28px;color:#100d1a;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;cursor:pointer;}
+.tt{display:flex;background:#241d38;border-radius:14px;padding:4px;gap:4px;}
 .tb{flex:1;border:none;border-radius:7px;padding:9px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
-.tb.inc{background:rgba(110,231,183,.2);color:#6ee7b7;}
-.tb.exp{background:rgba(251,113,133,.2);color:#fb7185;}
+.tb.inc{background:rgba(143,224,184,.18);color:#8fe0b8;}
+.tb.exp{background:rgba(255,143,156,.18);color:#ff8f9c;}
 .tb.off{background:transparent;color:#475569;}
-.rb{border:1px solid #1e293b;cursor:pointer;padding:7px 10px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:#64748b;background:none;white-space:nowrap;}
-.rb.on{background:rgba(110,231,183,.1);border-color:#6ee7b7;color:#6ee7b7;}
-.rb.oo{background:rgba(251,191,36,.1);border-color:#fbbf24;color:#fbbf24;}
-.cc{background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;}
-.cc.active{background:rgba(110,231,183,.07);border-color:#6ee7b7;}
+.rb{border:1px solid #241d38;cursor:pointer;padding:7px 12px;border-radius:12px;font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:#8d84a8;background:none;white-space:nowrap;}
+.rb.on{background:rgba(125,211,252,.12);border-color:#7dd3fc;color:#7dd3fc;}
+.rb.oo{background:rgba(255,196,107,.12);border-color:#ffc46b;color:#ffc46b;}
+.cc{background:#1a1528;border:none;border-radius:16px;padding:14px 12px;cursor:pointer;text-align:center;}
+.cc.active{background:#241d38;border:1px solid #7dd3fc;}
 `;
 
 // ── SMALL HELPERS ──────────────────────────────────────────────
-const Mono=({children,color,size=14})=><span style={{fontFamily:F.sans,fontSize:size,fontWeight:700,color,letterSpacing:"-0.02em"}}>{children}</span>;
+const Mono=({children,color,size=14})=><span style={{fontFamily:F.mono,fontSize:size,fontWeight:600,color,letterSpacing:"-0.03em"}}>{children}</span>;
 const Label=({children,color=C.t3,size=11,mb=4})=><div style={{fontSize:size,color,marginBottom:mb,textTransform:"uppercase",letterSpacing:".07em",fontWeight:700}}>{children}</div>;
 const Row=({children,mb=0})=><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:mb}}>{children}</div>;
 const Btn=({children,onClick,bg="#1e293b",border="#334155",color=C.t2,style={}})=>(
 <button onClick={onClick} style={{background:bg,border:`1px solid ${border}`,borderRadius:8,padding:"6px 12px",color,fontSize:11,fontWeight:600,cursor:"pointer",...style}}>{children}</button>
 );
 const GradBtn=({children,onClick,style={}})=>(
-<button onClick={onClick} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",borderRadius:8,padding:"9px 20px",color:C.bg,fontWeight:700,fontSize:13,cursor:"pointer",width:"100%",...style}}>{children}</button>
+<button onClick={onClick} style={{background:"linear-gradient(135deg,#7dd3fc,#38bdf8)",border:"none",borderRadius:14,padding:"11px 20px",color:C.bg,fontWeight:800,fontSize:13,cursor:"pointer",width:"100%",...style}}>{children}</button>
 );
 const StatCard=({label,value,color,sub,bg=C.card,border=C.border,labelColor=C.t3})=>(
 <div style={{background:bg,border:`1px solid ${border}`,borderRadius:16,padding:"18px 16px",minWidth:155,flexShrink:0}}>
@@ -724,9 +724,9 @@ return(
 <div key={y.year} onClick={()=>setSelYear(selYear===y.year?null:y.year)} style={{background:selYear===y.year?"rgba(110,231,183,.18)":C.bg,border:`1px solid ${selYear===y.year?C.green:y.isCurrent?C.green:C.border}`,borderRadius:10,padding:"8px 10px",opacity:y.isFuture?0.35:1,cursor:"pointer"}}>
 <div style={{fontSize:11,fontWeight:700,color:y.isCurrent?C.green:C.t3,marginBottom:4}}>{y.year}</div>
 {y.isFuture?<div style={{fontSize:10,color:C.t5}}>—</div>:<>
-{y.inc>0&&<div style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,letterSpacing:"-0.02em",color:C.green}}>+{fmtS(y.inc)}</div>}
-{y.exp>0&&<div style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,letterSpacing:"-0.02em",color:C.red}}>−{fmtS(y.exp)}</div>}
-{y.sav>0&&<div style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,letterSpacing:"-0.02em",color:C.cyan}}>↑{fmtS(y.sav)}</div>}
+{y.inc>0&&<div style={{fontSize:10,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.green}}>+{fmtS(y.inc)}</div>}
+{y.exp>0&&<div style={{fontSize:10,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.red}}>−{fmtS(y.exp)}</div>}
+{y.sav>0&&<div style={{fontSize:10,fontFamily:F.sans,fontWeight:700,letterSpacing:"-0.02em",color:C.cyan}}>↑{fmtS(y.sav)}</div>}
 {!y.inc&&!y.exp&&!y.sav&&<div style={{fontSize:10,color:C.t5}}>—</div>}
 </>}
 </div>
@@ -2020,7 +2020,7 @@ return(
 {hoverSnap!==null&&chartSnaps[hoverSnap]&&(()=>{
 const s=chartSnaps[hoverSnap],cx=xS(hoverSnap),cy=yS(s.netWorth);
 const tx=cx>W*.7?cx-108:cx+8,ty=cy<40?cy+8:cy-52;
-return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} stroke={C.border}/><text x={tx+8} y={ty+14} fill={C.t3} fontSize={9}>{s.date}</text><text x={tx+8} y={ty+30} fill={nwColor} fontSize={12} fontWeight="700" fontFamily="DM Sans" letterSpacing="-0.02em">{fmt(s.netWorth)}</text></g>;
+return <g><rect x={tx} y={ty} width={100} height={40} rx={6} fill={C.card} stroke={C.border}/><text x={tx+8} y={ty+14} fill={C.t3} fontSize={9}>{s.date}</text><text x={tx+8} y={ty+30} fill={nwColor} fontSize={12} fontWeight="700" fontFamily={F.sans} letterSpacing="-0.02em">{fmt(s.netWorth)}</text></g>;
 })()}
 </svg>
 </div>
@@ -2553,7 +2553,7 @@ style={{background:t.needsReview?"rgba(251,191,36,.06)":C.bg,border:`1px solid $
 </div>
 </div>
 <div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
-<span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:13,letterSpacing:"-0.02em",color:t.ledgerlyType==="income"?C.green:C.red}}>
+<span style={{fontFamily:F.sans,fontWeight:700,fontSize:13,letterSpacing:"-0.02em",color:t.ledgerlyType==="income"?C.green:C.red}}>
 {t.ledgerlyType==="income"?"+":"−"}{Math.abs(t.amount).toLocaleString("en-NZ",{minimumFractionDigits:2,maximumFractionDigits:2})}
 </span>
 </div>
@@ -3018,7 +3018,7 @@ return(
 <style>{CSS}</style>
 <div style={{background:"linear-gradient(180deg,#0f172a 0%,#0a0f1e 100%)",borderBottom:`1px solid ${C.border}`,padding:"14px 24px 12px",paddingTop:'env(safe-area-inset-top)',position:"sticky",top:0,zIndex:50}}>
 <div style={{maxWidth:720,margin:"0 auto"}}>
-<div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,letterSpacing:"-0.5px",marginBottom:12}} onClick={()=>{setHeaderTapCount(prev=>{const next=prev+1;clearTimeout(headerTapTimer.current);if(next>=5){const enabled=localStorage.getItem('ft_akahu_enabled')==='true';if(enabled){localStorage.removeItem('ft_akahu_enabled');alert('Akahu sync disabled. Reloading...');}else{localStorage.setItem('ft_akahu_enabled','true');alert('Akahu sync enabled. Reloading...');}window.location.reload();return 0;}headerTapTimer.current=setTimeout(()=>setHeaderTapCount(0),1500);return next;});}}>Ledgerly</div>
+<div style={{fontFamily:"'Outfit',sans-serif",fontWeight:500,fontSize:26,letterSpacing:"-0.5px",marginBottom:12}} onClick={()=>{setHeaderTapCount(prev=>{const next=prev+1;clearTimeout(headerTapTimer.current);if(next>=5){const enabled=localStorage.getItem('ft_akahu_enabled')==='true';if(enabled){localStorage.removeItem('ft_akahu_enabled');alert('Akahu sync disabled. Reloading...');}else{localStorage.setItem('ft_akahu_enabled','true');alert('Akahu sync enabled. Reloading...');}window.location.reload();return 0;}headerTapTimer.current=setTimeout(()=>setHeaderTapCount(0),1500);return next;});}}>Ledgerly</div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
 {[{key:"weekly",label:"W"},{key:"fortnightly",label:"Fn"},{key:"monthly",label:"M"},{key:"yearly",label:"Y"}].map(p=><button key={p.key} onClick={()=>{captureChartsAnchor();setDisplayPeriod(p.key);setAllTime(false);}} style={{border:`1px solid ${displayPeriod===p.key&&!allTime?C.green:C.border}`,borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",background:displayPeriod===p.key&&!allTime?"rgba(110,231,183,.1)":"none",color:displayPeriod===p.key&&!allTime?C.green:C.t3,whiteSpace:"nowrap"}}>{p.label}</button>)}
 </div>
@@ -3060,8 +3060,8 @@ return <div key={key}><label style={{fontSize:10,color:C.purple,display:"block",
 {label:"Freedom Rate",value:`${fmtN(displayFreedomRate)}%`,color:displayFreedomRate>=15?C.green:displayFreedomRate>=10?C.amber:C.red,sub:displayFreedomRate>=15?"Strong":displayFreedomRate>=10?"On track":"Build up"},
 ].map(c=>(
 <StatCard key={c.label} label={c.label} value={c.value} color={c.color} sub={c.sub}
-bg={c.scenario?"rgba(167,139,250,.2)":c.highlight?(displayBalance>=0?"rgba(110,231,183,.08)":displayBalance>=-200?"rgba(251,191,36,.08)":"rgba(251,113,133,.08)"):C.card}
-border={c.scenario?"rgba(167,139,250,.7)":c.highlight?(displayBalance>=0?"rgba(110,231,183,.2)":displayBalance>=-200?"rgba(251,191,36,.2)":"rgba(251,113,133,.2)"):C.border}
+bg={c.scenario?"rgba(125,211,252,.15)":c.highlight?"linear-gradient(160deg,#241d38 0%,#1a1528 70%)":C.card}
+border="none"
 labelColor={c.scenario?C.purple:C.t3}/>
 ))}
 </div>
