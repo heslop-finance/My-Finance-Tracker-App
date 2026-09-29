@@ -75,12 +75,12 @@ const pad=n=>String(n).padStart(2,"0");
 const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const localDateFromTimestamp=ts=>{if(!ts)return null;const d=new Date(ts);return isNaN(d)?null:dateKey(d);};
 const todayStr=dateKey(today);
-const PAY_CYCLE_ANCHOR=new Date(2026,4,5);
+const PAY_CYCLE_ANCHOR=new Date(2026,4,5); // Tue 5 May 2026 payday, local midnight
 function getPeriodStart(periodKey){
 const now=new Date();
 const todayMidnight=new Date(now.getFullYear(),now.getMonth(),now.getDate());
 if(periodKey==='weekly'){const start=new Date(todayMidnight);start.setDate(start.getDate()-6);return start;}
-if(periodKey==='fortnightly'){const daysSinceAnchor=Math.floor((todayMidnight-PAY_CYCLE_ANCHOR)/86400000);const daysSinceLastPay=((daysSinceAnchor%14)+14)%14;const start=new Date(todayMidnight);start.setDate(start.getDate()-daysSinceLastPay);return start;}
+if(periodKey==='fortnightly'){const daysSinceAnchor=Math.round((todayMidnight-PAY_CYCLE_ANCHOR)/86400000);const daysSinceLastPay=((daysSinceAnchor%14)+14)%14;const start=new Date(todayMidnight);start.setDate(start.getDate()-daysSinceLastPay);return start;}
 if(periodKey==='monthly'){return new Date(now.getFullYear(),now.getMonth(),1);}
 if(periodKey==='yearly'){return new Date(now.getFullYear(),0,1);}
 return new Date(todayMidnight);
@@ -198,7 +198,7 @@ const longestSchedule=psList.find(ps=>ps.schedule.length===maxLen)?.schedule||[]
 const paidOffDate=longestSchedule.length?longestSchedule[longestSchedule.length-1].date:null;
 const balanceToday=psList.reduce((s,ps)=>{
 if(!ps.schedule.length)return s;
-const cur=ps.schedule.find(m=>new Date(m.date)>=new Date(todayStr));
+const cur=ps.schedule.find(m=>new Date(m.date)>=parseDt(todayStr));
 return s+(cur?cur.balance:ps.schedule[ps.schedule.length-1].balance);
 },0);
 return{maxLen,monthlyPmt,totalInterest,paidOffDate,balanceToday};
@@ -1237,7 +1237,7 @@ const DEFAULT_LOAN_CFG={startDate:"2025-01-01",termYears:30};
 
 function portionRateAlert(p){
 if(!p.fixedUntil)return null;
-const expiry=new Date(p.fixedUntil),daysLeft=Math.round((expiry-new Date(todayStr))/(1000*60*60*24));
+const expiry=parseDt(p.fixedUntil),daysLeft=Math.round((expiry-parseDt(todayStr))/(1000*60*60*24));
 if(daysLeft<0)return{color:C.red,icon:"⚠️",title:`${p.label} — fixed rate has expired`,msg:`Expired ${Math.abs(daysLeft)} days ago`};
 if(daysLeft<=90)return{color:C.red,icon:"🔔",title:`${p.label} — fixed rate expiring soon`,msg:`${daysLeft} days left · ${p.fixedUntil}`};
 if(daysLeft<=180)return{color:C.amber,icon:"📅",title:`${p.label} — fixed rate expiring in ${daysLeft} days`,msg:`Expires ${p.fixedUntil}`};
@@ -1351,7 +1351,7 @@ const nr=Number(refi.rate),nt=Number(refi.termYears),nc=Number(refi.costs)||0;
 if(!nr||!nt)return null;
 function portionCurrentState(ps){
 if(!ps||!ps.schedule.length)return null;
-const idx=ps.schedule.findIndex(m=>new Date(m.date)>=new Date(todayStr));
+const idx=ps.schedule.findIndex(m=>new Date(m.date)>=parseDt(todayStr));
 const cur=idx>=0?ps.schedule[idx]:ps.schedule[ps.schedule.length-1];
 const monthsLeft=idx>=0?ps.schedule.length-idx:1;
 return{balance:cur.balance,rate:cur.rate,monthsLeft};
